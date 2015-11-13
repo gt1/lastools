@@ -8,19 +8,24 @@ man_MANS = ${MANPAGES}
 
 EXTRA_DIST = ${MANPAGES}
 
-bin_PROGRAMS = lassort lasindex lastobam
+bin_PROGRAMS = lassort lasindex lastobam reformatfasta
 
 lasindex_SOURCES = lasindex.cpp
-lasindex_LDADD = ${LIBMAUS2LIBS} 
+lasindex_LDADD = ${LIBMAUS2LIBS}
 lasindex_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
 lasindex_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
 
 lassort_SOURCES = lassort.cpp
-lassort_LDADD = ${LIBMAUS2LIBS} 
+lassort_LDADD = ${LIBMAUS2LIBS}
 lassort_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
 lassort_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
 
 lastobam_SOURCES = lastobam.cpp
-lastobam_LDADD = ${LIBMAUS2LIBS} 
+lastobam_LDADD = ${LIBMAUS2LIBS}
 lastobam_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
 lastobam_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
+
+reformatfasta_SOURCES = reformatfasta.cpp
+reformatfasta_LDADD = ${LIBMAUS2LIBS}
+reformatfasta_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
+reformatfasta_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
