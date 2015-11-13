@@ -2174,7 +2174,7 @@ int lastobam(libmaus2::util::ArgParser const & arg)
                                 	assert ( strlen(Preadnames[i]) );
 				}
                                 
-				for ( uint64_t f = 2; f < arg.size(); ++f )
+				for ( uint64_t f = 3; f < arg.size(); ++f )
 				{
 					std::string const lasfn = arg[f];
 					int64_t const tspace = libmaus2::dazzler::align::AlignmentFile::getTSpace(lasfn);
