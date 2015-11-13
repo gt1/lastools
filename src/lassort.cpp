@@ -51,7 +51,7 @@ int lassort(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo const
 		infilenames.push_back(arg[i]);
 	
 	if ( sortorder == "ba" )
-		libmaus2::dazzler::align::SortingOverlapOutputBuffer<libmaus2::dazzler::align::OverlapComparatorBReadARead>::sortAndMerge(infilenames,outfilename,tmpfilebase,mergefanin,numthreads);
+		libmaus2::dazzler::align::SortingOverlapOutputBuffer<libmaus2::dazzler::align::OverlapComparatorBReadARead>::sortAndMerge(infilenames,outfilename,tmpfilebase,mergefanin,1 /* numthreads */);
 	else
 		libmaus2::dazzler::align::SortingOverlapOutputBuffer<>::sortAndMerge(infilenames,outfilename,tmpfilebase,mergefanin,numthreads);			
 
