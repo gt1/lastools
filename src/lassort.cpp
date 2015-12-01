@@ -33,7 +33,7 @@ std::string getUsage(libmaus2::util::ArgParser const & arg)
 	ostr << " -T : prefix for temporary files (default: create files in current working directory)\n";
 	ostr << " -f : merge fan in (default: 64)\n";
 	ostr << " -s : sort order (canonical or ba, default: canonical)\n";
-	
+
 	return ostr.str();
 }
 
@@ -44,16 +44,16 @@ int lassort(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo const
 	uint64_t const mergefanin = arg.uniqueArgPresent("f") ? arg.getUnsignedNumericArg<uint64_t>("f") : 64;
 	std::string const sortorder = arg.uniqueArgPresent("s") ? arg["s"] : std::string("canonical");
 	assert ( mergefanin );
-	
+
 	std::string const outfilename = arg[0];
 	std::vector<std::string> infilenames;
 	for ( uint64_t i = 1; i < arg.size(); ++i )
 		infilenames.push_back(arg[i]);
-	
+
 	if ( sortorder == "ba" )
 		libmaus2::dazzler::align::SortingOverlapOutputBuffer<libmaus2::dazzler::align::OverlapComparatorBReadARead>::sortAndMerge(infilenames,outfilename,tmpfilebase,mergefanin,1 /* numthreads */);
 	else
-		libmaus2::dazzler::align::SortingOverlapOutputBuffer<>::sortAndMerge(infilenames,outfilename,tmpfilebase,mergefanin,numthreads);			
+		libmaus2::dazzler::align::SortingOverlapOutputBuffer<>::sortAndMerge(infilenames,outfilename,tmpfilebase,mergefanin,numthreads);
 
 	return EXIT_SUCCESS;
 }
@@ -72,7 +72,7 @@ int main(int argc, char *argv[])
 		if ( arg.argPresent("h") || arg.argPresent("help") )
 		{
 			std::cerr << getUsage(arg);
-			return EXIT_SUCCESS;		
+			return EXIT_SUCCESS;
 		}
 		else if ( arg.argPresent("version") )
 		{

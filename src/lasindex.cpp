@@ -24,7 +24,7 @@ std::string getUsage(libmaus2::util::ArgParser const & arg)
 	std::ostringstream ostr;
 
 	ostr << "usage: " << arg.progname << " <in.las> ..." << std::endl;
-	
+
 	return ostr.str();
 }
 
@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
 		if ( arg.argPresent("h") || arg.argPresent("help") )
 		{
 			std::cerr << getUsage(arg);
-			return EXIT_SUCCESS;		
+			return EXIT_SUCCESS;
 		}
 		else if ( arg.argPresent("version") )
 		{
@@ -61,7 +61,7 @@ int main(int argc, char *argv[])
 			std::cerr << getUsage(arg);
 			return EXIT_FAILURE;
 		}
-				
+
 		return lasindex(arg);
 	}
 	catch(std::exception const & ex)

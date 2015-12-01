@@ -49,11 +49,11 @@ void fastareformat(libmaus2::util::ArgParser const & arg, reader_type & reader)
 	libmaus2::random::Random::setup();
 	bool replaced = false;
 	bool replaceprinted = false;
-	
+
 	while ( reader.getNextPatternUnlocked(pattern) )
 	{
 		std::string s = pattern.spattern;
-		
+
 		if ( randomN )
 			for ( uint64_t i = 0; i < s.size(); ++i )
 				if ( libmaus2::fastx::mapChar(s[i]) >= 4 )
@@ -62,23 +62,23 @@ void fastareformat(libmaus2::util::ArgParser const & arg, reader_type & reader)
 					replaced = true;
 				}
 		char const * c = s.c_str();
-		
+
 		if ( replaced && ! replaceprinted )
 		{
 			std::cerr << "[V] warning, replacing non ACGT symbols with random bases" << std::endl;
 			replaceprinted = true;
 		}
-				
+
 		std::cout << '>' << prolog << '/' << (readid++) << '/' << 0 << '_' << s.size() << " RQ=0.851 " << pattern.sid << "\n";
 		uint64_t low = 0;
-		
+
 		while ( low < s.size() )
 		{
 			uint64_t const high = std::min(low+cols,static_cast<uint64_t>(s.size()));
-			
+
 			std::cout.write(c+low,high-low);
 			std::cout.put('\n');
-			
+
 			low = high;
 		}
 	}
@@ -93,7 +93,7 @@ int main(int argc, char * argv[])
 		if ( arg.argPresent("h") || arg.argPresent("help") )
 		{
 			std::cerr << getUsage(arg);
-			return EXIT_SUCCESS;		
+			return EXIT_SUCCESS;
 		}
 		else if ( arg.argPresent("version") )
 		{
@@ -102,18 +102,18 @@ int main(int argc, char * argv[])
 		}
 
 		libmaus2::aio::PosixFdInputStream PFIS(STDIN_FILENO,64*1024,1024);
-		
+
 		int const c = PFIS.peek();
-		
+
 		if ( c == '>' || c == std::istream::traits_type::eof() )
 		{
-			libmaus2::fastx::StreamFastAReaderWrapper in(PFIS);	
-			fastareformat(arg,in);	
+			libmaus2::fastx::StreamFastAReaderWrapper in(PFIS);
+			fastareformat(arg,in);
 		}
 		else if ( c == '@' )
 		{
-			libmaus2::fastx::StreamFastQReaderWrapper in(PFIS);	
-			fastareformat(arg,in);			
+			libmaus2::fastx::StreamFastQReaderWrapper in(PFIS);
+			fastareformat(arg,in);
 		}
 		else
 		{
@@ -121,7 +121,7 @@ int main(int argc, char * argv[])
 			lme.getStream() << "Unknown input file format, first character " << static_cast<char>(c) << std::endl;
 			lme.finish();
 			throw lme;
-		}	
+		}
 	}
 	catch(std::exception const & ex)
 	{

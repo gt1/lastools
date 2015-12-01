@@ -105,7 +105,7 @@ struct RgInfo
 	std::string PM;
 	std::string PU;
 	std::string SM;
-	
+
 	RgInfo() {}
 	RgInfo(libmaus2::util::ArgParser const & arg)
 	:
@@ -123,17 +123,17 @@ struct RgInfo
 		PU(arg.uniqueArgPresent("RGPU") ? arg.getEqArg("RGPU") : std::string()),
 		SM(arg.uniqueArgPresent("RGSM") ? arg.getEqArg("RGSM") : std::string())
 	{
-		
+
 	}
-	
+
 	std::string toString() const
 	{
 		std::ostringstream ostr;
-		
+
 		if ( ID.size() )
 		{
 			ostr << "@RG\tID:" << ID;
-			
+
 			if ( CN.size() ) ostr << "\tCN:" << CN;
 			if ( DS.size() ) ostr << "\tDS:" << DS;
 			if ( DT.size() ) ostr << "\tDT:" << DT;
@@ -146,10 +146,10 @@ struct RgInfo
 			if ( PM.size() ) ostr << "\tPM:" << PM;
 			if ( PU.size() ) ostr << "\tPU:" << PU;
 			if ( SM.size() ) ostr << "\tSM:" << SM;
-			
+
 			ostr << "\n";
 		}
-		
+
 		return ostr.str();
 	}
 };
@@ -179,53 +179,53 @@ struct RElement
 	bool final;
 
 	std::vector < std::pair<uint64_t,uint64_t> > split;
-			
+
 	RElement() {}
 	RElement(
 		libmaus2::dazzler::align::OverlapData::shared_ptr_type rodata,
 		uint64_t rid,
 		bool rfinal
 	) : odata(rodata), id(rid), final(rfinal) {}
-	
+
 	bool operator<(RElement const & rhs) const
 	{
 		return id < rhs.id;
 	}
-	
+
 	void computeSplit(uint64_t const tparts)
 	{
 		uint64_t const tpartsize = (odata->size() + tparts - 1) / tparts;
 		split.resize(0);
-				
+
 		uint64_t l = 0;
 		while ( l < odata->size() )
 		{
 			// upper limit, not included
 			uint64_t h = std::min(odata->size(),l + tpartsize);
 			assert ( h > l );
-			
-			while ( 
+
+			while (
 				h < odata->size() &&
 				libmaus2::dazzler::align::OverlapData::getBRead(odata->getData(h-1).first) == libmaus2::dazzler::align::OverlapData::getBRead(odata->getData(h).first)
 			)
 				++h;
-	
+
 			split.push_back(std::pair<uint64_t,uint64_t>(l,h));
-				
+
 			l = h;
 		}
-		
+
 		while ( split.size() < tparts )
 			split.push_back(std::pair<uint64_t,uint64_t>(odata->size(),odata->size()));
-			
+
 		for ( uint64_t i = 1; i < split.size(); ++i )
 			if ( split[i].second != split[i].first )
 			{
 				assert ( split[i-1].second != split[i-1].first );
-				
+
 				uint8_t const * prev = odata->getData(split[i-1].second-1).first;
 				uint8_t const * cur = odata->getData(split[i].first).first;
-				
+
 				assert ( libmaus2::dazzler::align::OverlapData::getBRead(prev) != libmaus2::dazzler::align::OverlapData::getBRead(cur) );
 			}
 	}
@@ -266,18 +266,18 @@ struct RecodePackage
 	typedef RecodePackage this_type;
 	typedef libmaus2::util::unique_ptr<this_type>::type unique_ptr_type;
 	typedef libmaus2::util::shared_ptr<this_type>::type shared_ptr_type;
-	
+
 	int64_t p_low;
 	int64_t p_high;
 	std::string lasfn;
-	
+
 	RecodePackage() : p_low(-1), p_high(-1), lasfn()
 	{}
-	
+
 	RecodePackage(int64_t const rp_low, int64_t const rp_high, std::string const & rlasfn)
 	: p_low(rp_low), p_high(rp_high), lasfn(rlasfn)
 	{
-	
+
 	}
 };
 
@@ -350,7 +350,7 @@ struct OverlapReadWorkPackage : public libmaus2::parallel::SimpleThreadWorkPacka
 	OverlapReadWorkPackage(uint64_t const rpriority, uint64_t const rdispatcherid, uint64_t const rpackageid = 0)
 	: libmaus2::parallel::SimpleThreadWorkPackage(rpriority,rdispatcherid,rpackageid)
 	{
-	
+
 	}
 	virtual ~OverlapReadWorkPackage() {}
 
@@ -378,7 +378,7 @@ struct OverlapReadWorkPackageDispatcher : public libmaus2::parallel::SimpleThrea
 	typedef OverlapReadWorkPackageDispatcher this_type;
 	typedef libmaus2::util::unique_ptr<this_type>::type unique_ptr_type;
 	typedef libmaus2::util::shared_ptr<this_type>::type shared_ptr_type;
-	
+
 	uint64_t const dispatcherid;
 	libmaus2::dazzler::align::SimpleOverlapParser * PSOP;
 	libmaus2::parallel::LockedFreeList<libmaus2::dazzler::align::OverlapData,OverlapDataAllocator,OverlapDataTypeInfo> & ODFL;
@@ -391,7 +391,7 @@ struct OverlapReadWorkPackageDispatcher : public libmaus2::parallel::SimpleThrea
 	int volatile finished;
 
 	libmaus2::parallel::LockedGrowingFreeList<RElement,RElementAllocator,RElementTypeInfo> & REFL;
-	
+
 	bool getFinished()
 	{
 		int lfinished;
@@ -400,12 +400,12 @@ struct OverlapReadWorkPackageDispatcher : public libmaus2::parallel::SimpleThrea
 		finishedLock.unlock();
 		return lfinished;
 	}
-	
+
 	void setFinished()
 	{
 		finishedLock.lock();
 		finished = true;
-		finishedLock.unlock();	
+		finishedLock.unlock();
 	}
 
 	OverlapReadWorkPackageDispatcher(
@@ -418,17 +418,17 @@ struct OverlapReadWorkPackageDispatcher : public libmaus2::parallel::SimpleThrea
 	) : dispatcherid(rdispatcherid), PSOP(rPSOP), ODFL(rODFL), finishedInterface(rfinishedInterface), enqueInterface(renqueInterface), id(1), finished(0),
 	    REFL(rREFL)
 	{
-	
+
 	}
-		
+
 	virtual ~OverlapReadWorkPackageDispatcher() {}
 	virtual void dispatch(libmaus2::parallel::SimpleThreadWorkPackage * P, libmaus2::parallel::SimpleThreadPoolInterfaceEnqueTermInterface & /* tpi */)
 	{
 		OverlapReadWorkPackage * BP = dynamic_cast<OverlapReadWorkPackage *>(P);
 		assert ( BP );
-		
+
 		std::vector < RElement::shared_ptr_type > R;
-		
+
 		if ( lock.trylock() )
 		{
 			libmaus2::parallel::ScopePosixSpinLock slock(lock,true /* pre locked */);
@@ -453,10 +453,10 @@ struct OverlapReadWorkPackageDispatcher : public libmaus2::parallel::SimpleThrea
 				}
 			}
 		}
-		
+
 		for ( uint64_t i = 0; i < R.size(); ++i )
 			enqueInterface.overlapDataRead(R[i]);
-		
+
 		finishedInterface.overlapReadWorkPackageFinished(BP);
 	}
 };
@@ -487,7 +487,7 @@ struct AlignerAllocator
 	libmaus2::lcs::Aligner::shared_ptr_type operator()() const
 	{
 		std::set<libmaus2::lcs::AlignerFactory::aligner_type> const S = libmaus2::lcs::AlignerFactory::getSupportedAligners();
-		
+
 		if ( S.find(libmaus2::lcs::AlignerFactory::libmaus2_lcs_AlignerFactory_y256_8) != S.end() )
 		{
 			libmaus2::lcs::Aligner::unique_ptr_type T(libmaus2::lcs::AlignerFactory::construct(libmaus2::lcs::AlignerFactory::libmaus2_lcs_AlignerFactory_y256_8));
@@ -511,7 +511,7 @@ struct AlignerAllocator
 			libmaus2::exception::LibMausException lme;
 			lme.getStream() << "AlignerAllocator: no aligners found" << std::endl;
 			lme.finish();
-			throw lme;		
+			throw lme;
 		}
 
 	}
@@ -529,14 +529,14 @@ struct LASToBAMConverter
 	libmaus2::autoarray::AutoArray<char> const & refdata;
 	uint64_t const ref_low;
 	uint64_t const ref_high;
-	
+
 	std::vector<uint64_t> const & readsoff;
 	libmaus2::autoarray::AutoArray<char> const & readsdata;
 	uint64_t const reads_low;
 	uint64_t const reads_high;
 
 	libmaus2::autoarray::AutoArray<char const *> const & Preadnames;
-	
+
 	#define USE_DALIGNER
 
 	#if defined(LIBMAUS2_HAVE_DALIGNER) && defined(USE_DALIGNER)
@@ -552,7 +552,7 @@ struct LASToBAMConverter
 	::libmaus2::fastx::UCharBuffer tbuffer;
 	::libmaus2::bambam::MdStringComputationContext context;
 	::libmaus2::bambam::BamSeqEncodeTable const seqenc;
-		
+
 	int64_t const tspace;
 	bool const small;
 
@@ -561,22 +561,22 @@ struct LASToBAMConverter
 	libmaus2::autoarray::AutoArray<std::pair<libmaus2::lcs::AlignmentTraceContainer::step_type,uint64_t> > Aopblocks;
 	libmaus2::autoarray::AutoArray<libmaus2::bambam::cigar_operation> Acigop;
 	libmaus2::autoarray::AutoArray<uint8_t> ASQ;
-	
+
 	enum supplementary_seq_strategy_t {
 		supplementary_seq_strategy_soft,
 		supplementary_seq_strategy_hard,
 		supplementary_seq_strategy_none
 	};
-	
+
 	supplementary_seq_strategy_t const supplementary_seq_strategy;
-	
+
 	std::string const rgid;
-	
-	
+
+
 	static libmaus2::lcs::Aligner::unique_ptr_type constructAligner()
 	{
 		std::set<libmaus2::lcs::AlignerFactory::aligner_type> const S = libmaus2::lcs::AlignerFactory::getSupportedAligners();
-		
+
 		if ( S.find(libmaus2::lcs::AlignerFactory::libmaus2_lcs_AlignerFactory_Daligner_NP) != S.end() )
 		{
 			libmaus2::lcs::Aligner::unique_ptr_type T(libmaus2::lcs::AlignerFactory::construct(libmaus2::lcs::AlignerFactory::libmaus2_lcs_AlignerFactory_Daligner_NP));
@@ -607,7 +607,7 @@ struct LASToBAMConverter
 			libmaus2::exception::LibMausException lme;
 			lme.getStream() << "LASToBAMConverter::constructAligner: no aligners found" << std::endl;
 			lme.finish();
-			throw lme;		
+			throw lme;
 		}
 	}
 
@@ -626,7 +626,7 @@ struct LASToBAMConverter
 		supplementary_seq_strategy_t const rsupplementaryStrategy,
 		std::string const rrgid
 	)
-	: 
+	:
 	  refoff(rrefoff),
 	  refdata(rrefdata),
 	  ref_low(rref_low),
@@ -668,19 +668,19 @@ struct LASToBAMConverter
 		int64_t const aread = libmaus2::dazzler::align::OverlapData::getARead(OVL);
 		int64_t const bread = libmaus2::dazzler::align::OverlapData::getBRead(OVL);
 
-		if ( 
+		if (
 			!
 			(
-				aread >= static_cast<int64_t>(ref_low) && 
+				aread >= static_cast<int64_t>(ref_low) &&
 				aread < static_cast<int64_t>(ref_high) &&
-				bread >= static_cast<int64_t>(reads_low) && 
+				bread >= static_cast<int64_t>(reads_low) &&
 				bread < static_cast<int64_t>(reads_high)
 			)
 		)
 		{
 			return;
 		}
-		
+
 		bool const bIsInverse = libmaus2::dazzler::align::OverlapData::getFlags(OVL) & 1;
 		int64_t const abpos = libmaus2::dazzler::align::OverlapData::getABPos(OVL);
 		int64_t const aepos = libmaus2::dazzler::align::OverlapData::getAEPos(OVL);
@@ -694,7 +694,7 @@ struct LASToBAMConverter
 		// length of ref seq
 		uint64_t const reflen = reflenp - 2;
 		char const * aptr = refdata.begin() + refbaseoff + 1;
-		
+
 		uint64_t const readbaseoff = readsoff [ bread - reads_low ];
 		// length of padded read
 		uint64_t const readlenp = (readsoff [ bread - reads_low + 1 ] - readsoff [ bread - reads_low ]) >> 1;
@@ -704,7 +704,7 @@ struct LASToBAMConverter
 		char const * bptr = readsdata.begin() + readbaseoff + (bIsInverse ? readlenp : 0) + 1;
 
 		char const * readname = Preadnames.at(bread - reads_low);
-				
+
 		int32_t const blen   = (bepos - bbpos);
 		int32_t const bclipleft = bbpos;
 		int32_t const bclipright = readlen - blen - bclipleft;
@@ -724,17 +724,17 @@ struct LASToBAMConverter
 		// compute dense alignment trace
 		libmaus2::dazzler::align::Overlap::computeTracePreMapped(Apath.begin(),tracelen,abpos,aepos,bbpos,bepos,reinterpret_cast<uint8_t const *>(aptr),reinterpret_cast<uint8_t const *>(bptr),tspace,ATC,ND);
 		#endif
-				
+
 		// compute cigar operation blocks based on alignment trace
 		size_t const nopblocks = ATC.getOpBlocks(Aopblocks);
 		// compute final number of cigar operations based on clipping information
 		size_t const cigopblocks = nopblocks + (bclipleft?1:0) + (bclipright?1:0);
-				
+
 		// reallocate cigar operation vector if necessary
 		if ( cigopblocks > Acigop.size() )
 			Acigop.resize(cigopblocks);
 		uint64_t cigp = 0;
-		
+
 		int64_t as = 0;
 		if ( bclipleft )
 		{
@@ -796,17 +796,17 @@ struct LASToBAMConverter
 				}
 			}
 		}
-				
+
 		// reallocate quality value buffer if necessary
 		if ( readlen > ASQ.size() )
 		{
 			ASQ.resize(readlen);
 			std::fill(ASQ.begin(),ASQ.end(),255);
 		}
-		
+
 		// length of stored sequence
 		uint64_t storeseqlen;
-		
+
 		if ( primary )
 		{
 			storeseqlen = readlen;
@@ -830,7 +830,7 @@ struct LASToBAMConverter
 					break;
 			}
 		}
-		
+
 		libmaus2::bambam::BamAlignmentEncoderBase::encodeAlignmentPreMapped(
 			tbuffer,
 			// seqenc,
@@ -856,7 +856,7 @@ struct LASToBAMConverter
 		);
 
 		if ( calmdnm )
-		{		
+		{
 			if ( primary || (supplementary_seq_strategy != supplementary_seq_strategy_none) )
 			{
 				libmaus2::bambam::BamAlignmentDecoderBase::calculateMdMapped(
@@ -881,10 +881,10 @@ struct LASToBAMConverter
 			libmaus2::bambam::BamAlignmentEncoderBase::putAuxNumber(tbuffer,"NM",'i',context.nm);
 			libmaus2::bambam::BamAlignmentEncoderBase::putAuxNumber(tbuffer,"AS",'i',as);
 		}
-		
+
 		if ( rgid.size() )
 			libmaus2::bambam::BamAlignmentEncoderBase::putAuxString(tbuffer,"RG",rgid.c_str());
-				
+
 		FABR.pushAlignmentBlock(tbuffer.begin(),tbuffer.end() - tbuffer.begin());
 
 		#if defined(LASTOBAM_ALIGNMENT_PRINT_DEBUG)
@@ -892,7 +892,7 @@ struct LASToBAMConverter
 		if ( printAlignments )
 		{
 			libmaus2::lcs::AlignmentStatistics const AS = ATC.getAlignmentStatistics();
-			
+
 			if ( AS.getErrorRate() <= eratelimit )
 			{
 				std::cout << OVL << std::endl;
@@ -957,7 +957,7 @@ struct LASToBAMConverterAllocator
 		bool const rcalmdnm,
 		LASToBAMConverter::supplementary_seq_strategy_t const rsupplementaryStrategy,
 		std::string const rrgid
-	) 
+	)
 	:
 	  refoff(rrefoff),
 	  refdata(rrefdata),
@@ -990,17 +990,17 @@ struct LasToBamConversionRequest
 	typedef LasToBamConversionRequest this_type;
 	typedef libmaus2::util::unique_ptr<this_type>::type unique_ptr_type;
 	typedef libmaus2::util::shared_ptr<this_type>::type shared_ptr_type;
-	
+
 	libmaus2::bambam::parallel::FragmentAlignmentBuffer::shared_ptr_type FAB;
 	uint64_t volatile finished;
 	libmaus2::parallel::PosixSpinLock lock;
-	
+
 	LasToBamConversionRequest() : FAB(), finished(false), lock() {}
 	LasToBamConversionRequest(libmaus2::bambam::parallel::FragmentAlignmentBuffer::shared_ptr_type rFAB) : FAB(rFAB), finished(false), lock()
 	{
-	
+
 	}
-	
+
 	bool incrementFinished()
 	{
 		bool r = false;
@@ -1015,7 +1015,7 @@ struct LasToBamConversionRequest
 
 struct LasToBamConversionRequestAllocator
 {
-	LasToBamConversionRequestAllocator() 
+	LasToBamConversionRequestAllocator()
 	{}
 
 	LasToBamConversionRequest::shared_ptr_type operator()() const
@@ -1046,24 +1046,24 @@ struct LasToBamConversionRequestTypeInfo
 struct OVLDataInvAbPosComparator
 {
 	libmaus2::dazzler::align::OverlapData const * data;
-	
+
 	OVLDataInvAbPosComparator(libmaus2::dazzler::align::OverlapData const * rdata)
 	: data(rdata)
 	{
-	
+
 	}
-	
+
 	bool operator()(uint64_t const i, uint64_t const j) const
 	{
 		uint8_t const * idata = data->getData(i).first;
 		uint8_t const * jdata = data->getData(j).first;
-	
+
 		int const inv_i = libmaus2::dazzler::align::OverlapData::getFlags(idata) & 1;
-		int const inv_j = libmaus2::dazzler::align::OverlapData::getFlags(jdata) & 1;	
+		int const inv_j = libmaus2::dazzler::align::OverlapData::getFlags(jdata) & 1;
 
 		if ( inv_i != inv_j )
 			return inv_i < inv_j;
-			
+
 		return
 			libmaus2::dazzler::align::OverlapData::getABPos(idata) < libmaus2::dazzler::align::OverlapData::getABPos(jdata);
 	}
@@ -1072,18 +1072,18 @@ struct OVLDataInvAbPosComparator
 struct OVLDataInvBePosComparator
 {
 	libmaus2::dazzler::align::OverlapData const * data;
-	
+
 	OVLDataInvBePosComparator(libmaus2::dazzler::align::OverlapData const * rdata)
 	: data(rdata)
 	{
-	
+
 	}
-	
+
 	bool operator()(uint64_t const i, uint64_t const j) const
 	{
 		uint8_t const * idata = data->getData(i).first;
 		uint8_t const * jdata = data->getData(j).first;
-	
+
 		return
 			libmaus2::dazzler::align::OverlapData::getBEPos(idata) < libmaus2::dazzler::align::OverlapData::getBEPos(jdata);
 	}
@@ -1092,13 +1092,13 @@ struct OVLDataInvBePosComparator
 struct OVLDataScoreComparator
 {
 	libmaus2::dazzler::align::OverlapData const * data;
-	
+
 	OVLDataScoreComparator(libmaus2::dazzler::align::OverlapData const * rdata)
 	: data(rdata)
 	{
-	
+
 	}
-	
+
 	static int64_t getScore(uint8_t const * edata)
 	{
 		int64_t const qlen = libmaus2::dazzler::align::OverlapData::getBEPos(edata)-libmaus2::dazzler::align::OverlapData::getBBPos(edata);
@@ -1119,29 +1119,29 @@ struct LasToBamConversionRequestPart
 	typedef LasToBamConversionRequestPart this_type;
 	typedef libmaus2::util::unique_ptr<this_type>::type unique_ptr_type;
 	typedef libmaus2::util::shared_ptr<this_type>::type shared_ptr_type;
-	
+
 	LasToBamConversionRequest::shared_ptr_type request;
 	libmaus2::bambam::parallel::FragmentAlignmentBufferFragment * FABF;
 	std::pair<uint64_t,uint64_t> range;
 	RElement::shared_ptr_type relement;
 	libmaus2::bambam::BamHeader const * bamheader;
 	uint64_t maxconvert;
-	
+
 	LasToBamConversionRequestPart() : request(), FABF(0), range(), relement(), bamheader(0), maxconvert(0) {}
-	
+
 	bool dispatch(LASToBAMConverter::shared_ptr_type converter)
 	{
 		libmaus2::dazzler::align::OverlapData const * rdata = relement->odata.get();
-	
+
 		uint64_t low = range.first;
-		
+
 		while ( low < range.second )
 		{
 			int64_t const ref_bread = libmaus2::dazzler::align::OverlapData::getBRead(rdata->getData(low).first);
-			
+
 			uint64_t high = low+1;
 
-			while ( 
+			while (
 				high < range.second &&
 				libmaus2::dazzler::align::OverlapData::getBRead(rdata->getData(high).first) == ref_bread
 			)
@@ -1151,14 +1151,14 @@ struct LasToBamConversionRequestPart
 			for ( uint64_t i = low; i < high; ++i )
 				I[i-low] = i;
 			std::sort(I.begin(),I.end(),OVLDataScoreComparator(rdata));
-			
+
 			#if 0
 			std::cerr << std::string(80,'-') << std::endl;
 			for ( uint64_t i = 0; i < I.size(); ++i )
 			{
 				libmaus2::dazzler::align::OverlapData::toString(std::cerr,rdata->getData(I[i]).first);
 				std::cerr << " " << OVLDataScoreComparator::getScore(rdata->getData(I[i]).first);
-				std::cerr << std::endl;						
+				std::cerr << std::endl;
 			}
 			#endif
 
@@ -1168,17 +1168,17 @@ struct LasToBamConversionRequestPart
 				for ( uint64_t i = 1; (i < maxconvert) && (i < I.size()); ++i )
 					(*converter)(relement->odata->getData(I[i]).first,*FABF,false /* primary */,*bamheader);
 			}
-						
+
 			low = high;
 		}
-				
+
 		return request->incrementFinished();
 	}
 };
 
 struct LasToBamConversionRequestPartAllocator
 {
-	LasToBamConversionRequestPartAllocator() 
+	LasToBamConversionRequestPartAllocator()
 	{}
 
 	LasToBamConversionRequestPart::shared_ptr_type operator()() const
@@ -1228,7 +1228,7 @@ struct LasToBamConversionRequestPartWorkPackage : public libmaus2::parallel::Sim
 	)
 	: libmaus2::parallel::SimpleThreadWorkPackage(rpriority,rdispatcherid,0 /* package id */,rsubid), reqpart(rreqpart)
 	{
-	
+
 	}
 	virtual ~LasToBamConversionRequestPartWorkPackage() {}
 
@@ -1236,7 +1236,7 @@ struct LasToBamConversionRequestPartWorkPackage : public libmaus2::parallel::Sim
 	{
 		return "LasToBamConversionRequestPartWorkPackage";
 	}
-	
+
 };
 
 struct LasToBamConversionRequestPartWorkPackageFinishedInterface
@@ -1250,30 +1250,30 @@ struct LasToBamConversionRequestPartWorkPackageDispatcher : public libmaus2::par
 	typedef OverlapReadWorkPackageDispatcher this_type;
 	typedef libmaus2::util::unique_ptr<this_type>::type unique_ptr_type;
 	typedef libmaus2::util::shared_ptr<this_type>::type shared_ptr_type;
-	
+
 	uint64_t const dispatcherid;
 	libmaus2::parallel::LockedGrowingFreeList<LASToBAMConverter,LASToBAMConverterAllocator,LASToBAMConverterTypeInfo> & lastobamfreelist;
 	ReturnLasToBamRequestPartInterface & returnLasToBamRequestPartInterface;
 	LasToBamConversionRequestPartWorkPackageFinishedInterface & lasToBamConversionRequestPartWorkPackageFinishedInterface;
-	
+
 	LasToBamConversionRequestPartWorkPackageDispatcher(
 		uint64_t const rdispatcherid,
 		libmaus2::parallel::LockedGrowingFreeList<LASToBAMConverter,LASToBAMConverterAllocator,LASToBAMConverterTypeInfo> & rlastobamfreelist,
 		ReturnLasToBamRequestPartInterface & rreturnLasToBamRequestPartInterface,
-		LasToBamConversionRequestPartWorkPackageFinishedInterface & rlasToBamConversionRequestPartWorkPackageFinishedInterface		
+		LasToBamConversionRequestPartWorkPackageFinishedInterface & rlasToBamConversionRequestPartWorkPackageFinishedInterface
 	) : dispatcherid(rdispatcherid), lastobamfreelist(rlastobamfreelist), returnLasToBamRequestPartInterface(rreturnLasToBamRequestPartInterface), lasToBamConversionRequestPartWorkPackageFinishedInterface(rlasToBamConversionRequestPartWorkPackageFinishedInterface)
 	{
-	
+
 	}
-		
+
 	virtual ~LasToBamConversionRequestPartWorkPackageDispatcher() {}
 	virtual void dispatch(libmaus2::parallel::SimpleThreadWorkPackage * P, libmaus2::parallel::SimpleThreadPoolInterfaceEnqueTermInterface & /* tpi */)
 	{
 		LasToBamConversionRequestPartWorkPackage * BP = dynamic_cast<LasToBamConversionRequestPartWorkPackage *>(P);
 		assert ( BP );
-		
+
 		LasToBamConversionRequestPart::shared_ptr_type reqpart = BP->reqpart;
-		
+
 		LASToBAMConverter::shared_ptr_type converter = lastobamfreelist.get();
 		bool const alldone = reqpart->dispatch(converter);
 		lastobamfreelist.put(converter);
@@ -1318,7 +1318,7 @@ struct RecodeControl :
 	libmaus2::autoarray::AutoArray<char> const & refdata;
 	uint64_t const ref_low;
 	uint64_t const ref_high;
-	
+
 	std::vector<uint64_t> const & readsoff;
 	libmaus2::autoarray::AutoArray<char> const & readsdata;
 	uint64_t const reads_low;
@@ -1341,12 +1341,12 @@ struct RecodeControl :
 	LasToBamConversionRequestPartWorkPackageDispatcher LTBCRPWPD;
 	uint64_t const BLMCWPDid;
 	libmaus2::bambam::parallel::BgzfLinearMemCompressWorkPackageDispatcher BLMCWPD;
-	
+
 	std::set<RElement::shared_ptr_type,RElementComp> Rtodo;
 	uint64_t volatile rnext;
 	libmaus2::parallel::PosixSpinLock rlock;
 	int volatile rfinalseen;
-		
+
 	std::deque<RElement::shared_ptr_type> rreadyforconversion;
 	libmaus2::parallel::PosixSpinLock rreadyforconversionlock;
 
@@ -1361,20 +1361,20 @@ struct RecodeControl :
 
 	libmaus2::parallel::LockedGrowingFreeList<LasToBamConversionRequest,LasToBamConversionRequestAllocator,LasToBamConversionRequestTypeInfo> lastobamconversionrequestfreelist;
 	libmaus2::parallel::LockedGrowingFreeList<LasToBamConversionRequestPart,LasToBamConversionRequestPartAllocator,LasToBamConversionRequestPartTypeInfo> lastobamconversionrequestpartfreelist;
-	
+
 	std::set < libmaus2::bambam::parallel::FragmentAlignmentBuffer::shared_ptr_type, FragmentAlignmentBufferIdComparator > FABpending;
 	libmaus2::parallel::PosixSpinLock FABpendinglock;
 	uint64_t volatile FABpendingnext;
-	
+
 	int volatile recodingdone;
 	libmaus2::parallel::PosixSpinLock recodingdonelock;
 
 	int const zlevel;
-	
+
 	libmaus2::parallel::LockedGrowingFreeList<libmaus2::lz::BgzfDeflateZStreamBase,
 		libmaus2::lz::BgzfDeflateZStreamBaseAllocator,
 		libmaus2::lz::BgzfDeflateZStreamBaseTypeInfo> lzfreelist;
-		
+
 	libmaus2::parallel::LockedFreeList<
 		libmaus2::lz::BgzfDeflateOutputBufferBase,
 		libmaus2::lz::BgzfDeflateOutputBufferBaseAllocator,
@@ -1387,14 +1387,14 @@ struct RecodeControl :
 		libmaus2::bambam::parallel::SmallLinearBlockCompressionPendingObjectHeapComparator
 	> smallbgzfpending;
 	libmaus2::parallel::PosixSpinLock smallbgzfpendinglock;
-	
+
 	std::map<int64_t,uint64_t> smallbgzfunissued;
 	libmaus2::parallel::PosixSpinLock smallbgzfunissuedlock;
 
 	int64_t volatile smallbgzfpendingnextblock;
 	uint64_t volatile smallbgzfpendingnextsubblock;
 	libmaus2::parallel::PosixSpinLock smallbgzfpendingnextlock;
-	
+
 	std::map<int64_t,uint64_t> smallbgzfunfinished;
 	libmaus2::parallel::PosixSpinLock smallbgzfunfinishedlock;
 
@@ -1403,23 +1403,23 @@ struct RecodeControl :
 
 	std::map<int64_t,uint64_t> smallbgzfunwritten;
 	libmaus2::parallel::PosixSpinLock smallbgzfunwrittenlock;
-	
+
 	int64_t volatile finalblock;
 	libmaus2::parallel::PosixSpinLock finalblocklock;
 
 	int64_t volatile writenextblock;
 	uint64_t volatile writenextsubblock;
 	libmaus2::parallel::PosixSpinLock writenextlock;
-	
+
 	int volatile writingdone;
 	libmaus2::parallel::PosixSpinLock writingdonelock;
 
-	std::map < 
+	std::map <
 		std::pair<int64_t,uint64_t>,
 		std::pair<libmaus2::lz::BgzfDeflateOutputBufferBase::shared_ptr_type,libmaus2::lz::BgzfDeflateZStreamBaseFlushInfo>
 	> writepending;
 	libmaus2::parallel::PosixSpinLock writependinglock;
-	
+
 	int64_t const maxconvert;
 
 	struct SmallObjectComp
@@ -1441,9 +1441,9 @@ struct RecodeControl :
 		std::cerr << "rfinalseen=" << rfinalseen << std::endl;
 		std::cerr << "rreadyforconversion.size()=" << rreadyforconversion.size() << std::endl;
 		std::cerr << "fabfreelist.empty()=" << fabfreelist.empty() << std::endl;
-		std::cerr << "FABpending.size()=" << FABpending.size() << std::endl;		
+		std::cerr << "FABpending.size()=" << FABpending.size() << std::endl;
 		std::cerr << "FABpendingnext=" << FABpendingnext << std::endl;
-		std::cerr << "recodingdone=" << recodingdone << std::endl;	
+		std::cerr << "recodingdone=" << recodingdone << std::endl;
 		std::cerr << "bgzfbufferfreelist.empty()=" << bgzfbufferfreelist.empty() << std::endl;
 		std::cerr << "smallbgzfpending.size()=" << smallbgzfpending.size() << std::endl;
 		if ( smallbgzfpending.size() )
@@ -1465,22 +1465,22 @@ struct RecodeControl :
 
 		std::cerr << "writingdone=" << writingdone << std::endl;
 
-		std::cerr << "writepending.size()=" << writepending.size();	
-		for ( 
-			std::map < 
+		std::cerr << "writepending.size()=" << writepending.size();
+		for (
+			std::map <
 				std::pair<int64_t,uint64_t>,
 				std::pair<libmaus2::lz::BgzfDeflateOutputBufferBase::shared_ptr_type,libmaus2::lz::BgzfDeflateZStreamBaseFlushInfo>
 			>::const_iterator ita = writepending.begin(); ita != writepending.end(); ++ita )
 		{
 			std::cerr << "writepending contains " << ita->first.first << "," << ita->first.second << std::endl;
-		}		
+		}
 	}
 
 	void returnBgzfLinearMemCompressWorkPackage(libmaus2::bambam::parallel::BgzfLinearMemCompressWorkPackage * package)
 	{
 		BLMCWPFL.returnPackage(package);
 	}
-	
+
 	void smallLinearBlockCompressionPendingObjectFinished(libmaus2::bambam::parallel::SmallLinearBlockCompressionPendingObject const & smallobj)
 	{
 		bool fabdone = false;
@@ -1495,28 +1495,28 @@ struct RecodeControl :
 		}
 
 		libmaus2::bambam::parallel::FragmentAlignmentBuffer::shared_ptr_type FABreturn;
-		
+
 		if ( fabdone )
 		{
 			libmaus2::parallel::PosixSpinLock slock(fabunfinishedlock);
 			FABreturn = fabunfinished.find(smallobj.blockid)->second;
 			fabunfinished.erase(fabunfinished.find(smallobj.blockid));
-		}	               
-	
+		}
+
 		if ( FABreturn )
 		{
 			// std::cerr << "[V] compression of block " << FABreturn->id << " done." << std::endl;
 			returnFragmentBuffer(FABreturn);
-		}	
+		}
 	}
-	
+
 	bool getWritePendingNext(std::pair<int64_t,uint64_t> & key, std::pair<libmaus2::lz::BgzfDeflateOutputBufferBase::shared_ptr_type,libmaus2::lz::BgzfDeflateZStreamBaseFlushInfo> & value)
 	{
 		libmaus2::parallel::ScopePosixSpinLock swlock(writependinglock);
 		libmaus2::parallel::ScopePosixSpinLock snlock(writenextlock);
 
 		key = std::pair<int64_t,uint64_t>(writenextblock,writenextsubblock);
-	
+
 		if ( writepending.find(key) != writepending.end() )
 		{
 			value = writepending.find(key)->second;
@@ -1528,13 +1528,13 @@ struct RecodeControl :
 			return false;
 		}
 	}
-	
+
 	void checkWritePending()
 	{
 		int lwritingdone = 0;
 		std::pair<int64_t,uint64_t> K;
 		std::pair<libmaus2::lz::BgzfDeflateOutputBufferBase::shared_ptr_type,libmaus2::lz::BgzfDeflateZStreamBaseFlushInfo> P;
-		
+
 		while ( getWritePendingNext(K,P) )
 		{
 			libmaus2::lz::BgzfDeflateOutputBufferBase::shared_ptr_type obuf = P.first;
@@ -1548,7 +1548,7 @@ struct RecodeControl :
 				{
 					blockdone = true;
 					smallbgzfunwritten.erase(smallbgzfunwritten.find(K.first));
-				}	
+				}
 			}
 
 			char const * outp = reinterpret_cast<char const *>(obuf->outbuf.begin());
@@ -1582,19 +1582,19 @@ struct RecodeControl :
 			if ( blockdone )
 			{
 				std::cerr << "[V] writing block " << K.first << " done" << std::endl;
-			
+
 				int64_t lfinalblock;
 				{
 					finalblocklock.lock();
 					lfinalblock = finalblock;
 					finalblocklock.unlock();
 				}
-				
+
 				if ( K.first == lfinalblock )
 				{
 					lwritingdone = 1;
 				}
-				
+
 				libmaus2::parallel::ScopePosixSpinLock snlock(writenextlock);
 				writenextblock += 1;
 				writenextsubblock = 0;
@@ -1605,7 +1605,7 @@ struct RecodeControl :
 				writenextsubblock += 1;
 			}
 		}
-		
+
 		if ( lwritingdone )
 		{
 			writingdonelock.lock();
@@ -1613,7 +1613,7 @@ struct RecodeControl :
 			writingdonelock.unlock();
 		}
 	}
-	
+
 	bool getWritingDone()
 	{
 		int lwritingdone;
@@ -1622,22 +1622,22 @@ struct RecodeControl :
 		writingdonelock.unlock();
 		return lwritingdone;
 	}
-	
+
 	void addWritePendingBgzfBlock(
 		int64_t const blockid,
 		int64_t const subid,
 		libmaus2::lz::BgzfDeflateOutputBufferBase::shared_ptr_type obuf,
 		libmaus2::lz::BgzfDeflateZStreamBaseFlushInfo const & info
 	)
-	{	
+	{
 		{
 			libmaus2::parallel::ScopePosixSpinLock slock(writependinglock);
 			writepending[std::pair<int64_t,uint64_t>(blockid,subid)] = std::pair<libmaus2::lz::BgzfDeflateOutputBufferBase::shared_ptr_type,libmaus2::lz::BgzfDeflateZStreamBaseFlushInfo>(obuf,info);
 		}
-		
+
 		checkWritePending();
 	}
-		
+
 	bool getFinalSeen()
 	{
 		int lfinalseen;
@@ -1654,7 +1654,7 @@ struct RecodeControl :
 		return UNIQUE_PTR_MOVE(Tptr);
 	}
 
-	
+
 	RecodeControl(
 		std::ostream & rout,
 		libmaus2::bambam::BamHeader const & rbamheader,
@@ -1664,7 +1664,7 @@ struct RecodeControl :
 		std::vector<uint64_t> const & rreadsoff,
 		libmaus2::autoarray::AutoArray<char> const & rreadsdata,
 		uint64_t const rreads_low, uint64_t const rreads_high,
-		std::string const & fn, 
+		std::string const & fn,
 		int64_t const tspace,
 		uint64_t const fna,
 		uint64_t const fnb,
@@ -1675,7 +1675,7 @@ struct RecodeControl :
 		std::string const & rgid,
 		int64_t const rmaxconvert
 	)
-	: 
+	:
 	  out(rout),
 	  bamheader(rbamheader),
 	  refoff(rrefoff),
@@ -1686,7 +1686,7 @@ struct RecodeControl :
 	  readsdata(rreadsdata),
 	  reads_low(rreads_low),
 	  reads_high(rreads_high),
-	  STP(rSTP), 
+	  STP(rSTP),
 	  PSOPISI(openFile(fn,fna)),
 	  PSOP(new libmaus2::dazzler::align::SimpleOverlapParser(*PSOPISI,tspace,1024*1024,libmaus2::dazzler::align::OverlapParser::overlapparser_do_not_split_b /* dont split */,fnb-fna)),
 	  ODFL(2*STP.getNumThreads()),
@@ -1731,7 +1731,7 @@ struct RecodeControl :
 	{
 		return lzfreelist.get();
 	}
-	
+
 	void putBgzfDeflateZStreamBase(libmaus2::lz::BgzfDeflateZStreamBase::shared_ptr_type & ptr)
 	{
 		lzfreelist.put(ptr);
@@ -1745,7 +1745,7 @@ struct RecodeControl :
 		recodingdonelock.unlock();
 		return ldone;
 	}
-	
+
 	void wait()
 	{
 		while ( ! getWritingDone() && ! STP.isInPanicMode() )
@@ -1753,13 +1753,13 @@ struct RecodeControl :
 			sleep(1);
 		}
 	}
-	
+
 	void start(bool const writeheader)
 	{
 		libmaus2::bambam::parallel::FragmentAlignmentBuffer::shared_ptr_type FAB = fabfreelist.get();
 		FAB->reset();
 		FAB->id = 0;
-		
+
 		if ( writeheader )
 		{
 			libmaus2::bambam::parallel::FragmentAlignmentBufferFragment * fragment = (*FAB)[0];
@@ -1770,19 +1770,19 @@ struct RecodeControl :
 			uint8_t const * uheader = reinterpret_cast<uint8_t const *>(cheader);
 			fragment->push(uheader,sheader.size());
 		}
-		
+
 		FABpending.insert(FAB);
 
 		enqueReadPackage();
 	}
-	
+
 	void enqueReadPackage()
 	{
 		OverlapReadWorkPackage * package = ORWPFL.getPackage();
 		*package = OverlapReadWorkPackage(1 /* prio */, ORWPD.dispatcherid);
 		STP.enque(package);
 	}
-	
+
 	void overlapReadWorkPackageFinished(OverlapReadWorkPackage * package)
 	{
 		ORWPFL.returnPackage(package);
@@ -1792,21 +1792,21 @@ struct RecodeControl :
 	{
 		LTBCRPWPFL.returnPackage(package);
 	}
-	
+
 	void returnOverlapDataObject(libmaus2::dazzler::align::OverlapData::shared_ptr_type odata)
 	{
-		ODFL.put(odata);	
+		ODFL.put(odata);
 		if ( ! getFinalSeen() )
 			enqueReadPackage();
 	}
-	
+
 	void returnFragmentBuffer(libmaus2::bambam::parallel::FragmentAlignmentBuffer::shared_ptr_type FAB)
 	{
 		// return buffer
 		fabfreelist.put(FAB);
-		checkRReadyForConversion();	
+		checkRReadyForConversion();
 	}
-	
+
 	bool smallGetBuffer(
 		libmaus2::bambam::parallel::SmallLinearBlockCompressionPendingObject & smallobj,
 		libmaus2::lz::BgzfDeflateOutputBufferBase::shared_ptr_type & obuffer
@@ -1814,17 +1814,17 @@ struct RecodeControl :
 	{
 		libmaus2::parallel::ScopePosixSpinLock slock(smallbgzfpendinglock);
 		libmaus2::parallel::ScopePosixSpinLock snlock(smallbgzfpendingnextlock);
-		
-		if ( 
-			smallbgzfpending.size() && 
+
+		if (
+			smallbgzfpending.size() &&
 			smallbgzfpending.top().blockid == smallbgzfpendingnextblock &&
 			smallbgzfpending.top().subid == smallbgzfpendingnextsubblock &&
-			(obuffer = bgzfbufferfreelist.getIf()) 
+			(obuffer = bgzfbufferfreelist.getIf())
 		)
 		{
 			smallobj = smallbgzfpending.top();
 			smallbgzfpending.pop();
-			
+
 			libmaus2::parallel::ScopePosixSpinLock sulock(smallbgzfunissuedlock);
 			if ( ! --smallbgzfunissued[smallobj.blockid] )
 			{
@@ -1837,70 +1837,70 @@ struct RecodeControl :
 			{
 				smallbgzfpendingnextsubblock += 1;
 			}
-			
+
 			return true;
 		}
 		else
 			return false;
 	}
-	
+
 	void checkSmallPendingQueue()
-	{		
+	{
 		libmaus2::bambam::parallel::SmallLinearBlockCompressionPendingObject smallobj;
 		libmaus2::lz::BgzfDeflateOutputBufferBase::shared_ptr_type obuffer;
-		
+
 		while ( smallGetBuffer(smallobj,obuffer) )
 		{
 			libmaus2::bambam::parallel::BgzfLinearMemCompressWorkPackage * package = BLMCWPFL.getPackage();
-			
+
 			*package = libmaus2::bambam::parallel::BgzfLinearMemCompressWorkPackage(
 				0 /* prio */,
 				smallobj,
 				obuffer,
 				BLMCWPDid
 			);
-			
+
 			package->subid = (smallobj.blockid << 24) | smallobj.subid;
-			
+
 			STP.enque(package);
 		}
 	}
-	
+
 	void checkFabPendingList()
 	{
 		libmaus2::parallel::ScopePosixSpinLock slock(FABpendinglock);
 
 		bool done = false;
 
-		while ( 
-			FABpending.size() &&	
+		while (
+			FABpending.size() &&
 			(*(FABpending.begin()))->id == FABpendingnext
 		)
 		{
 			// std::cerr << "[V] recode buffer " << FABpendingnext << " finished" << std::endl;
-		
+
 			libmaus2::bambam::parallel::FragmentAlignmentBuffer::shared_ptr_type FAB = *(FABpending.begin());
 			FABpending.erase(FABpending.begin());
-			
+
 			if ( FAB->final )
 			{
 				done = true;
-				
+
 				finalblocklock.lock();
 				finalblock = FAB->id;
 				finalblocklock.unlock();
 			}
-			
+
 			std::vector<std::pair<uint8_t *,uint8_t *> > V;
 			FAB->getLinearOutputFragments(libmaus2::lz::BgzfConstants::getBgzfMaxBlockSize(), V);
-			
+
 			// std::cerr << "[V] using " << V.size() << " blocks for block " << FAB->id << std::endl;
-			
+
 			{
 				libmaus2::parallel::ScopePosixSpinLock slock(fabunfinishedlock);
 				fabunfinished[FAB->id] = FAB;
 			}
-			
+
 			{
 				libmaus2::parallel::ScopePosixSpinLock slock(smallbgzfunissuedlock);
 				smallbgzfunissued[FAB->id] = V.size();
@@ -1915,7 +1915,7 @@ struct RecodeControl :
 				libmaus2::parallel::ScopePosixSpinLock slock(smallbgzfunwrittenlock);
 				smallbgzfunwritten[FAB->id] = V.size();
 			}
-			
+
 			for ( uint64_t i = 0; i < V.size(); ++i )
 			{
 				libmaus2::bambam::parallel::SmallLinearBlockCompressionPendingObject const smallobj(FAB->id,i,V[i].first,V[i].second);
@@ -1924,20 +1924,20 @@ struct RecodeControl :
 			}
 
 			FABpendingnext += 1;
-			
+
 			// returnFragmentBuffer(FAB);
 		}
-		
+
 		if ( done )
 		{
 			recodingdonelock.lock();
 			recodingdone = 1;
 			recodingdonelock.unlock();
 		}
-		
+
 		checkSmallPendingQueue();
 	}
-	
+
 	void returnLasToBamRequestPart(LasToBamConversionRequestPart::shared_ptr_type reqpart, bool const alldone)
 	{
 		if ( alldone )
@@ -1946,7 +1946,7 @@ struct RecodeControl :
 			libmaus2::parallel::ScopePosixSpinLock slock(FABpendinglock);
 			FABpending.insert(reqpart->request->FAB);
 			}
-			
+
 			checkFabPendingList();
 
 			// return data object
@@ -1958,17 +1958,17 @@ struct RecodeControl :
 			// return request
 			lastobamconversionrequestfreelist.put(reqpart->request);
 		}
-		
+
 		lastobamconversionrequestpartfreelist.put(reqpart);
-	
+
 	}
-	
+
 	libmaus2::bambam::parallel::FragmentAlignmentBuffer::shared_ptr_type FAB = fabfreelist.get();
-	
+
 	bool getRReady(RElement::shared_ptr_type & R, libmaus2::bambam::parallel::FragmentAlignmentBuffer::shared_ptr_type & FAB)
 	{
 		libmaus2::parallel::ScopePosixSpinLock srreadyforconversionlock(rreadyforconversionlock);
-		
+
 		if ( rreadyforconversion.size() && (FAB=fabfreelist.getIf()) )
 		{
 			R = rreadyforconversion.front();
@@ -1992,14 +1992,14 @@ struct RecodeControl :
 			assert ( R->split.size() == FAB->size() );
 
 			// std::cerr << "[V] queuing " << R->id << " split " << R->split.size() << std::endl;
-			
+
 			FAB->reset();
 			LasToBamConversionRequest::shared_ptr_type req = lastobamconversionrequestfreelist.get();
 			req->FAB = FAB;
 			req->FAB->id = R->id;
 			req->FAB->final = R->final;
 			req->finished = 0;
-			
+
 			for ( uint64_t z = 0; z < R->split.size(); ++z )
 			{
 				LasToBamConversionRequestPart::shared_ptr_type reqpart = lastobamconversionrequestpartfreelist.get();
@@ -2014,9 +2014,9 @@ struct RecodeControl :
 				*package = LasToBamConversionRequestPartWorkPackage(
 					0 /* prio */, LTBCRPWPDid, R->id /* sub id */, reqpart
 				);
-				
+
 				STP.enque(package);
-			}			
+			}
 		}
 	}
 
@@ -2031,7 +2031,7 @@ struct RecodeControl :
 			assert ( odata );
 			if ( odata->size() )
 			{
-				std::cerr 
+				std::cerr
 					<< libmaus2::dazzler::align::OverlapData::getARead(odata->getData(0).first)
 					<< "\t"
 					<< libmaus2::dazzler::align::OverlapData::getARead(odata->getData(odata->size()-1).first)
@@ -2042,23 +2042,23 @@ struct RecodeControl :
 
 		{
 			libmaus2::parallel::ScopePosixSpinLock slock(rlock);
-			
+
 			while ( Rtodo.size() && (*(Rtodo.begin()))->id == rnext )
 			{
 				RElement::shared_ptr_type R = *(Rtodo.begin());
 				Rtodo.erase(Rtodo.begin());
 				rnext += 1;
-				
+
 				{
 				libmaus2::parallel::ScopePosixSpinLock srreadyforconversionlock(rreadyforconversionlock);
 				rreadyforconversion.push_back(R);
 				}
-				
+
 				if ( R->final )
 					rfinalseen = 1;
 			}
 		}
-		
+
 		checkRReadyForConversion();
 	}
 };
@@ -2071,9 +2071,9 @@ int lastobam(libmaus2::util::ArgParser const & arg)
 	libmaus2::parallel::SimpleThreadPool STP(threads);
 
 	try
-	{	
+	{
 		std::ostream & out = std::cout;
-	
+
 		std::string const db_ref_fn = arg[0];
 		std::string const reference = arg[1];
 		std::string const db_reads_fn = arg[2];
@@ -2085,9 +2085,9 @@ int lastobam(libmaus2::util::ArgParser const & arg)
 
 		std::string const supstorestrat_s = arg.uniqueArgPresent("s") ? arg["s"] : getDefaultSupStoreStrat();
 		bool const calmdnm = arg.uniqueArgPresent("c") ? arg.getParsedArg<int>("c") : 1;
-	
+
 		LASToBAMConverter::supplementary_seq_strategy_t supstorestrat;
-	
+
 		if ( supstorestrat_s == "soft" )
 			supstorestrat = LASToBAMConverter::supplementary_seq_strategy_soft;
 		else if ( supstorestrat_s == "hard" )
@@ -2099,12 +2099,12 @@ int lastobam(libmaus2::util::ArgParser const & arg)
 			libmaus2::exception::LibMausException lme;
 			lme.getStream() << "unknown strategy for storing supplementary alignments: " << supstorestrat_s << " (available options are soft, hard and none)" << std::endl;
 			lme.finish();
-			throw lme;	
+			throw lme;
 		}
-		
+
 		libmaus2::fastx::FastAIndex::unique_ptr_type Prefindex(libmaus2::fastx::FastAIndex::load(reference+".fai"));
 		libmaus2::fastx::FastAIndex const & refindex = *Prefindex;
-		
+
 		std::string const curdir = libmaus2::util::ArgInfo::getCurDir();
 		std::string const absreference =  (reference.size() && reference[0] == '/') ? reference : (curdir+'/'+reference);
 		std::ostringstream sqstream;
@@ -2113,7 +2113,7 @@ int lastobam(libmaus2::util::ArgParser const & arg)
 		{
 			libmaus2::fastx::FastAIndexEntry const & entry = refindex[i];
 			sqstream << "@SQ\t" << "SN:" << entry.name << "\tLN:" << entry.length << "\tUR:file://" << absreference << std::endl;
-			
+
 			if ( static_cast<int64_t>(entry.length) != static_cast<int64_t>(DB_ref.getRead(i).rlen) )
 			{
 				libmaus2::exception::LibMausException lme;
@@ -2129,9 +2129,9 @@ int lastobam(libmaus2::util::ArgParser const & arg)
 
 		std::ostringstream headerostr;
 		headerostr << "@HD\tVN:1.5\tSO:unknown\n";
-		headerostr 
-			<< "@PG"<< "\t" 
-			<< "ID:" << "lastobam" << "\t" 
+		headerostr
+			<< "@PG"<< "\t"
+			<< "ID:" << "lastobam" << "\t"
 			<< "PN:" << "lastobam" << "\t"
 			<< "CL:" << arg.commandline << "\t"
 			<< "VN:" << std::string(PACKAGE_VERSION)
@@ -2139,7 +2139,7 @@ int lastobam(libmaus2::util::ArgParser const & arg)
 		headerostr << rginfo.toString();
 		headerostr << sqstream.str();
 		::libmaus2::bambam::BamHeader bamheader(headerostr.str());
-		
+
 		// std::cerr << headerostr.str();
 
 		uint64_t maxreadmem = arg.uniqueArgPresent("M") ? static_cast<int64_t>(arg.getUnsignedNumericArg<uint64_t>("M")) : (2*1024ull*1024ull*1024ull);
@@ -2148,7 +2148,7 @@ int lastobam(libmaus2::util::ArgParser const & arg)
 		libmaus2::dazzler::db::DatabaseFile::SplitResult reads_split = DB_reads.splitDb(maxreadmem);
 
 		bool writeheader = true;
-		
+
 		for ( uint64_t z_ref_split = 0; z_ref_split < ref_split.size(); ++z_ref_split )
 		{
 			libmaus2::dazzler::db::DatabaseFile::SplitResultElement const ref_interval = ref_split[z_ref_split];
@@ -2156,7 +2156,7 @@ int lastobam(libmaus2::util::ArgParser const & arg)
 			std::vector<uint64_t> refoff;
 			libmaus2::autoarray::AutoArray<char> refdata;
 			DB_ref.decodeReadsMappedTerm(ref_interval.low,ref_interval.high,refdata,refoff);
-			
+
 			for ( uint64_t z_reads_split = 0; z_reads_split < reads_split.size(); ++z_reads_split )
 			{
 				libmaus2::dazzler::db::DatabaseFile::SplitResultElement const reads_interval = reads_split[z_reads_split];
@@ -2167,20 +2167,20 @@ int lastobam(libmaus2::util::ArgParser const & arg)
 				libmaus2::autoarray::AutoArray<char> Areadnames;
 				libmaus2::autoarray::AutoArray<char const *> Preadnames;
                                 DB_reads.getReadNameInterval(reads_interval.low,reads_interval.high,Areadnames,Preadnames);
-                                
+
                                 for ( uint64_t i = 0; i < Preadnames.size(); ++i )
                                 {
                                 	assert ( Preadnames[i] );
                                 	assert ( strlen(Preadnames[i]) );
 				}
-                                
+
 				for ( uint64_t f = 3; f < arg.size(); ++f )
 				{
 					std::string const lasfn = arg[f];
 					int64_t const tspace = libmaus2::dazzler::align::AlignmentFile::getTSpace(lasfn);
 					uint64_t const startpos = 12ull;
 					uint64_t const endpos = libmaus2::util::GetFileSize::getFileSize(lasfn);
-		
+
 					RecodeControl RC(
 						out,
 						bamheader,refoff,refdata,ref_interval.low,ref_interval.high,
@@ -2198,7 +2198,7 @@ int lastobam(libmaus2::util::ArgParser const & arg)
 		out.flush();
 
 		STP.terminate();
-		
+
 		return EXIT_SUCCESS;
 	}
 	catch(...)
@@ -2217,7 +2217,7 @@ int main(int argc, char * argv[])
 		if ( arg.argPresent("h") || arg.argPresent("help") )
 		{
 			std::cerr << getUsage(arg);
-			return EXIT_SUCCESS;		
+			return EXIT_SUCCESS;
 		}
 		else if ( arg.argPresent("version") )
 		{
