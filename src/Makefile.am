@@ -8,7 +8,7 @@ man_MANS = ${MANPAGES}
 
 EXTRA_DIST = ${MANPAGES}
 
-bin_PROGRAMS = lassort lasindex lastobam reformatfasta
+bin_PROGRAMS = lassort lasindex lastobam reformatfasta fasta2fastq
 
 lasindex_SOURCES = lasindex.cpp
 lasindex_LDADD = ${LIBMAUS2LIBS}
@@ -29,3 +29,8 @@ reformatfasta_SOURCES = reformatfasta.cpp
 reformatfasta_LDADD = ${LIBMAUS2LIBS}
 reformatfasta_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
 reformatfasta_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
+
+fasta2fastq_SOURCES = fasta2fastq.cpp
+fasta2fastq_LDADD = ${LIBMAUS2LIBS}
+fasta2fastq_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
+fasta2fastq_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}

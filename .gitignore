@@ -30,4 +30,5 @@ src/lasindex
 src/lassort
 src/lastobam
 src/reformatfasta
+src/fasta2fastq
 stamp-h1
