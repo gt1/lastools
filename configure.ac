@@ -1,4 +1,4 @@
-AC_INIT(lastools,0.0.1,[tischler@mpi-cbg.de],[lastools],[http://www.mpi-cbg.de])
+AC_INIT(lastools,0.0.2,[tischler@mpi-cbg.de],[lastools],[http://www.mpi-cbg.de])
 AC_CANONICAL_SYSTEM
 AC_PROG_LIBTOOL
 
@@ -127,7 +127,7 @@ if test ! -z "${with_libmaus2}" ; then
 	fi
 fi
 
-PKG_CHECK_MODULES([libmaus2],[libmaus2 >= 2.0.104])
+PKG_CHECK_MODULES([libmaus2],[libmaus2 >= 2.0.124])
 
 if test ! -z "${with_libmaus2}" ; then
 	if test ! -z "${PKGCONFIGPATHSAVE}" ; then
