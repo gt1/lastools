@@ -15,18 +15,49 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include <libmaus2/util/ArgParser.hpp>
 #include <libmaus2/dazzler/db/DatabaseFile.hpp>
 #include <libmaus2/dazzler/align/OverlapIndexer.hpp>
-#include <libmaus2/lcs/DalignerLocalAlignment.hpp>
-#include <libmaus2/lcs/LocalAlignmentPrint.hpp>
-#include <libmaus2/lcs/DalignerNP.hpp>
 #include <libmaus2/dazzler/align/AlignmentWriter.hpp>
 #include <libmaus2/dazzler/align/SortingOverlapOutputBuffer.hpp>
+#include <libmaus2/lcs/AlignerFactory.hpp>
+#include <libmaus2/util/ArgParser.hpp>
 
-uint8_t remap(uint8_t const & a)
+static libmaus2::lcs::Aligner::unique_ptr_type constructAligner()
 {
-	return libmaus2::fastx::remapChar(a);
+	std::set<libmaus2::lcs::AlignerFactory::aligner_type> const S = libmaus2::lcs::AlignerFactory::getSupportedAligners();
+
+	if ( S.find(libmaus2::lcs::AlignerFactory::libmaus2_lcs_AlignerFactory_Daligner_NP) != S.end() )
+	{
+		libmaus2::lcs::Aligner::unique_ptr_type T(libmaus2::lcs::AlignerFactory::construct(libmaus2::lcs::AlignerFactory::libmaus2_lcs_AlignerFactory_Daligner_NP));
+		return UNIQUE_PTR_MOVE(T);
+	}
+	else if ( S.find(libmaus2::lcs::AlignerFactory::libmaus2_lcs_AlignerFactory_y256_8) != S.end() )
+	{
+		libmaus2::lcs::Aligner::unique_ptr_type T(libmaus2::lcs::AlignerFactory::construct(libmaus2::lcs::AlignerFactory::libmaus2_lcs_AlignerFactory_y256_8));
+		return UNIQUE_PTR_MOVE(T);
+	}
+	else if ( S.find(libmaus2::lcs::AlignerFactory::libmaus2_lcs_AlignerFactory_x128_8) != S.end() )
+	{
+		libmaus2::lcs::Aligner::unique_ptr_type T(libmaus2::lcs::AlignerFactory::construct(libmaus2::lcs::AlignerFactory::libmaus2_lcs_AlignerFactory_x128_8));
+		return UNIQUE_PTR_MOVE(T);
+	}
+	else if ( S.find(libmaus2::lcs::AlignerFactory::libmaus2_lcs_AlignerFactory_NP) != S.end() )
+	{
+		libmaus2::lcs::Aligner::unique_ptr_type T(libmaus2::lcs::AlignerFactory::construct(libmaus2::lcs::AlignerFactory::libmaus2_lcs_AlignerFactory_NP));
+		return UNIQUE_PTR_MOVE(T);
+	}
+	else if ( S.size() )
+	{
+		libmaus2::lcs::Aligner::unique_ptr_type T(libmaus2::lcs::AlignerFactory::construct(*(S.begin())));
+		return UNIQUE_PTR_MOVE(T);
+	}
+	else
+	{
+		libmaus2::exception::LibMausException lme;
+		lme.getStream() << "LASToBAMConverter::constructAligner: no aligners found" << std::endl;
+		lme.finish();
+		throw lme;
+	}
 }
 
 std::pair<uint8_t const *,uint64_t> getRead(libmaus2::autoarray::AutoArray<char> const & data, std::vector<uint64_t> const & off, uint64_t const id, bool const reverse)
@@ -73,129 +104,25 @@ int main(int argc, char * argv[])
 		int64_t const tspace = libmaus2::dazzler::align::AlignmentFile::getTSpace(arg[3]);
 		libmaus2::dazzler::align::AlignmentWriter::unique_ptr_type AW(new libmaus2::dazzler::align::AlignmentWriter(outfntmp,tspace,false /* no index */));
 
-		libmaus2::lcs::DalignerNP DNP;
+		libmaus2::lcs::Aligner::unique_ptr_type Palgn(constructAligner());
 		libmaus2::lcs::AlignmentTraceContainer ATC;
 
 		for ( uint64_t i = 3; i < arg.size(); ++i )
 		{
 			std::string const lasfn = arg[i];
 
-			libmaus2::dazzler::align::AlignmentFileRegion::unique_ptr_type afile(libmaus2::dazzler::align::OverlapIndexer::openAlignmentFile(lasfn));
+			libmaus2::dazzler::align::AlignmentFileRegion::unique_ptr_type afile(libmaus2::dazzler::align::OverlapIndexer::openAlignmentFileWithoutIndex(lasfn));
 
 			libmaus2::dazzler::align::Overlap OVL;
 			while ( afile->getNextOverlap(OVL) )
 			{
-				int64_t const aread = OVL.aread;
-				int64_t const bread = OVL.bread;
-
-				std::pair<uint8_t const *,uint64_t> DA(getRead(Adata,Aoff,aread,false));
-				std::pair<uint8_t const *,uint64_t> DB(getRead(Bdata,Boff,bread,OVL.isInverse()));
-
-				libmaus2::dazzler::align::Overlap const OVLswapped = OVL.getSwappedPreMapped(afile->Palgn->tspace,DA.first,DA.second,DB.first,DB.second,ATC,DNP);
-
+				std::pair<uint8_t const *,uint64_t> DA(getRead(Adata,Aoff,OVL.aread,false));
+				std::pair<uint8_t const *,uint64_t> DB(getRead(Bdata,Boff,OVL.bread,OVL.isInverse()));
+				libmaus2::dazzler::align::Overlap const OVLswapped = OVL.getSwappedPreMapped(afile->Palgn->tspace,DA.first,DA.second,DB.first,DB.second,ATC,*Palgn);
 				AW->put(OVLswapped);
-
-				#if 0
-				#if 0
-				libmaus2::lcs::DalignerLocalAlignment DLA;
-				libmaus2::autoarray::AutoArray<std::pair<uint16_t,uint16_t> > Atrace(OVL.path.tlen/2);
-				std::copy(
-					OVL.path.path.begin(),
-					OVL.path.path.begin() + OVL.path.tlen/2,
-					Atrace.begin()
-				);
-
-				std::cerr << OVL << std::endl;
-				libmaus2::lcs::LocalEditDistanceResult const DLALEDR = DLA.computeDenseTracePreMapped(
-					reinterpret_cast<uint8_t const *>(adata),alen,
-					reinterpret_cast<uint8_t const *>(bdata),blen,
-					afile->Palgn->tspace,
-					Atrace.begin(),
-					Atrace.size(),
-					OVL.path.diffs,
-					OVL.path.abpos,
-					OVL.path.bbpos,
-					OVL.path.aepos,
-					OVL.path.bepos
-				);
-				std::cerr << "[VDLA]" << std::endl;
-				libmaus2::lcs::LocalAlignmentPrint::printAlignmentLines(
-					std::cerr,
-					reinterpret_cast<uint8_t const *>(adata),reinterpret_cast<uint8_t const *>(adata)+alen,
-					reinterpret_cast<uint8_t const *>(bdata),reinterpret_cast<uint8_t const *>(bdata)+blen,
-					80,
-					DLA.ta,
-					DLA.te,
-					DLALEDR,
-					remap,
-					remap
-				);
-				#endif
-
-				#if 1
-				libmaus2::lcs::DalignerLocalAlignment DLA;
-				libmaus2::autoarray::AutoArray<std::pair<uint16_t,uint16_t> > Atrace(OVLswapped.path.tlen/2);
-				std::copy(
-					OVLswapped.path.path.begin(),
-					OVLswapped.path.path.begin() + OVLswapped.path.tlen/2,
-					Atrace.begin()
-				);
-
-				std::cerr << OVLswapped << std::endl;
-
-				std::pair<uint8_t const *,uint64_t> RA(getRead(Bdata,Boff,bread,false));
-				std::pair<uint8_t const *,uint64_t> RB(getRead(Adata,Aoff,aread,OVLswapped.isInverse()));
-
-				// if ( ! OVLswapped.isInverse() )
-				{
-					libmaus2::lcs::LocalEditDistanceResult const DLALEDR = DLA.computeDenseTracePreMapped(
-						RA.first,RA.second,
-						RB.first,RB.second,
-						afile->Palgn->tspace,
-						Atrace.begin(),
-						Atrace.size(),
-						OVLswapped.path.diffs,
-						OVLswapped.path.abpos,
-						OVLswapped.path.bbpos,
-						OVLswapped.path.aepos,
-						OVLswapped.path.bepos
-					);
-					std::cerr << "[VDLA]" << std::endl;
-					libmaus2::lcs::LocalAlignmentPrint::printAlignmentLines(
-						std::cerr,
-						RA.first,RA.first+RA.second,
-						RB.first,RB.first+RB.second,
-						80,
-						DLA.ta,
-						DLA.te,
-						DLALEDR,
-						remap,
-						remap
-					);
-				}
-				#endif
-				#endif
 			}
-
-			#if 0
-			int64_t amin = std::numeric_limits<int64_t>::max();
-			int64_t amax = std::numeric_limits<int64_t>::min();
-			int64_t bmin = std::numeric_limits<int64_t>::max();
-			int64_t bmax = std::numeric_limits<int64_t>::min();
-			libmaus2::dazzler::align::AlignmentFileRegion::unique_ptr_type afile(libmaus2::dazzler::align::OverlapIndexer::openAlignmentFile(lasfn));
-
-			libmaus2::dazzler::align::Overlap OVL;
-			while ( afile->getNextOverlap(OVL) )
-			{
-				amin = std::min(amin,static_cast<int64_t>(OVL.aread));
-				amax = std::max(amax,static_cast<int64_t>(OVL.aread));
-				bmin = std::min(bmin,static_cast<int64_t>(OVL.bread));
-				bmax = std::max(bmax,static_cast<int64_t>(OVL.bread));
-			}
-			#endif
 		}
 
-		//AW->flush();
 		AW.reset();
 
 		libmaus2::dazzler::align::SortingOverlapOutputBuffer<libmaus2::dazzler::align::OverlapFullComparator>::sortFile(outfntmp,outfn);
