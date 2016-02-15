@@ -157,7 +157,7 @@ struct RgInfo
 std::string getUsage(libmaus2::util::ArgParser const & arg)
 {
 	std::ostringstream ostr;
-	ostr << "usage: " << arg.progname << " [<parameters>] <reference.db> <reference.fasta> <reads.db> <alignments.las>\n";
+	ostr << "usage: " << arg.progname << " [<parameters>] <reference.db> <reference.fasta> <reads.db> <reads.fasta> <alignments.las>\n";
 	ostr << "\n";
 	ostr << "parameters:\n";
 	ostr << " -t : number of threads (defaults to number of cores on machine)\n";
@@ -2063,6 +2063,9 @@ struct RecodeControl :
 	}
 };
 
+#include <libmaus2/fastx/FastAReader.hpp>
+#include <libmaus2/fastx/StreamFastAReader.hpp>
+
 int lastobam(libmaus2::util::ArgParser const & arg)
 {
 
@@ -2077,11 +2080,46 @@ int lastobam(libmaus2::util::ArgParser const & arg)
 		std::string const db_ref_fn = arg[0];
 		std::string const reference = arg[1];
 		std::string const db_reads_fn = arg[2];
+		std::string const reads_fa_fn = arg[3];
 
 		libmaus2::dazzler::db::DatabaseFile DB_ref(db_ref_fn);
 		DB_ref.computeTrimVector();
 		libmaus2::dazzler::db::DatabaseFile DB_reads(db_reads_fn);
 		DB_reads.computeTrimVector();
+
+		/* get the original read names */
+		std::ostringstream readnameostr;
+		std::vector<uint64_t> readnameoff;
+		libmaus2::autoarray::AutoArray<char> Creadnames;
+		libmaus2::autoarray::AutoArray<char const *> CPreadnames;
+
+		{
+			libmaus2::aio::InputStreamInstance ISI(reads_fa_fn);
+			libmaus2::fastx::StreamFastAReaderWrapper SFAR(ISI);
+			libmaus2::fastx::FastAReader::pattern_type pattern;
+			uint64_t off = 0;
+			uint64_t inid = 0;
+			while ( SFAR.getNextPatternUnlocked(pattern) )
+			{
+				if ( DB_reads.isInTrimmed(inid++) )
+				{
+					std::string const id = pattern.getShortStringId();
+					uint64_t const l = id.size();
+					readnameostr.write(id.c_str(),l+1);
+					readnameoff.push_back(off);
+					off += (l+1);
+				}
+			}
+
+			Creadnames.resize(off);
+			std::string const readnames = readnameostr.str();
+			char const * in = readnames.c_str();
+			std::copy(in,in+off,Creadnames.begin());
+
+			CPreadnames.resize(readnameoff.size());
+			for ( uint64_t i = 0; i < readnameoff.size(); ++i )
+				CPreadnames[i] = Creadnames.begin() + readnameoff[i];
+		}
 
 		std::string const supstorestrat_s = arg.uniqueArgPresent("s") ? arg["s"] : getDefaultSupStoreStrat();
 		bool const calmdnm = arg.uniqueArgPresent("c") ? arg.getParsedArg<int>("c") : 1;
@@ -2110,18 +2148,19 @@ int lastobam(libmaus2::util::ArgParser const & arg)
 		std::ostringstream sqstream;
 
 		for ( uint64_t i = 0; i < refindex.size(); ++i )
-		{
-			libmaus2::fastx::FastAIndexEntry const & entry = refindex[i];
-			sqstream << "@SQ\t" << "SN:" << entry.name << "\tLN:" << entry.length << "\tUR:file://" << absreference << std::endl;
-
-			if ( static_cast<int64_t>(entry.length) != static_cast<int64_t>(DB_ref.getRead(i).rlen) )
+			if ( DB_ref.isInTrimmed(i) )
 			{
-				libmaus2::exception::LibMausException lme;
-				lme.getStream() << "reference length " << entry.length << " for id " << i << " is not in sync with database entry length " << DB_ref.getRead(i).rlen << std::endl;
-				lme.finish();
-				throw lme;
+				libmaus2::fastx::FastAIndexEntry const & entry = refindex[i];
+				sqstream << "@SQ\t" << "SN:" << entry.name << "\tLN:" << entry.length << "\tUR:file://" << absreference << std::endl;
+
+				if ( static_cast<int64_t>(entry.length) != static_cast<int64_t>(DB_ref.getRead(i).rlen) )
+				{
+					libmaus2::exception::LibMausException lme;
+					lme.getStream() << "reference length " << entry.length << " for id " << i << " is not in sync with database entry length " << DB_ref.getRead(i).rlen << std::endl;
+					lme.finish();
+					throw lme;
+				}
 			}
-		}
 
 		// construct new header
 		RgInfo const rginfo(arg);
@@ -2164,6 +2203,7 @@ int lastobam(libmaus2::util::ArgParser const & arg)
 				libmaus2::autoarray::AutoArray<char> readsdata;
 				DB_reads.decodeReadsAndReverseComplementMappedTerm(reads_interval.low,reads_interval.high,readsdata,readsoff);
 
+				#if 0
 				libmaus2::autoarray::AutoArray<char> Areadnames;
 				libmaus2::autoarray::AutoArray<char const *> Preadnames;
                                 DB_reads.getReadNameInterval(reads_interval.low,reads_interval.high,Areadnames,Preadnames);
@@ -2173,8 +2213,16 @@ int lastobam(libmaus2::util::ArgParser const & arg)
                                 	assert ( Preadnames[i] );
                                 	assert ( strlen(Preadnames[i]) );
 				}
+				#else
+				libmaus2::autoarray::AutoArray<char const *> Preadnames(reads_interval.high-reads_interval.low);
+				std::copy(
+					CPreadnames.begin() + reads_interval.low,
+					CPreadnames.begin() + reads_interval.high,
+					Preadnames.begin()
+				);
+				#endif
 
-				for ( uint64_t f = 3; f < arg.size(); ++f )
+				for ( uint64_t f = 4; f < arg.size(); ++f )
 				{
 					std::string const lasfn = arg[f];
 					int64_t const tspace = libmaus2::dazzler::align::AlignmentFile::getTSpace(lasfn);
