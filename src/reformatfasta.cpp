@@ -42,7 +42,7 @@ void fastareformat(libmaus2::util::ArgParser const & arg, reader_type & reader)
 	typename reader_type::pattern_type pattern;
 	std::string const prolog = arg.uniqueArgPresent("p") ? arg["p"] : "L";
 	uint64_t readid = arg.uniqueArgPresent("i") ? arg.getUnsignedNumericArg<uint64_t>("i") : 0;
-	uint64_t const cols = arg.uniqueArgPresent("c") ? arg.getUnsignedNumericArg<uint64_t>("c") : 0;
+	uint64_t const cols = arg.uniqueArgPresent("c") ? arg.getUnsignedNumericArg<uint64_t>("c") : 80;
 	bool const randomN = arg.uniqueArgPresent("r") ? arg.getParsedArg<int>("r") : 1;
 
 	libmaus2::fastx::SpaceTable const ST;
