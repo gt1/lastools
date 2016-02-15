@@ -1,3 +1,9 @@
+lastools (0.0.4-1) unstable; urgency=medium
+
+  * fix ChangeLog 
+
+ -- German Tischler <gt1@sanger.ac.uk>  Mon, 15 Feb 2016 10:38:02 +0100
+
 lastools (0.0.3-1) unstable; urgency=medium
 
   * initial
