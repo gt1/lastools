@@ -1498,7 +1498,7 @@ struct RecodeControl :
 
 		if ( fabdone )
 		{
-			libmaus2::parallel::PosixSpinLock slock(fabunfinishedlock);
+			libmaus2::parallel::ScopePosixSpinLock slock(fabunfinishedlock);
 			FABreturn = fabunfinished.find(smallobj.blockid)->second;
 			fabunfinished.erase(fabunfinished.find(smallobj.blockid));
 		}
