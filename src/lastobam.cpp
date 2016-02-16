@@ -1673,7 +1673,8 @@ struct RecodeControl :
 		bool const rcalmdnm,
 		LASToBAMConverter::supplementary_seq_strategy_t const rsupplementaryStrategy,
 		std::string const & rgid,
-		int64_t const rmaxconvert
+		int64_t const rmaxconvert,
+		int const rzlevel
 	)
 	:
 	  out(rout),
@@ -1710,7 +1711,7 @@ struct RecodeControl :
 	  FABpendingnext(0),
 	  recodingdone(0),
 	  recodingdonelock(),
-	  zlevel(Z_DEFAULT_COMPRESSION),
+	  zlevel(rzlevel),
 	  lzfreelist(libmaus2::lz::BgzfDeflateZStreamBaseAllocator(zlevel)),
 	  bgzfbufferfreelist(4*STP.getNumThreads(),libmaus2::lz::BgzfDeflateOutputBufferBaseAllocator(zlevel)),
 	  smallbgzfpendingnextblock(0),
@@ -2122,6 +2123,7 @@ int lastobam(libmaus2::util::ArgParser const & arg)
 
 		std::string const supstorestrat_s = arg.uniqueArgPresent("s") ? arg["s"] : getDefaultSupStoreStrat();
 		bool const calmdnm = arg.uniqueArgPresent("c") ? arg.getParsedArg<int>("c") : 1;
+		int const zlevel = arg.uniqueArgPresent("l") ? arg.getParsedArg<int>("l") : Z_DEFAULT_COMPRESSION;
 
 		LASToBAMConverter::supplementary_seq_strategy_t supstorestrat;
 
@@ -2236,7 +2238,7 @@ int lastobam(libmaus2::util::ArgParser const & arg)
 							bamheader,refoff,refdata,ref_interval.low,ref_interval.high,
 							readsoff,readsdata,reads_interval.low,reads_interval.high,
 							lasfn,tspace,startpos,endpos,
-							STP,Preadnames,calmdnm,supstorestrat,rgid,maxconvert);
+							STP,Preadnames,calmdnm,supstorestrat,rgid,maxconvert,zlevel);
 						RC.start(writeheader);
 						writeheader = false;
 						RC.wait();
