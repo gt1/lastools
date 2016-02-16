@@ -1,3 +1,9 @@
+lastools (0.0.7-1) unstable; urgency=medium
+
+  * fix use after free issue in lastobam 
+
+ -- German Tischler <gt1@sanger.ac.uk>  Tue, 16 Feb 2016 10:00:03 +0100
+
 lastools (0.0.6-1) unstable; urgency=medium
 
   * fix locking issue
