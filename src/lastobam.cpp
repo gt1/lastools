@@ -1581,7 +1581,7 @@ struct RecodeControl :
 
 			if ( blockdone )
 			{
-				std::cerr << "[V] writing block " << K.first << " done" << std::endl;
+				// std::cerr << "[V] writing block " << K.first << " done" << std::endl;
 
 				int64_t lfinalblock;
 				{
@@ -2071,7 +2071,6 @@ int lastobam(libmaus2::util::ArgParser const & arg)
 
 	uint64_t const threads = arg.uniqueArgPresent("t") ? arg.getUnsignedNumericArg<uint64_t>("t") : libmaus2::parallel::NumCpus::getNumLogicalProcessors();
 	int64_t const maxconvert = arg.uniqueArgPresent("m") ? static_cast<int64_t>(arg.getUnsignedNumericArg<uint64_t>("m")) : -1;
-	libmaus2::parallel::SimpleThreadPool STP(threads);
 
 	try
 	{
@@ -2229,15 +2228,31 @@ int lastobam(libmaus2::util::ArgParser const & arg)
 					uint64_t const startpos = 12ull;
 					uint64_t const endpos = libmaus2::util::GetFileSize::getFileSize(lasfn);
 
-					RecodeControl RC(
-						out,
-						bamheader,refoff,refdata,ref_interval.low,ref_interval.high,
-						readsoff,readsdata,reads_interval.low,reads_interval.high,
-						lasfn,tspace,startpos,endpos,
-						STP,Preadnames,calmdnm,supstorestrat,rgid,maxconvert);
-					RC.start(writeheader);
-					writeheader = false;
-					RC.wait();
+					libmaus2::parallel::SimpleThreadPool STP(threads);
+					try
+					{
+						RecodeControl RC(
+							out,
+							bamheader,refoff,refdata,ref_interval.low,ref_interval.high,
+							readsoff,readsdata,reads_interval.low,reads_interval.high,
+							lasfn,tspace,startpos,endpos,
+							STP,Preadnames,calmdnm,supstorestrat,rgid,maxconvert);
+						RC.start(writeheader);
+						writeheader = false;
+						RC.wait();
+						STP.terminate();
+					}
+					catch(std::exception const & ex)
+					{
+						std::cerr << ex.what() << std::endl;
+						STP.terminate();
+						throw;
+					}
+					catch(...)
+					{
+						STP.terminate();
+						throw;
+					}
 				}
 			}
 		}
@@ -2245,13 +2260,10 @@ int lastobam(libmaus2::util::ArgParser const & arg)
 		out << libmaus2::lz::BgzfDeflate<std::ostream>::getEOFBlock();
 		out.flush();
 
-		STP.terminate();
-
 		return EXIT_SUCCESS;
 	}
 	catch(...)
 	{
-		STP.terminate();
 		throw;
 	}
 }
