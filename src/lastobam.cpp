@@ -165,6 +165,7 @@ std::string getUsage(libmaus2::util::ArgParser const & arg)
 	ostr << " -s : base storage strategy for secondary reads (none, soft, hard)\n";
 	ostr << " -c : calculate MD, NM and AS fields (0 or 1, defaults to 1)\n";
 	ostr << " -M : maximum amount of memory used for loading reads (defaults to 2GB)\n";
+	ostr << " -l : zlib compression level for output BAM file (defaults to zlib default)\n";
 	return ostr.str();
 }
 
