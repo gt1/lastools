@@ -663,7 +663,7 @@ struct LASToBAMConverter
 		// is this the primary alignment for this read?
 		bool const primary,
 		// header
-		libmaus2::bambam::BamHeader const & /* bamheader */
+		libmaus2::bambam::BamHeader const & bamheader
 	)
 	{
 		int64_t const aread = libmaus2::dazzler::align::OverlapData::getARead(OVL);
@@ -856,35 +856,61 @@ struct LASToBAMConverter
 			true /* reset buffer */
 		);
 
+		libmaus2::bambam::libmaus2_bambam_alignment_validity val = libmaus2::bambam::BamAlignmentDecoderBase::valid(tbuffer.begin(),tbuffer.end() - tbuffer.begin());
+
+		if ( val != libmaus2::bambam::libmaus2_bambam_alignment_validity_ok )
+		{
+			libmaus2::exception::LibMausException lme;
+			lme.getStream() << "LASToBAMConverter: constructed alignment is invalid: " << val << std::endl;
+			::libmaus2::bambam::BamFormatAuxiliary auxdata;
+			libmaus2::bambam::BamAlignmentDecoderBase::formatAlignment(lme.getStream(),tbuffer.begin(),tbuffer.end() - tbuffer.begin(),bamheader,auxdata);
+			lme.getStream() << std::endl;
+			lme.finish();
+			throw lme;
+		}
+
 		if ( calmdnm )
 		{
-			if ( primary || (supplementary_seq_strategy != supplementary_seq_strategy_none) )
+			try
 			{
-				libmaus2::bambam::BamAlignmentDecoderBase::calculateMdMapped(
-					tbuffer.begin(),tbuffer.end()-(tbuffer.begin()),
-					context,aptr + abpos,false
-				);
-			}
-			else
-			{
-				sbuffer.reset();
-				libmaus2::bambam::BamAlignmentEncoderBase::encodeSeqPreMapped(sbuffer,bptr+bclipleft,readlen-(bclipleft+bclipright));
+				if ( primary || (supplementary_seq_strategy != supplementary_seq_strategy_none) )
+				{
+					libmaus2::bambam::BamAlignmentDecoderBase::calculateMdMapped(
+						tbuffer.begin(),tbuffer.end()-(tbuffer.begin()),
+						context,aptr + abpos,false
+					);
+				}
+				else
+				{
+					sbuffer.reset();
+					libmaus2::bambam::BamAlignmentEncoderBase::encodeSeqPreMapped(sbuffer,bptr+bclipleft,readlen-(bclipleft+bclipright));
 
-				libmaus2::bambam::BamAlignmentDecoderBase::calculateMdMapped(
-					tbuffer.begin(),tbuffer.end()-(tbuffer.begin()),
-					context,aptr + abpos,
-					sbuffer.begin(),
-					readlen-(bclipleft+bclipright),
-					false
-				);
+					libmaus2::bambam::BamAlignmentDecoderBase::calculateMdMapped(
+						tbuffer.begin(),tbuffer.end()-(tbuffer.begin()),
+						context,aptr + abpos,
+						sbuffer.begin(),
+						readlen-(bclipleft+bclipright),
+						false
+					);
+				}
+				libmaus2::bambam::BamAlignmentEncoderBase::putAuxString(tbuffer,"MD",context.md.get());
+				libmaus2::bambam::BamAlignmentEncoderBase::putAuxNumber(tbuffer,"NM",'i',context.nm);
+				libmaus2::bambam::BamAlignmentEncoderBase::putAuxNumber(tbuffer,"AS",'i',as);
 			}
-			libmaus2::bambam::BamAlignmentEncoderBase::putAuxString(tbuffer,"MD",context.md.get());
-			libmaus2::bambam::BamAlignmentEncoderBase::putAuxNumber(tbuffer,"NM",'i',context.nm);
-			libmaus2::bambam::BamAlignmentEncoderBase::putAuxNumber(tbuffer,"AS",'i',as);
+			catch(std::exception const & ex)
+			{
+				libmaus2::exception::LibMausException lme;
+				lme.getStream() << "LASToBAMConverter: calmdnm exception for read " << readname << "\n" << ex.what() << std::endl;
+				::libmaus2::bambam::BamFormatAuxiliary auxdata;
+				libmaus2::bambam::BamAlignmentDecoderBase::formatAlignment(lme.getStream(),tbuffer.begin(),tbuffer.end() - tbuffer.begin(),bamheader,auxdata);
+				lme.finish();
+				throw lme;
+			}
 		}
 
 		if ( rgid.size() )
 			libmaus2::bambam::BamAlignmentEncoderBase::putAuxString(tbuffer,"RG",rgid.c_str());
+
 
 		FABR.pushAlignmentBlock(tbuffer.begin(),tbuffer.end() - tbuffer.begin());
 
@@ -1846,6 +1872,8 @@ struct RecodeControl :
 			return false;
 	}
 
+	libmaus2::parallel::PosixSpinLock cerrlock;
+
 	void checkSmallPendingQueue()
 	{
 		libmaus2::bambam::parallel::SmallLinearBlockCompressionPendingObject smallobj;
@@ -2240,9 +2268,19 @@ int lastobam(libmaus2::util::ArgParser const & arg)
 							readsoff,readsdata,reads_interval.low,reads_interval.high,
 							lasfn,tspace,startpos,endpos,
 							STP,Preadnames,calmdnm,supstorestrat,rgid,maxconvert,zlevel);
-						RC.start(writeheader);
-						writeheader = false;
-						RC.wait();
+						try
+						{
+							RC.start(writeheader);
+							writeheader = false;
+							RC.wait();
+						}
+						catch(std::exception const & ex)
+						{
+							std::cerr << ex.what() << std::endl;
+							RC.wait();
+							STP.terminate();
+							throw;
+						}
 						STP.terminate();
 					}
 					catch(std::exception const & ex)
