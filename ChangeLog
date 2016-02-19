@@ -1,3 +1,10 @@
+lastools (0.0.10-1) unstable; urgency=medium
+
+  * add another check for correct read encoding in lastobam
+  * bump libmaus2 version to 2.0.128
+
+ -- German Tischler <gt1@sanger.ac.uk>  Fri, 19 Feb 2016 10:57:49 +0100
+
 lastools (0.0.9-1) unstable; urgency=medium
 
   * update to libmaus2 version 2.0.127 
