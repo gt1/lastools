@@ -911,6 +911,30 @@ struct LASToBAMConverter
 		if ( rgid.size() )
 			libmaus2::bambam::BamAlignmentEncoderBase::putAuxString(tbuffer,"RG",rgid.c_str());
 
+		libmaus2::math::IntegerInterval<int64_t> const covered = libmaus2::bambam::BamAlignmentDecoderBase::getCoveredReadInterval(tbuffer.begin());
+
+		bool const c_ok = (covered.from == bbpos) && (covered.to+1 == bepos);
+
+		if ( ! c_ok )
+		{
+			std::ostringstream ostr;
+			ostr << "covered " << covered << " expected " << bbpos << "," << bepos << std::endl;
+			ostr << "front clipping " << libmaus2::bambam::BamAlignmentDecoderBase::getFrontClipping(tbuffer.begin()) << std::endl;
+			ostr << "back clipping " << libmaus2::bambam::BamAlignmentDecoderBase::getBackClipping(tbuffer.begin()) << std::endl;
+			ostr << "lseq " << libmaus2::bambam::BamAlignmentDecoderBase::getLseq(tbuffer.begin()) << std::endl;
+			ostr << "from " << covered.from << std::endl;
+			ostr << "to " << covered.to << std::endl;
+
+			::libmaus2::bambam::BamFormatAuxiliary auxdata;
+			libmaus2::bambam::BamAlignmentDecoderBase::formatAlignment(ostr,tbuffer.begin(),tbuffer.end() - tbuffer.begin(),bamheader,auxdata);
+			ostr.put('\n');
+
+			std::string const s = ostr.str();
+			char const * c = s.c_str();
+			std::cerr.write(c,s.size());
+
+			assert ( c_ok );
+		}
 
 		FABR.pushAlignmentBlock(tbuffer.begin(),tbuffer.end() - tbuffer.begin());
 
