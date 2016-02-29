@@ -19,6 +19,7 @@
 #include <libmaus2/dazzler/align/Overlap.hpp>
 #include <libmaus2/dazzler/align/AlignmentWriter.hpp>
 #include <libmaus2/fastx/FastAReader.hpp>
+#include <libmaus2/util/ArgParser.hpp>
 
 void loadNames(std::string const & fn, std::map<std::string,uint64_t> & M, std::map<std::string,uint64_t> & L)
 {
@@ -37,6 +38,13 @@ int main(int argc, char * argv[])
 	try
 	{
 		libmaus2::util::ArgInfo const arginfo(argc,argv);
+		libmaus2::util::ArgParser const arg(argc,argv);
+
+		if ( ! arg.size() )
+		{
+			std::cerr << "usage: " << argv[0] << " out.las in.fasta <in.bam" << std::endl;
+			return EXIT_FAILURE;
+		}
 
 		libmaus2::bambam::BamAlignmentDecoderWrapper::unique_ptr_type decwrapper(libmaus2::bambam::BamMultiAlignmentDecoderFactory::construct(arginfo));
 		libmaus2::bambam::BamAlignmentDecoder & dec = decwrapper->getDecoder();

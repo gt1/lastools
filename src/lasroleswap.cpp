@@ -80,6 +80,12 @@ int main(int argc, char * argv[])
 	{
 		libmaus2::util::ArgParser arg(argc,argv);
 
+		if ( ! arg.size() )
+		{
+			std::cerr << "usage: " << argv[0] << " out.las in_a.db in_b.db in.las" << std::endl;
+			return EXIT_FAILURE;
+		}
+
 		std::string const outfn = arg[0];
 		std::string const outfntmp = outfn + ".tmp";
 		libmaus2::util::TempFileRemovalContainer::addTempFile(outfntmp);
