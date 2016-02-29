@@ -73,7 +73,27 @@ int main(int argc, char * argv[])
 				libmaus2::bambam::CigarStringParser::cigarToTrace(Acigop.begin(),Acigop.begin()+numcig,ATC,true /* ignore unknown */);
 				// record operation set
 				for ( uint64_t i = 0; i < numcig; ++i )
+				{
 					cigset.insert(Acigop[i].first);
+
+					switch ( Acigop[i].first )
+					{
+						case libmaus2::bambam::BamFlagBase::LIBMAUS2_BAMBAM_CINS:
+						case libmaus2::bambam::BamFlagBase::LIBMAUS2_BAMBAM_CDEL:
+						case libmaus2::bambam::BamFlagBase::LIBMAUS2_BAMBAM_CEQUAL:
+						case libmaus2::bambam::BamFlagBase::LIBMAUS2_BAMBAM_CDIFF:
+						case libmaus2::bambam::BamFlagBase::LIBMAUS2_BAMBAM_CSOFT_CLIP:
+						case libmaus2::bambam::BamFlagBase::LIBMAUS2_BAMBAM_CHARD_CLIP:
+							break;
+						default:
+						{
+							libmaus2::exception::LibMausException lme;
+							lme.getStream() << "[E] file contains unhadled CIGAR operation " << libmaus2::bambam::BamAlignmentDecoderBase::cigarOpToChar(Acigop[i].first) << std::endl;
+							lme.finish();
+							throw lme;
+						}
+					}
+				}
 
 				int64_t const abpos = algn.getPos();
 				int64_t const aepos = abpos + algn.getReferenceLength();
@@ -85,6 +105,10 @@ int main(int argc, char * argv[])
 
 				int64_t const bbpos = leftclip;
 				int64_t const bepos = rl - rightclip;
+
+				std::pair<uint64_t,uint64_t> const SLU = ATC.getStringLengthUsed();
+				assert ( static_cast<int64_t>(SLU.first) == aepos-abpos );
+				assert ( static_cast<int64_t>(SLU.second) == bepos-bbpos );
 
 				libmaus2::dazzler::align::Overlap OVL =libmaus2::dazzler::align::Overlap::computeOverlap(
 					algn.isReverse() ? 1 : 0,
