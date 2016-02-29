@@ -8,7 +8,7 @@ man_MANS = ${MANPAGES}
 
 EXTRA_DIST = ${MANPAGES}
 
-bin_PROGRAMS = lassort lasindex lastobam reformatfasta fasta2fastq lasroleswap
+bin_PROGRAMS = lassort lasindex lastobam reformatfasta fasta2fastq lasroleswap bamtolas
 
 lasindex_SOURCES = lasindex.cpp
 lasindex_LDADD = ${LIBMAUS2LIBS}
@@ -39,3 +39,8 @@ lasroleswap_SOURCES = lasroleswap.cpp
 lasroleswap_LDADD = ${LIBMAUS2LIBS}
 lasroleswap_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
 lasroleswap_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
+
+bamtolas_SOURCES = bamtolas.cpp
+bamtolas_LDADD = ${LIBMAUS2LIBS}
+bamtolas_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
+bamtolas_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
