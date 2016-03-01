@@ -26,7 +26,7 @@
 std::string getUsage(libmaus2::util::ArgParser const & arg)
 {
 	std::ostringstream ostr;
-	ostr << "usage: " << arg.progname << " [<parameters>]\n";
+	ostr << "usage: " << arg.progname << " [<parameters>] <in.fasta\n";
 	ostr << "\n";
 	ostr << "parameters:\n";
 	ostr << " -p : read name prolog (defaults to L)\n";

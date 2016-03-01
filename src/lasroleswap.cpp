@@ -22,6 +22,8 @@
 #include <libmaus2/lcs/AlignerFactory.hpp>
 #include <libmaus2/util/ArgParser.hpp>
 
+#include "config.h"
+
 static libmaus2::lcs::Aligner::unique_ptr_type constructAligner()
 {
 	std::set<libmaus2::lcs::AlignerFactory::aligner_type> const S = libmaus2::lcs::AlignerFactory::getSupportedAligners();
@@ -74,65 +76,92 @@ std::pair<uint8_t const *,uint64_t> getRead(libmaus2::autoarray::AutoArray<char>
 		return std::pair<uint8_t const *,uint64_t>(base + 1,rl);
 }
 
+std::string getUsage(libmaus2::util::ArgParser const & arg)
+{
+	std::ostringstream ostr;
+
+	ostr << "usage: " << arg.progname << " <out.las> <in_a.db> <in_b.db> <in1.las> ..." << std::endl;
+
+	return ostr.str();
+}
+
+
+int lasroleswap(libmaus2::util::ArgParser & arg)
+{
+	std::string const outfn = arg[0];
+	std::string const outfntmp = outfn + ".tmp";
+	libmaus2::util::TempFileRemovalContainer::addTempFile(outfntmp);
+	std::string const db0 = arg[1];
+	std::string const db1 = arg[2];
+
+	libmaus2::dazzler::db::DatabaseFile DB0(db0);
+	DB0.computeTrimVector();
+	uint64_t const n0 = DB0.size();
+	libmaus2::dazzler::db::DatabaseFile DB1(db1);
+	DB1.computeTrimVector();
+	uint64_t const n1 = DB1.size();
+
+	libmaus2::autoarray::AutoArray<char> Adata;
+	std::vector<uint64_t> Aoff;
+	DB0.decodeReadsAndReverseComplementMappedTerm(0,n0,Adata,Aoff);
+
+	libmaus2::autoarray::AutoArray<char> Bdata;
+	std::vector<uint64_t> Boff;
+	DB1.decodeReadsAndReverseComplementMappedTerm(0,n1,Bdata,Boff);
+
+	int64_t const tspace = libmaus2::dazzler::align::AlignmentFile::getTSpace(arg[3]);
+	libmaus2::dazzler::align::AlignmentWriter::unique_ptr_type AW(new libmaus2::dazzler::align::AlignmentWriter(outfntmp,tspace,false /* no index */));
+
+	libmaus2::lcs::Aligner::unique_ptr_type Palgn(constructAligner());
+	libmaus2::lcs::AlignmentTraceContainer ATC;
+
+	for ( uint64_t i = 3; i < arg.size(); ++i )
+	{
+		std::string const lasfn = arg[i];
+
+		libmaus2::dazzler::align::AlignmentFileRegion::unique_ptr_type afile(libmaus2::dazzler::align::OverlapIndexer::openAlignmentFileWithoutIndex(lasfn));
+
+		libmaus2::dazzler::align::Overlap OVL;
+		while ( afile->getNextOverlap(OVL) )
+		{
+			std::pair<uint8_t const *,uint64_t> DA(getRead(Adata,Aoff,OVL.aread,false));
+			std::pair<uint8_t const *,uint64_t> DB(getRead(Bdata,Boff,OVL.bread,OVL.isInverse()));
+			libmaus2::dazzler::align::Overlap const OVLswapped = OVL.getSwappedPreMapped(afile->Palgn->tspace,DA.first,DA.second,DB.first,DB.second,ATC,*Palgn);
+			AW->put(OVLswapped);
+		}
+	}
+
+	AW.reset();
+
+	libmaus2::dazzler::align::SortingOverlapOutputBuffer<libmaus2::dazzler::align::OverlapFullComparator>::sortFile(outfntmp,outfn);
+	libmaus2::aio::FileRemoval::removeFile(outfntmp);
+
+	return EXIT_SUCCESS;
+}
+
 int main(int argc, char * argv[])
 {
 	try
 	{
 		libmaus2::util::ArgParser arg(argc,argv);
 
-		if ( ! arg.size() )
+		if ( arg.argPresent("h") || arg.argPresent("help") )
 		{
-			std::cerr << "usage: " << argv[0] << " out.las in_a.db in_b.db in.las" << std::endl;
+			std::cerr << getUsage(arg);
+			return EXIT_SUCCESS;
+		}
+		else if ( arg.argPresent("version") )
+		{
+			std::cerr << "This is " << PACKAGE_NAME << " version " << PACKAGE_VERSION << std::endl;
+			return EXIT_SUCCESS;
+		}
+		else if ( arg.size() < 4 )
+		{
+			std::cerr << getUsage(arg);
 			return EXIT_FAILURE;
 		}
 
-		std::string const outfn = arg[0];
-		std::string const outfntmp = outfn + ".tmp";
-		libmaus2::util::TempFileRemovalContainer::addTempFile(outfntmp);
-		std::string const db0 = arg[1];
-		std::string const db1 = arg[2];
-
-		libmaus2::dazzler::db::DatabaseFile DB0(db0);
-		DB0.computeTrimVector();
-		uint64_t const n0 = DB0.size();
-		libmaus2::dazzler::db::DatabaseFile DB1(db1);
-		DB1.computeTrimVector();
-		uint64_t const n1 = DB1.size();
-
-		libmaus2::autoarray::AutoArray<char> Adata;
-		std::vector<uint64_t> Aoff;
-		DB0.decodeReadsAndReverseComplementMappedTerm(0,n0,Adata,Aoff);
-
-		libmaus2::autoarray::AutoArray<char> Bdata;
-		std::vector<uint64_t> Boff;
-		DB1.decodeReadsAndReverseComplementMappedTerm(0,n1,Bdata,Boff);
-
-		int64_t const tspace = libmaus2::dazzler::align::AlignmentFile::getTSpace(arg[3]);
-		libmaus2::dazzler::align::AlignmentWriter::unique_ptr_type AW(new libmaus2::dazzler::align::AlignmentWriter(outfntmp,tspace,false /* no index */));
-
-		libmaus2::lcs::Aligner::unique_ptr_type Palgn(constructAligner());
-		libmaus2::lcs::AlignmentTraceContainer ATC;
-
-		for ( uint64_t i = 3; i < arg.size(); ++i )
-		{
-			std::string const lasfn = arg[i];
-
-			libmaus2::dazzler::align::AlignmentFileRegion::unique_ptr_type afile(libmaus2::dazzler::align::OverlapIndexer::openAlignmentFileWithoutIndex(lasfn));
-
-			libmaus2::dazzler::align::Overlap OVL;
-			while ( afile->getNextOverlap(OVL) )
-			{
-				std::pair<uint8_t const *,uint64_t> DA(getRead(Adata,Aoff,OVL.aread,false));
-				std::pair<uint8_t const *,uint64_t> DB(getRead(Bdata,Boff,OVL.bread,OVL.isInverse()));
-				libmaus2::dazzler::align::Overlap const OVLswapped = OVL.getSwappedPreMapped(afile->Palgn->tspace,DA.first,DA.second,DB.first,DB.second,ATC,*Palgn);
-				AW->put(OVLswapped);
-			}
-		}
-
-		AW.reset();
-
-		libmaus2::dazzler::align::SortingOverlapOutputBuffer<libmaus2::dazzler::align::OverlapFullComparator>::sortFile(outfntmp,outfn);
-		libmaus2::aio::FileRemoval::removeFile(outfntmp);
+		return lasroleswap(arg);
 	}
 	catch(std::exception const & ex)
 	{
