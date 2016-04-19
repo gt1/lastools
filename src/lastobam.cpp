@@ -1261,6 +1261,7 @@ struct RecodeControl :
 
 			char const * outp = reinterpret_cast<char const *>(obuf->outbuf.begin());
 			uint64_t n = 0;
+			uint64_t u = 0;
 
 			assert ( flushinfo.blocks == 1 || flushinfo.blocks == 2 );
 
@@ -1268,15 +1269,19 @@ struct RecodeControl :
 			{
 				/* write data to stream, one block */
 				n = flushinfo.block_a_c;
+				u = flushinfo.block_a_u;
 			}
 			else
 			{
 				assert ( flushinfo.blocks == 2 );
 				/* write data to stream, two blocks */
 				n = flushinfo.block_a_c + flushinfo.block_b_c;
+				u = flushinfo.block_a_u + flushinfo.block_b_u;
 			}
 
-			out.write(outp, n);
+			// check size of uncompressed data to avoid writing empty blocks
+			if ( u )
+				out.write(outp, n);
 
 			if ( ! out )
 			{
