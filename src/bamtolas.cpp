@@ -93,7 +93,7 @@ int bamtolas(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo cons
 				}
 			}
 
-			int64_t const abpos = algn.getPos();
+			int64_t const abpos = algn.getPos() - libmaus2::bambam::BamAlignmentDecoderBase::getFrontDel(algn.D.begin());
 			int64_t const aepos = abpos + algn.getReferenceLength();
 			int64_t const leftclip = libmaus2::bambam::BamAlignmentDecoderBase::getFrontClipping(algn.D.begin());
 			int64_t const rightclip = libmaus2::bambam::BamAlignmentDecoderBase::getBackClipping(algn.D.begin());
