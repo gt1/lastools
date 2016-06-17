@@ -16,11 +16,11 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <iostream>
+#include <config.h>
+
 #include <cassert>
 #include <csignal>
-
-#include <config.h>
+#include <iostream>
 
 #include <libmaus2/bambam/BamAlignmentEncoderBase.hpp>
 #include <libmaus2/bambam/BamBlockWriterBaseFactory.hpp>
@@ -31,8 +31,8 @@
 #include <libmaus2/bambam/parallel/AddWritePendingBgzfBlockInterface.hpp>
 #include <libmaus2/bambam/parallel/BgzfLinearMemCompressWorkPackageDispatcher.hpp>
 #include <libmaus2/bambam/parallel/BgzfLinearMemCompressWorkPackageReturnInterface.hpp>
-#include <libmaus2/bambam/parallel/FragmentAlignmentBuffer.hpp>
 #include <libmaus2/bambam/parallel/FragmentAlignmentBufferAllocator.hpp>
+#include <libmaus2/bambam/parallel/FragmentAlignmentBuffer.hpp>
 #include <libmaus2/bambam/parallel/FragmentAlignmentBufferTypeInfo.hpp>
 #include <libmaus2/bambam/parallel/GetBgzfDeflateZStreamBaseInterface.hpp>
 #include <libmaus2/bambam/parallel/PutBgzfDeflateZStreamBaseInterface.hpp>
@@ -44,23 +44,25 @@
 #include <libmaus2/dazzler/db/DatabaseFile.hpp>
 #include <libmaus2/fastx/CharBuffer.hpp>
 #include <libmaus2/fastx/FastAIndex.hpp>
+#include <libmaus2/fastx/FastAReader.hpp>
+#include <libmaus2/fastx/StreamFastAReader.hpp>
 #include <libmaus2/lcs/AlignerFactory.hpp>
 #include <libmaus2/lcs/DalignerLocalAlignment.hpp>
 #include <libmaus2/lcs/EditDistanceTraceContainer.hpp>
 #include <libmaus2/lz/BgzfDeflate.hpp>
-#include <libmaus2/lz/BgzfDeflateOutputCallbackMD5.hpp>
-#include <libmaus2/lz/BgzfDeflateZStreamBase.hpp>
-#include <libmaus2/lz/BgzfDeflateZStreamBaseAllocator.hpp>
-#include <libmaus2/lz/BgzfDeflateZStreamBaseTypeInfo.hpp>
-#include <libmaus2/lz/BgzfDeflateOutputBufferBase.hpp>
 #include <libmaus2/lz/BgzfDeflateOutputBufferBaseAllocator.hpp>
+#include <libmaus2/lz/BgzfDeflateOutputBufferBase.hpp>
 #include <libmaus2/lz/BgzfDeflateOutputBufferBaseTypeInfo.hpp>
+#include <libmaus2/lz/BgzfDeflateOutputCallbackMD5.hpp>
+#include <libmaus2/lz/BgzfDeflateZStreamBaseAllocator.hpp>
+#include <libmaus2/lz/BgzfDeflateZStreamBase.hpp>
+#include <libmaus2/lz/BgzfDeflateZStreamBaseTypeInfo.hpp>
 #include <libmaus2/parallel/LockedFreeList.hpp>
 #include <libmaus2/parallel/LockedGrowingFreeList.hpp>
 #include <libmaus2/parallel/NumCpus.hpp>
-#include <libmaus2/parallel/SimpleThreadWorkPackageDispatcher.hpp>
-#include <libmaus2/parallel/SimpleThreadPoolWorkPackageFreeList.hpp>
 #include <libmaus2/parallel/SimpleThreadPool.hpp>
+#include <libmaus2/parallel/SimpleThreadPoolWorkPackageFreeList.hpp>
+#include <libmaus2/parallel/SimpleThreadWorkPackageDispatcher.hpp>
 #include <libmaus2/parallel/SynchronousQueue.hpp>
 #include <libmaus2/parallel/TerminatableSynchronousQueue.hpp>
 #include <libmaus2/util/ArgInfo.hpp>
@@ -1779,8 +1781,6 @@ struct RecodeControl :
 	}
 };
 
-#include <libmaus2/fastx/FastAReader.hpp>
-#include <libmaus2/fastx/StreamFastAReader.hpp>
 
 int lastobam(libmaus2::util::ArgParser const & arg)
 {
