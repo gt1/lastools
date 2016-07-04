@@ -29,10 +29,6 @@ std::string getUsage(libmaus2::util::ArgParser const & arg)
 	ostr << "usage: " << arg.progname << " <out.las> <in.las> ..." << std::endl;
 	ostr << "\n";
 	ostr << "parameters:\n";
-	ostr << " -t : number of threads (defaults to number of cores on machine)\n";
-	ostr << " -T : prefix for temporary files (default: create files in current working directory)\n";
-	ostr << " -f : merge fan in (default: 64)\n";
-	ostr << " -s : sort order (canonical or ba, default: canonical)\n";
 
 	return ostr.str();
 }
