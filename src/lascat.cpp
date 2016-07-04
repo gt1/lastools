@@ -26,7 +26,7 @@ std::string getUsage(libmaus2::util::ArgParser const & arg)
 {
 	std::ostringstream ostr;
 
-	ostr << "usage: " << arg.progname << " [-t<threads> -T<tmpprefix> -f<mergefanin> -s<sortorder>] <out.las> <in.las> ..." << std::endl;
+	ostr << "usage: " << arg.progname << " <out.las> <in.las> ..." << std::endl;
 	ostr << "\n";
 	ostr << "parameters:\n";
 	ostr << " -t : number of threads (defaults to number of cores on machine)\n";
@@ -37,27 +37,27 @@ std::string getUsage(libmaus2::util::ArgParser const & arg)
 	return ostr.str();
 }
 
-int lassort(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo const & arginfo)
+int lassort(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo const &)
 {
-	uint64_t const numthreads = arg.uniqueArgPresent("t") ? arg.getUnsignedNumericArg<uint64_t>("t") : libmaus2::parallel::NumCpus::getNumLogicalProcessors();
-	std::string const tmpfilebase = arg.uniqueArgPresent("T") ? arg["T"] : arginfo.getDefaultTmpFileName();
-	uint64_t const mergefanin = arg.uniqueArgPresent("f") ? arg.getUnsignedNumericArg<uint64_t>("f") : 64;
-	std::string const sortorder = arg.uniqueArgPresent("s") ? arg["s"] : std::string("canonical");
-	assert ( mergefanin );
-
 	std::string const outfilename = arg[0];
-	std::vector<std::string> infilenames;
-	for ( uint64_t i = 1; i < arg.size(); ++i )
-		infilenames.push_back(arg[i]);
+	std::vector<std::string> VI;
+	for ( uint64_t i = 1 ; i < arg.size(); ++i )
+		VI.push_back(arg[i]);
+	int64_t const tspace = libmaus2::dazzler::align::AlignmentFile::getTSpace(VI);
 
-	if ( sortorder == "ba" )
-		libmaus2::dazzler::align::SortingOverlapOutputBuffer<libmaus2::dazzler::align::OverlapComparatorBReadARead>::sortAndMerge(infilenames,outfilename,tmpfilebase,mergefanin,1 /* numthreads */);
-	else if ( sortorder == "aidbid" )
-		libmaus2::dazzler::align::SortingOverlapOutputBuffer<libmaus2::dazzler::align::OverlapComparatorAIdBId>::sortAndMerge(infilenames,outfilename,tmpfilebase,mergefanin,1 /* numthreads */);
-	else if ( sortorder == "bidaid" )
-		libmaus2::dazzler::align::SortingOverlapOutputBuffer<libmaus2::dazzler::align::OverlapComparatorBIdAId>::sortAndMerge(infilenames,outfilename,tmpfilebase,mergefanin,1 /* numthreads */);
-	else
-		libmaus2::dazzler::align::SortingOverlapOutputBuffer<>::sortAndMerge(infilenames,outfilename,tmpfilebase,mergefanin,numthreads);
+	libmaus2::dazzler::align::AlignmentWriter::unique_ptr_type AW(
+		new libmaus2::dazzler::align::AlignmentWriter(outfilename,tspace,false /* index */, 0 /* expt */)
+	);
+
+	libmaus2::dazzler::align::Overlap OVL;
+	for ( uint64_t i = 0; i < VI.size(); ++i )
+	{
+		libmaus2::dazzler::align::AlignmentFileRegion::unique_ptr_type PIN(libmaus2::dazzler::align::OverlapIndexer::openAlignmentFileWithoutIndex(VI[i]));
+		while ( PIN->getNextOverlap(OVL) )
+			AW->put(OVL);
+	}
+
+	AW.reset();
 
 	return EXIT_SUCCESS;
 }

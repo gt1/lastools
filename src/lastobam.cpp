@@ -67,6 +67,8 @@
 #include <libmaus2/parallel/TerminatableSynchronousQueue.hpp>
 #include <libmaus2/util/ArgInfo.hpp>
 #include <libmaus2/util/ArgParser.hpp>
+#include <libmaus2/aio/DebugLineOutputStream.hpp>
+#include <libmaus2/geometry/RangeSet.hpp>
 
 int getDefaultLevel()
 {
@@ -824,6 +826,26 @@ struct OVLDataScoreComparator
 	}
 };
 
+struct ReadInterval
+{
+	uint64_t from;
+	uint64_t to;
+	uint64_t id;
+
+	ReadInterval() {}
+	ReadInterval(uint64_t const rfrom, uint64_t const rto, uint64_t const rid) : from(rfrom), to(rto), id(rid) {}
+
+	uint64_t getFrom() const
+	{
+		return from;
+	}
+
+	uint64_t getTo() const
+	{
+		return to;
+	}
+};
+
 struct LasToBamConversionRequestPart
 {
 	typedef LasToBamConversionRequestPart this_type;
@@ -836,8 +858,11 @@ struct LasToBamConversionRequestPart
 	RElement::shared_ptr_type relement;
 	libmaus2::bambam::BamHeader const * bamheader;
 	uint64_t maxconvert;
+	bool resort;
 
-	LasToBamConversionRequestPart() : request(), FABF(0), range(), relement(), bamheader(0), maxconvert(0) {}
+	libmaus2::util::SimpleQueue< libmaus2::geometry::RangeSet<ReadInterval>::search_q_element > SQ;
+
+	LasToBamConversionRequestPart() : request(), FABF(0), range(), relement(), bamheader(0), maxconvert(0), resort(false) {}
 
 	bool dispatch(LASToBAMConverter::shared_ptr_type converter)
 	{
@@ -857,26 +882,66 @@ struct LasToBamConversionRequestPart
 			)
 				++high;
 
-			std::vector<int64_t> I(high-low);
-			for ( uint64_t i = low; i < high; ++i )
-				I[i-low] = i;
-			std::sort(I.begin(),I.end(),OVLDataScoreComparator(rdata));
-
-			#if 0
-			std::cerr << std::string(80,'-') << std::endl;
-			for ( uint64_t i = 0; i < I.size(); ++i )
+			if ( resort )
 			{
-				libmaus2::dazzler::align::OverlapData::toString(std::cerr,rdata->getData(I[i]).first);
-				std::cerr << " " << OVLDataScoreComparator::getScore(rdata->getData(I[i]).first);
-				std::cerr << std::endl;
+				std::vector<int64_t> I(high-low);
+				for ( uint64_t i = low; i < high; ++i )
+					I[i-low] = i;
+				std::sort(I.begin(),I.end(),OVLDataScoreComparator(rdata));
+
+				#if 0
+				std::cerr << std::string(80,'-') << std::endl;
+				for ( uint64_t i = 0; i < I.size(); ++i )
+				{
+					libmaus2::dazzler::align::OverlapData::toString(std::cerr,rdata->getData(I[i]).first);
+					std::cerr << " " << OVLDataScoreComparator::getScore(rdata->getData(I[i]).first);
+					std::cerr << std::endl;
+				}
+				#endif
+
+				if ( maxconvert )
+				{
+					(*converter)(relement->odata->getData(I[0]).first,*FABF,true /* primary */,*bamheader);
+					for ( uint64_t i = 1; (i < maxconvert) && (i < I.size()); ++i )
+						(*converter)(relement->odata->getData(I[i]).first,*FABF,false /* primary */,*bamheader);
+				}
 			}
-			#endif
-
-			if ( maxconvert )
+			else
 			{
-				(*converter)(relement->odata->getData(I[0]).first,*FABF,true /* primary */,*bamheader);
-				for ( uint64_t i = 1; (i < maxconvert) && (i < I.size()); ++i )
-					(*converter)(relement->odata->getData(I[i]).first,*FABF,false /* primary */,*bamheader);
+				uint64_t maxbepos = 0;
+				for ( uint64_t i = low; i < high; ++i )
+				{
+					std::pair<uint8_t const *, uint8_t const *> const P = relement->odata->getData(i);
+					uint64_t const bepos = libmaus2::dazzler::align::OverlapData::getBEPos(P.first);
+					maxbepos = std::max(maxbepos,bepos);
+				}
+
+				#if 0
+				libmaus2::aio::DebugLineOutputStream DLOS(std::cerr,libmaus2::aio::StreamLock::cerrlock);
+				DLOS << "max bepos" << maxbepos << std::endl;
+				#endif
+
+				libmaus2::geometry::RangeSet<ReadInterval> RS(maxbepos);
+
+				for ( uint64_t i = low; i < high; ++i )
+				{
+					std::pair<uint8_t const *, uint8_t const *> const P = relement->odata->getData(i);
+					uint64_t const bbpos = libmaus2::dazzler::align::OverlapData::getBBPos(P.first);
+					uint64_t const bepos = libmaus2::dazzler::align::OverlapData::getBEPos(P.first);
+
+					uint64_t const nf = RS.search(ReadInterval(bbpos,bepos,i),SQ);
+					bool const primary = (! nf);
+
+					if ( primary )
+					{
+						(*converter)(P.first,*FABF,primary,*bamheader);
+						RS.insert(ReadInterval(bbpos,bepos,i));
+					}
+					else
+					{
+						(*converter)(P.first,*FABF,primary,*bamheader);
+					}
+				}
 			}
 
 			low = high;
@@ -1131,6 +1196,8 @@ struct RecodeControl :
 	libmaus2::parallel::PosixSpinLock writependinglock;
 
 	int64_t const maxconvert;
+
+	bool const resort;
 
 	struct SmallObjectComp
 	{
@@ -1389,7 +1456,8 @@ struct RecodeControl :
 		LASToBAMConverter::supplementary_seq_strategy_t const rsupplementaryStrategy,
 		std::string const & rgid,
 		int64_t const rmaxconvert,
-		int const rzlevel
+		int const rzlevel,
+		bool rresort
 	)
 	:
 	  out(rout),
@@ -1436,7 +1504,8 @@ struct RecodeControl :
 	  writenextsubblock(0),
 	  writingdone(0),
 	  writingdonelock(),
-	  maxconvert(rmaxconvert)
+	  maxconvert(rmaxconvert),
+	  resort(rresort)
 	{
 		STP.registerDispatcher(ORWPDid,&ORWPD);
 		STP.registerDispatcher(LTBCRPWPDid,&LTBCRPWPD);
@@ -1727,6 +1796,8 @@ struct RecodeControl :
 				reqpart->relement = R;
 				reqpart->bamheader = &bamheader;
 				reqpart->maxconvert = (maxconvert >= 0) ? static_cast<uint64_t>(maxconvert) : std::numeric_limits<uint64_t>::max();
+				reqpart->resort = resort;
+				// ZZZ
 
 				LasToBamConversionRequestPartWorkPackage * package = LTBCRPWPFL.getPackage();
 				*package = LasToBamConversionRequestPartWorkPackage(
@@ -1787,6 +1858,7 @@ int lastobam(libmaus2::util::ArgParser const & arg)
 
 	uint64_t const threads = arg.uniqueArgPresent("t") ? arg.getUnsignedNumericArg<uint64_t>("t") : libmaus2::parallel::NumCpus::getNumLogicalProcessors();
 	int64_t const maxconvert = arg.uniqueArgPresent("m") ? static_cast<int64_t>(arg.getUnsignedNumericArg<uint64_t>("m")) : -1;
+	bool const resort = arg.uniqueArgPresent("R") ? static_cast<int64_t>(arg.getUnsignedNumericArg<uint64_t>("R")) : false;
 
 	try
 	{
@@ -1953,7 +2025,7 @@ int lastobam(libmaus2::util::ArgParser const & arg)
 							bamheader,refoff,refdata,ref_interval.low,ref_interval.high,
 							readsoff,readsdata,reads_interval.low,reads_interval.high,
 							lasfn,tspace,startpos,endpos,
-							STP,Preadnames,calmdnm,supstorestrat,rgid,maxconvert,zlevel);
+							STP,Preadnames,calmdnm,supstorestrat,rgid,maxconvert,zlevel,resort);
 						try
 						{
 							RC.start(writeheader);
