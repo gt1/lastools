@@ -1,3 +1,10 @@
+lastools (0.0.20-1) unstable; urgency=medium
+
+  * use primary flag in lastobam
+  * add lasmarkprimary tool
+
+ -- German Tischler <tischler@mpi-cbg.de>  Mon, 04 Jul 2016 19:02:20 +0200
+
 lastools (0.0.19-1) unstable; urgency=medium
 
   * remove nonexistent parameter help messages 
