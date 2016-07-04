@@ -1,3 +1,12 @@
+lastools (0.0.18-1) unstable; urgency=medium
+
+  * add help message for -R switch in lastobam
+  * update to libmaus2 2.0.217
+  * add lascat program
+  * add no resort option in lastobam
+
+ -- German Tischler <tischler@mpi-cbg.de>  Mon, 04 Jul 2016 11:27:09 +0200
+
 lastools (0.0.17-1) unstable; urgency=medium
 
   * add converter from blasr's default text output to bam
