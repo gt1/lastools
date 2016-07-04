@@ -74,12 +74,12 @@ void handleVector(std::vector < libmaus2::dazzler::align::Overlap > & VOVL, libm
 		if ( primary )
 		{
 			VOVL[i].setPrimary();
-			std::cerr << "primary " << VOVL[i] << std::endl;
+			//std::cerr << "primary " << VOVL[i] << std::endl;
 			RS.insert(ReadInterval(abpos,aepos,i));
 		}
 		else
 		{
-			std::cerr << "secondary " << VOVL[i] << std::endl;
+			//std::cerr << "secondary " << VOVL[i] << std::endl;
 		}
 	}
 
