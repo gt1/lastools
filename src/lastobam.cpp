@@ -909,39 +909,12 @@ struct LasToBamConversionRequestPart
 			}
 			else
 			{
-				uint64_t maxbepos = 0;
 				for ( uint64_t i = low; i < high; ++i )
 				{
 					std::pair<uint8_t const *, uint8_t const *> const P = relement->odata->getData(i);
-					uint64_t const bepos = libmaus2::dazzler::align::OverlapData::getBEPos(P.first);
-					maxbepos = std::max(maxbepos,bepos);
-				}
-
-				#if 0
-				libmaus2::aio::DebugLineOutputStream DLOS(std::cerr,libmaus2::aio::StreamLock::cerrlock);
-				DLOS << "max bepos" << maxbepos << std::endl;
-				#endif
-
-				libmaus2::geometry::RangeSet<ReadInterval> RS(maxbepos);
-
-				for ( uint64_t i = low; i < high; ++i )
-				{
-					std::pair<uint8_t const *, uint8_t const *> const P = relement->odata->getData(i);
-					uint64_t const bbpos = libmaus2::dazzler::align::OverlapData::getBBPos(P.first);
-					uint64_t const bepos = libmaus2::dazzler::align::OverlapData::getBEPos(P.first);
-
-					uint64_t const nf = RS.search(ReadInterval(bbpos,bepos,i),SQ);
-					bool const primary = (! nf);
-
-					if ( primary )
-					{
-						(*converter)(P.first,*FABF,primary,*bamheader);
-						RS.insert(ReadInterval(bbpos,bepos,i));
-					}
-					else
-					{
-						(*converter)(P.first,*FABF,primary,*bamheader);
-					}
+					uint32_t const flags = libmaus2::dazzler::align::OverlapData::getFlags(P.first);
+					bool const primary = flags & 0x80000000ull;
+					(*converter)(P.first,*FABF,primary,*bamheader);
 				}
 			}
 
