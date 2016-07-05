@@ -912,8 +912,7 @@ struct LasToBamConversionRequestPart
 				for ( uint64_t i = low; i < high; ++i )
 				{
 					std::pair<uint8_t const *, uint8_t const *> const P = relement->odata->getData(i);
-					uint32_t const flags = libmaus2::dazzler::align::OverlapData::getFlags(P.first);
-					bool const primary = flags & 0x80000000ull;
+					bool const primary = libmaus2::dazzler::align::OverlapData::getPrimaryFlag(P.first);
 					(*converter)(P.first,*FABF,primary,*bamheader);
 				}
 			}
