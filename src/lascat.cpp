@@ -33,7 +33,7 @@ std::string getUsage(libmaus2::util::ArgParser const & arg)
 	return ostr.str();
 }
 
-int lassort(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo const &)
+int lascat(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo const &)
 {
 	std::string const outfilename = arg[0];
 	std::vector<std::string> VI;
@@ -85,7 +85,7 @@ int main(int argc, char *argv[])
 			return EXIT_FAILURE;
 		}
 
-		return lassort(arg,arginfo);
+		return lascat(arg,arginfo);
 	}
 	catch(std::exception const & ex)
 	{
