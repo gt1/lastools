@@ -109,7 +109,7 @@ int lassort(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo const
 		std::vector < libmaus2::dazzler::align::Overlap > VOVL;
 		while ( PIN->getNextOverlap(OVL) )
 		{
-			if ( VOVL.size() && VOVL[0].bread != OVL.bread )
+			if ( VOVL.size() && VOVL[0].aread != OVL.aread )
 				handleVector(VOVL,*AW);
 			VOVL.push_back(OVL);
 		}
