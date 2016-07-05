@@ -1,3 +1,11 @@
+lastools (0.0.21-1) unstable; urgency=medium
+
+  * use OverlapData function instead of hard coded constant in lastobam
+  * correctly name work function in lascat
+  * take front deletions into account blasrtobam
+
+ -- German Tischler <tischler@mpi-cbg.de>  Tue, 05 Jul 2016 11:32:41 +0200
+
 lastools (0.0.20-1) unstable; urgency=medium
 
   * use primary flag in lastobam
