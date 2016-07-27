@@ -577,8 +577,10 @@ struct LASToBAMConverter : public libmaus2::dazzler::align::LASToBamConverterBas
 		uint8_t const * OVL,
 		// buffer for storing bam record,
 		libmaus2::bambam::parallel::FragmentAlignmentBufferFragment & FABR,
-		// is this the primary alignment for this read?
-		bool const primary,
+		// is this a secondary alignment?
+		bool const secondary,
+		// is this a supplementary alignment?
+		bool const supplementary,
 		// header
 		libmaus2::bambam::BamHeader const & bamheader
 	)
@@ -618,7 +620,7 @@ struct LASToBAMConverter : public libmaus2::dazzler::align::LASToBamConverterBas
 
 		char const * readname = Preadnames.at(bread - reads_low);
 
-		convert(OVL,aptr,reflen,bptr,readlen,readname,FABR,primary,bamheader);
+		convert(OVL,aptr,reflen,bptr,readlen,readname,FABR,secondary,supplementary,bamheader);
 	}
 };
 
@@ -871,6 +873,7 @@ struct LasToBamConversionRequestPart
 
 		uint64_t low = range.first;
 
+		// split into B-read intervals
 		while ( low < range.second )
 		{
 			int64_t const ref_bread = libmaus2::dazzler::align::OverlapData::getBRead(rdata->getData(low).first);
@@ -902,18 +905,36 @@ struct LasToBamConversionRequestPart
 
 				if ( maxconvert )
 				{
-					(*converter)(relement->odata->getData(I[0]).first,*FABF,true /* primary */,*bamheader);
+					(*converter)(relement->odata->getData(I[0]).first,*FABF,false /* secondary */,false /* supplementary */,*bamheader);
 					for ( uint64_t i = 1; (i < maxconvert) && (i < I.size()); ++i )
-						(*converter)(relement->odata->getData(I[i]).first,*FABF,false /* primary */,*bamheader);
+						(*converter)(relement->odata->getData(I[i]).first,*FABF,true /* primary */,false,*bamheader);
 				}
 			}
 			else
 			{
+				bool secondary = false;
+				bool supplementary = false;
+
 				for ( uint64_t i = low; i < high; ++i )
 				{
 					std::pair<uint8_t const *, uint8_t const *> const P = relement->odata->getData(i);
-					bool const primary = libmaus2::dazzler::align::OverlapData::getPrimaryFlag(P.first);
-					(*converter)(P.first,*FABF,primary,*bamheader);
+
+					bool const isStart = libmaus2::dazzler::align::OverlapData::getStartFlag(P.first);
+
+					if ( isStart )
+					{
+						bool const isBest = libmaus2::dazzler::align::OverlapData::getBestFlag(P.first);
+
+						secondary = (!isBest);
+						supplementary = false;
+					}
+					else
+					{
+						supplementary = true;
+					}
+
+					//bool const primary = libmaus2::dazzler::align::OverlapData::getPrimaryFlag(P.first);
+					(*converter)(P.first,*FABF,secondary,supplementary,*bamheader);
 				}
 			}
 
