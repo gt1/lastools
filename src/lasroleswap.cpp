@@ -122,12 +122,24 @@ int lasroleswap(libmaus2::util::ArgParser & arg)
 		libmaus2::dazzler::align::AlignmentFileRegion::unique_ptr_type afile(libmaus2::dazzler::align::OverlapIndexer::openAlignmentFileWithoutIndex(lasfn));
 
 		libmaus2::dazzler::align::Overlap OVL;
+		uint64_t c = 0;
 		while ( afile->getNextOverlap(OVL) )
 		{
 			std::pair<uint8_t const *,uint64_t> DA(getRead(Adata,Aoff,OVL.aread,false));
+			assert ( OVL.path.abpos >= 0 );
+			assert ( OVL.path.aepos <= static_cast<int64_t>(DA.second) );
 			std::pair<uint8_t const *,uint64_t> DB(getRead(Bdata,Boff,OVL.bread,OVL.isInverse()));
+			assert ( OVL.path.bbpos >= 0 );
+			assert ( OVL.path.bepos <= static_cast<int64_t>(DB.second) );
 			libmaus2::dazzler::align::Overlap const OVLswapped = OVL.getSwappedPreMapped(afile->Palgn->tspace,DA.first,DA.second,DB.first,DB.second,ATC,*Palgn);
+			assert ( OVLswapped.path.abpos >= 0 );
+			assert ( OVLswapped.path.aepos <= static_cast<int64_t>(DB.second) );
+			assert ( OVLswapped.path.bbpos >= 0 );
+			assert ( OVLswapped.path.bepos <= static_cast<int64_t>(DA.second) );
 			AW->put(OVLswapped);
+
+			if ( (++c % 1024) == 0 )
+				std::cerr << "[V] " << c << std::endl;
 		}
 	}
 
