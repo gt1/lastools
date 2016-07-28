@@ -912,6 +912,8 @@ struct LasToBamConversionRequestPart
 			}
 			else
 			{
+				uint64_t chainid = 0;
+
 				bool secondary = false;
 				bool supplementary = false;
 
@@ -919,14 +921,17 @@ struct LasToBamConversionRequestPart
 				{
 					std::pair<uint8_t const *, uint8_t const *> const P = relement->odata->getData(i);
 
+					// is this the start of a new chain?
 					bool const isStart = libmaus2::dazzler::align::OverlapData::getStartFlag(P.first);
 
 					if ( isStart )
 					{
-						bool const isBest = libmaus2::dazzler::align::OverlapData::getBestFlag(P.first);
+						//bool const isBest = libmaus2::dazzler::align::OverlapData::getBestFlag(P.first);
 
-						secondary = (!isBest);
+						secondary = (chainid > 0);
 						supplementary = false;
+
+						chainid++;
 					}
 					else
 					{
