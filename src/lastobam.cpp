@@ -22,6 +22,7 @@
 #include <csignal>
 #include <iostream>
 
+#include <libmaus2/dazzler/align/RefMapEntryVector.hpp>
 #include <libmaus2/bambam/BamAlignmentEncoderBase.hpp>
 #include <libmaus2/bambam/BamBlockWriterBaseFactory.hpp>
 #include <libmaus2/bambam/BamFlagBase.hpp>
@@ -94,6 +95,8 @@ std::string getDefaultSupStoreStrat()
 {
 	return "none";
 }
+
+
 
 struct RgInfo
 {
@@ -543,6 +546,8 @@ struct LASToBAMConverter : public libmaus2::dazzler::align::LASToBamConverterBas
 
 	libmaus2::autoarray::AutoArray<char const *> const & Preadnames;
 
+	libmaus2::dazzler::align::RefMapEntryVector const & refmap;
+
 	LASToBAMConverter(
 		std::vector<uint64_t> const & rrefoff,
 		libmaus2::autoarray::AutoArray<char> const & rrefdata,
@@ -556,10 +561,11 @@ struct LASToBAMConverter : public libmaus2::dazzler::align::LASToBamConverterBas
 		int64_t const rtspace,
 		bool const rcalmdnm,
 		libmaus2::dazzler::align::LASToBamConverterBase::supplementary_seq_strategy_t const rsupplementaryStrategy,
-		std::string const rrgid
+		std::string const rrgid,
+		libmaus2::dazzler::align::RefMapEntryVector const & rrefmap
 	)
 	:
-	  LASToBamConverterBase(rtspace, rcalmdnm, rsupplementaryStrategy, rrgid),
+	  LASToBamConverterBase(rtspace, rcalmdnm, rsupplementaryStrategy, rrgid, rrefmap),
 	  refoff(rrefoff),
 	  refdata(rrefdata),
 	  ref_low(rref_low),
@@ -568,7 +574,8 @@ struct LASToBAMConverter : public libmaus2::dazzler::align::LASToBamConverterBas
 	  readsdata(rreadsdata),
 	  reads_low(rreads_low),
 	  reads_high(rreads_high),
-	  Preadnames(rPreadnames)
+	  Preadnames(rPreadnames),
+	  refmap(rrefmap)
 	{
 	}
 
@@ -620,7 +627,14 @@ struct LASToBAMConverter : public libmaus2::dazzler::align::LASToBamConverterBas
 
 		char const * readname = Preadnames.at(bread - reads_low);
 
-		convert(OVL,aptr,reflen,bptr,readlen,readname,FABR,secondary,supplementary,bamheader);
+		convert(
+			OVL,
+			// ref
+			aptr,reflen,
+			// read
+			bptr,readlen,
+			readname,FABR,secondary,supplementary,bamheader
+		);
 	}
 };
 
@@ -657,6 +671,7 @@ struct LASToBAMConverterAllocator
 	bool const calmdnm;
 	LASToBAMConverter::supplementary_seq_strategy_t const supplementaryStrategy;
 	std::string const rgid;
+	libmaus2::dazzler::align::RefMapEntryVector const & refmap;
 
 	LASToBAMConverterAllocator(
 		std::vector<uint64_t> const & rrefoff,
@@ -671,7 +686,8 @@ struct LASToBAMConverterAllocator
 		int64_t const rtspace, /* algn.tspace */
 		bool const rcalmdnm,
 		LASToBAMConverter::supplementary_seq_strategy_t const rsupplementaryStrategy,
-		std::string const rrgid
+		std::string const rrgid,
+		libmaus2::dazzler::align::RefMapEntryVector const & rrefmap
 	)
 	:
 	  refoff(rrefoff),
@@ -686,14 +702,16 @@ struct LASToBAMConverterAllocator
 	  tspace(rtspace),
 	  calmdnm(rcalmdnm),
 	  supplementaryStrategy(rsupplementaryStrategy),
-	  rgid(rrgid)
+	  rgid(rrgid),
+	  refmap(rrefmap)
 	{}
 
 	LASToBAMConverter::shared_ptr_type operator()() const
 	{
 		LASToBAMConverter::shared_ptr_type Tptr(
 			new LASToBAMConverter(
-				refoff,refdata,ref_low,ref_high,readsoff,readsdata,reads_low,reads_high,Preadnames,tspace,calmdnm,supplementaryStrategy,rgid
+				refoff,refdata,ref_low,ref_high,readsoff,readsdata,reads_low,reads_high,Preadnames,tspace,calmdnm,supplementaryStrategy,rgid,
+				refmap
 			)
 		);
 		return Tptr;
@@ -1086,6 +1104,8 @@ struct RecodeControl :
 {
 	std::ostream & out;
 
+	libmaus2::dazzler::align::RefMapEntryVector const refmap;
+
 	libmaus2::bambam::BamHeader const & bamheader;
 
 	std::vector<uint64_t> const & refoff;
@@ -1197,6 +1217,7 @@ struct RecodeControl :
 	int64_t const maxconvert;
 
 	bool const resort;
+
 
 	struct SmallObjectComp
 	{
@@ -1456,10 +1477,12 @@ struct RecodeControl :
 		std::string const & rgid,
 		int64_t const rmaxconvert,
 		int const rzlevel,
-		bool rresort
+		bool rresort,
+		libmaus2::dazzler::align::RefMapEntryVector const & rrefmap
 	)
 	:
 	  out(rout),
+	  refmap(rrefmap),
 	  bamheader(rbamheader),
 	  refoff(rrefoff),
 	  refdata(rrefdata),
@@ -1482,7 +1505,7 @@ struct RecodeControl :
 	  Rtodo(), rnext(1), rlock(), rfinalseen(0),
 	  Preadnames(rPreadnames),
 	  lastobamfreelist(
-		LASToBAMConverterAllocator(refoff,refdata,ref_low,ref_high,readsoff,readsdata,reads_low,reads_high,Preadnames,tspace,rcalmdnm,rsupplementaryStrategy,rgid)
+		LASToBAMConverterAllocator(refoff,refdata,ref_low,ref_high,readsoff,readsdata,reads_low,reads_high,Preadnames,tspace,rcalmdnm,rsupplementaryStrategy,rgid,refmap)
 	  ),
 	  fabfreelist(
 	  	4,libmaus2::bambam::parallel::FragmentAlignmentBufferAllocator(STP.getNumThreads(),1 /* pointer mult */)
@@ -1868,10 +1891,21 @@ int lastobam(libmaus2::util::ArgParser const & arg)
 		std::string const db_reads_fn = arg[2];
 		std::string const reads_fa_fn = arg[3];
 
+		libmaus2::dazzler::align::RefMapEntryVector const refmap = libmaus2::dazzler::align::RefMapEntryVector::computeRefSplitMap(reference);
+
+		// load and trim dazzler databases
 		libmaus2::dazzler::db::DatabaseFile DB_ref(db_ref_fn);
 		DB_ref.computeTrimVector();
 		libmaus2::dazzler::db::DatabaseFile DB_reads(db_reads_fn);
 		DB_reads.computeTrimVector();
+
+		if ( DB_ref.indexbase.ureads != DB_ref.indexbase.nreads )
+		{
+			libmaus2::exception::LibMausException lme;
+			lme.getStream() << "[E] reference databases with sequences trimmed away are not supported" << std::endl;
+			lme.finish();
+			throw lme;
+		}
 
 		/* get the original read names */
 		std::ostringstream readnameostr;
@@ -1887,6 +1921,17 @@ int lastobam(libmaus2::util::ArgParser const & arg)
 			uint64_t inid = 0;
 			while ( SFAR.getNextPatternUnlocked(pattern) )
 			{
+				std::string const & s = pattern.spattern;
+				for ( uint64_t i = 0; i < s.size(); ++i )
+					if ( libmaus2::fastx::mapChar(s[i]) >= 4 )
+					{
+						libmaus2::exception::LibMausException lme;
+						lme.getStream() << "[E] indeterminate bases in reads are not supported" << std::endl;
+						lme.finish();
+						throw lme;
+					}
+
+				// if read is not trimmed away
 				if ( DB_reads.isInTrimmed(inid++) )
 				{
 					std::string const id = pattern.getShortStringId();
@@ -1940,13 +1985,19 @@ int lastobam(libmaus2::util::ArgParser const & arg)
 				libmaus2::fastx::FastAIndexEntry const & entry = refindex[i];
 				sqstream << "@SQ\t" << "SN:" << entry.name << "\tLN:" << entry.length << "\tUR:file://" << absreference << std::endl;
 
+				#if 0
 				if ( static_cast<int64_t>(entry.length) != static_cast<int64_t>(DB_ref.getRead(i).rlen) )
 				{
+					#if 0
 					libmaus2::exception::LibMausException lme;
 					lme.getStream() << "reference length " << entry.length << " for id " << i << " is not in sync with database entry length " << DB_ref.getRead(i).rlen << std::endl;
 					lme.finish();
 					throw lme;
+					#else
+					std::cerr << "[W] reference length " << entry.length << " for id " << i << " is not in sync with database entry length " << DB_ref.getRead(i).rlen << std::endl;
+					#endif
 				}
+				#endif
 			}
 
 		// construct new header
@@ -2024,7 +2075,7 @@ int lastobam(libmaus2::util::ArgParser const & arg)
 							bamheader,refoff,refdata,ref_interval.low,ref_interval.high,
 							readsoff,readsdata,reads_interval.low,reads_interval.high,
 							lasfn,tspace,startpos,endpos,
-							STP,Preadnames,calmdnm,supstorestrat,rgid,maxconvert,zlevel,resort);
+							STP,Preadnames,calmdnm,supstorestrat,rgid,maxconvert,zlevel,resort,refmap);
 						try
 						{
 							RC.start(writeheader);
