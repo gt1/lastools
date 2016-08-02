@@ -1891,7 +1891,6 @@ int lastobam(libmaus2::util::ArgParser const & arg)
 		std::string const db_reads_fn = arg[2];
 		std::string const reads_fa_fn = arg[3];
 
-		libmaus2::dazzler::align::RefMapEntryVector const refmap = libmaus2::dazzler::align::RefMapEntryVector::computeRefSplitMap(reference);
 
 		// load and trim dazzler databases
 		libmaus2::dazzler::db::DatabaseFile DB_ref(db_ref_fn);
@@ -1899,13 +1898,8 @@ int lastobam(libmaus2::util::ArgParser const & arg)
 		libmaus2::dazzler::db::DatabaseFile DB_reads(db_reads_fn);
 		DB_reads.computeTrimVector();
 
-		if ( DB_ref.indexbase.ureads != DB_ref.indexbase.nreads )
-		{
-			libmaus2::exception::LibMausException lme;
-			lme.getStream() << "[E] reference databases with sequences trimmed away are not supported" << std::endl;
-			lme.finish();
-			throw lme;
-		}
+		// compute dazzler db id to reference id map
+		libmaus2::dazzler::align::RefMapEntryVector const refmap = libmaus2::dazzler::align::RefMapEntryVector::computeRefSplitMap(reference,DB_ref);
 
 		/* get the original read names */
 		std::ostringstream readnameostr;
@@ -1975,30 +1969,18 @@ int lastobam(libmaus2::util::ArgParser const & arg)
 		libmaus2::fastx::FastAIndex::unique_ptr_type Prefindex(libmaus2::fastx::FastAIndex::load(reference+".fai"));
 		libmaus2::fastx::FastAIndex const & refindex = *Prefindex;
 
+		for ( uint64_t i = 0; i < refmap.size(); ++i )
+			assert ( refmap[i].refid < refindex.size() );
+
 		std::string const curdir = libmaus2::util::ArgInfo::getCurDir();
 		std::string const absreference =  (reference.size() && reference[0] == '/') ? reference : (curdir+'/'+reference);
 		std::ostringstream sqstream;
 
 		for ( uint64_t i = 0; i < refindex.size(); ++i )
-			if ( DB_ref.isInTrimmed(i) )
-			{
-				libmaus2::fastx::FastAIndexEntry const & entry = refindex[i];
-				sqstream << "@SQ\t" << "SN:" << entry.name << "\tLN:" << entry.length << "\tUR:file://" << absreference << std::endl;
-
-				#if 0
-				if ( static_cast<int64_t>(entry.length) != static_cast<int64_t>(DB_ref.getRead(i).rlen) )
-				{
-					#if 0
-					libmaus2::exception::LibMausException lme;
-					lme.getStream() << "reference length " << entry.length << " for id " << i << " is not in sync with database entry length " << DB_ref.getRead(i).rlen << std::endl;
-					lme.finish();
-					throw lme;
-					#else
-					std::cerr << "[W] reference length " << entry.length << " for id " << i << " is not in sync with database entry length " << DB_ref.getRead(i).rlen << std::endl;
-					#endif
-				}
-				#endif
-			}
+		{
+			libmaus2::fastx::FastAIndexEntry const & entry = refindex[i];
+			sqstream << "@SQ\t" << "SN:" << entry.name << "\tLN:" << entry.length << "\tUR:file://" << absreference << std::endl;
+		}
 
 		// construct new header
 		RgInfo const rginfo(arg);
