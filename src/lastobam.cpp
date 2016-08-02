@@ -589,7 +589,15 @@ struct LASToBAMConverter : public libmaus2::dazzler::align::LASToBamConverterBas
 		// is this a supplementary alignment?
 		bool const supplementary,
 		// header
-		libmaus2::bambam::BamHeader const & bamheader
+		libmaus2::bambam::BamHeader const & bamheader,
+		// chain id
+		uint64_t const chainid,
+		// number of chains
+		uint64_t const numchains,
+		// chain link id
+		uint64_t const chainlinkid,
+		// number of chain links
+		uint64_t const numchainlinks
 	)
 	{
 		int64_t const aread = libmaus2::dazzler::align::OverlapData::getARead(OVL);
@@ -627,13 +635,31 @@ struct LASToBAMConverter : public libmaus2::dazzler::align::LASToBamConverterBas
 
 		char const * readname = Preadnames.at(bread - reads_low);
 
+		// chain id
+		libmaus2::dazzler::align::LASToBamConverterBase::AuxTagIntegerAddRequest req_i("ci",chainid);
+		libmaus2::dazzler::align::LASToBamConverterBase::AuxTagIntegerAddRequest req_n("cn",numchains);
+		libmaus2::dazzler::align::LASToBamConverterBase::AuxTagIntegerAddRequest req_j("cj",chainlinkid);
+		libmaus2::dazzler::align::LASToBamConverterBase::AuxTagIntegerAddRequest req_l("cl",numchainlinks);
+
+		libmaus2::dazzler::align::LASToBamConverterBase::AuxTagAddRequest const * reqs[] =
+		{
+			&req_i,
+			&req_n,
+			&req_j,
+			&req_l
+		};
+
+		libmaus2::dazzler::align::LASToBamConverterBase::AuxTagAddRequest const ** aux_a = &reqs[0];
+		libmaus2::dazzler::align::LASToBamConverterBase::AuxTagAddRequest const ** aux_e = &reqs[sizeof(reqs)/sizeof(reqs[0])];
+
 		convert(
 			OVL,
 			// ref
 			aptr,reflen,
 			// read
 			bptr,readlen,
-			readname,FABR,secondary,supplementary,bamheader
+			readname,FABR,secondary,supplementary,bamheader,
+			aux_a, aux_e
 		);
 	}
 };
@@ -923,17 +949,16 @@ struct LasToBamConversionRequestPart
 
 				if ( maxconvert )
 				{
-					(*converter)(relement->odata->getData(I[0]).first,*FABF,false /* secondary */,false /* supplementary */,*bamheader);
-					for ( uint64_t i = 1; (i < maxconvert) && (i < I.size()); ++i )
-						(*converter)(relement->odata->getData(I[i]).first,*FABF,true /* primary */,false,*bamheader);
+					uint64_t const tocopy = std::min(maxconvert,I.size());
+
+					(*converter)(relement->odata->getData(I[0]).first,*FABF,false /* secondary */,false /* supplementary */,*bamheader,0,tocopy,0,1);
+					for ( uint64_t i = 1; i < tocopy; ++i )
+						(*converter)(relement->odata->getData(I[i]).first,*FABF,true /* primary */,false,*bamheader,i,tocopy,0,1);
 				}
 			}
 			else
 			{
-				uint64_t chainid = 0;
-
-				bool secondary = false;
-				bool supplementary = false;
+				uint64_t numchains = 0;
 
 				for ( uint64_t i = low; i < high; ++i )
 				{
@@ -943,21 +968,32 @@ struct LasToBamConversionRequestPart
 					bool const isStart = libmaus2::dazzler::align::OverlapData::getStartFlag(P.first);
 
 					if ( isStart )
+						numchains++;
+				}
+
+				uint64_t chainid = 0;
+				uint64_t l = low;
+
+				while ( l < high )
+				{
+					uint64_t h = l+1;
+					while (
+						h < high &&
+						(!libmaus2::dazzler::align::OverlapData::getStartFlag(relement->odata->getData(h).first))
+					)
+						++h;
+
+					uint64_t const lchainid = chainid++;
+					bool const secondary = (lchainid != 0);
+
+					for ( uint64_t i = l; i < h; ++i )
 					{
-						//bool const isBest = libmaus2::dazzler::align::OverlapData::getBestFlag(P.first);
-
-						secondary = (chainid > 0);
-						supplementary = false;
-
-						chainid++;
-					}
-					else
-					{
-						supplementary = true;
+						bool const supplementary = (i != l);
+						std::pair<uint8_t const *, uint8_t const *> const P = relement->odata->getData(i);
+						(*converter)(P.first,*FABF,secondary,supplementary,*bamheader,lchainid,numchains,i-l,h-l);
 					}
 
-					//bool const primary = libmaus2::dazzler::align::OverlapData::getPrimaryFlag(P.first);
-					(*converter)(P.first,*FABF,secondary,supplementary,*bamheader);
+					l = h;
 				}
 			}
 
