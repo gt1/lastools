@@ -1,3 +1,9 @@
+lastools (0.0.26-1) unstable; urgency=medium
+
+  * implement reference database trimming support in lastobam
+
+ -- German Tischler <tischler@mpi-cbg.de>  Tue, 02 Aug 2016 14:22:23 +0200
+
 lastools (0.0.25-1) unstable; urgency=medium
 
   * allow reference sequences with indeterminate bases in lastobam
