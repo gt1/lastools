@@ -949,7 +949,10 @@ struct LasToBamConversionRequestPart
 
 				if ( maxconvert )
 				{
-					uint64_t const tocopy = std::min(maxconvert,I.size());
+					uint64_t const tocopy = std::min(
+						static_cast<uint64_t>(maxconvert),
+						static_cast<uint64_t>(I.size())
+					);
 
 					(*converter)(relement->odata->getData(I[0]).first,*FABF,false /* secondary */,false /* supplementary */,*bamheader,0,tocopy,0,1);
 					for ( uint64_t i = 1; i < tocopy; ++i )
