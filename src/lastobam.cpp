@@ -1938,7 +1938,8 @@ int lastobam(libmaus2::util::ArgParser const & arg)
 		DB_reads.computeTrimVector();
 
 		// compute dazzler db id to reference id map
-		libmaus2::dazzler::align::RefMapEntryVector const refmap = libmaus2::dazzler::align::RefMapEntryVector::computeRefSplitMapN(reference,DB_ref);
+		//libmaus2::dazzler::align::RefMapEntryVector const refmap = libmaus2::dazzler::align::RefMapEntryVector::computeRefSplitMapN(reference,DB_ref);
+		libmaus2::dazzler::align::RefMapEntryVector const refmap = libmaus2::dazzler::align::RefMapEntryVector(DB_ref);
 
 		/* get the original read names */
 		std::ostringstream readnameostr;
