@@ -38,8 +38,8 @@ Using lastobam with damapper
 ----------------------------
 
 The lastobam program requires the A reads in LAS files to refer to the reference sequence database and the B reads to the read sequence database.
-This is not the default output format of damapper, so make sure to call damapper (or HPC.damapepr) using the the switches -C -N.
-lastobam expects to see the alignments in increasing order of the B read id. This is exactly the order damapper outputs the alignments, so it is sufficient to concatenate
+This is not the default output format of damapper, so make sure to call damapper (or HPC.damapper) using the the switches -C -N.
+lastobam expects to see the alignments in increasing order of the B read id. This is exactly the order in which damapper outputs the alignments, so it is sufficient to concatenate
 the files as an input for lastobam. A sample pipeline is thus:
 
 ```
