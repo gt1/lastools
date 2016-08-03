@@ -33,3 +33,33 @@ The contained programs are:
  * lassort: Sort a set of LAS files and merge into a single output file.
  * lastobam: Convert a sorted input LAS file to the BAM format. This does currently not add information about unmapped reads.
  * reformatfasta: Reformats a FastA file so it follows the naming and formatting (limited column width) of the FastA expected by fasta2DB in the DAZZ_DB suite.
+
+Using lastobam with damapper
+----------------------------
+
+The lastobam program requires the A reads in LAS files to refer to the reference sequence database and the B reads to the read sequence database.
+This is not the default output format of damapper, so make sure to call damapper (or HPC.damapepr) using the the switches -C -N.
+lastobam expects to see the alignments in increasing order of the B read id. This is exactly the order damapper outputs the alignments, so it is sufficient to concatenate
+the files as an input for lastobam. A sample pipeline is thus:
+
+```
+# k-mer size used by damapper
+k=20
+# create dazzler DAM file for reference
+fasta2DAM ref.dam ref.fasta
+# call DBsplit (block size 250MB, cut off at the kmer size)
+DBsplit -s250 -x${k} ref.dam
+# create dazzler DAM file for the reads
+fasta2DAM reads.dam reads.fasta
+# call DBsplit on the reads with block size 250MB, cut nothing off
+# (-x0 is important because lastobam cannot handle trimmed read databases)
+DBsplit -s250 -x0 reads.dam
+# run damapper
+HPC.damapper -C -N -k${k} <other switches> ref.dam reads.dam | grep "^damapper" | ${SHELL}
+# get output file names produced by damapper
+DAMAPPEROUT=`HPC.damapper -C -N -k${k} <other switches> ref_primary_damapper.dam ref_primary_p10_damapper.dam | grep LAsort | perl -p -e "s/\s*\&.*//" | perl -p -e "s/LAsort.*?ref_/ref_/"`
+# concatenate damapper output files to a single file
+LAcat ${DAMAPPEROUT} >cat.las
+# convert the alignments to bam format
+lastobam -snone ref.dam ref.fasta reads.dam reads.fasta cat.las >out.bam
+```
