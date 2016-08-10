@@ -46,6 +46,7 @@
 #include <libmaus2/fastx/CharBuffer.hpp>
 #include <libmaus2/fastx/FastAIndex.hpp>
 #include <libmaus2/fastx/FastAReader.hpp>
+#include <libmaus2/fastx/FastAIndexGenerator.hpp>
 #include <libmaus2/fastx/StreamFastAReader.hpp>
 #include <libmaus2/lcs/AlignerFactory.hpp>
 #include <libmaus2/lcs/DalignerLocalAlignment.hpp>
@@ -2006,7 +2007,10 @@ int lastobam(libmaus2::util::ArgParser const & arg)
 			throw lme;
 		}
 
-		libmaus2::fastx::FastAIndex::unique_ptr_type Prefindex(libmaus2::fastx::FastAIndex::load(reference+".fai"));
+		std::string const fainame = reference+".fai";
+                libmaus2::fastx::FastAIndexGenerator::generate(reference,fainame,true /* verbose */);
+
+		libmaus2::fastx::FastAIndex::unique_ptr_type Prefindex(libmaus2::fastx::FastAIndex::load(fainame));
 		libmaus2::fastx::FastAIndex const & refindex = *Prefindex;
 
 		for ( uint64_t i = 0; i < refmap.size(); ++i )
