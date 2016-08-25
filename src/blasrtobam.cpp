@@ -24,6 +24,7 @@
 #include <libmaus2/lcs/NP.hpp>
 #include <libmaus2/lcs/AlignmentPrint.hpp>
 #include <libmaus2/lcs/NNPLocalAligner.hpp>
+#include <libmaus2/fastx/FastAIndexGenerator.hpp>
 #include "config.h"
 
 void loadNames(std::string const & fn, std::map<std::string,uint64_t> & M, std::map<std::string,uint64_t> & L)
@@ -87,6 +88,7 @@ int bamtolas(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo & ar
 
 	arginfo.insertKey("level","0");
 
+	libmaus2::fastx::FastAIndexGenerator::generate(reffn,reffn+".fai",true /* verbose */);
 	libmaus2::fastx::FastAIndex::unique_ptr_type PFAI(libmaus2::fastx::FastAIndex::load(reffn+".fai"));
 
 	std::map<std::string,uint64_t> nameToId;
