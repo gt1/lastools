@@ -63,3 +63,16 @@ LAcat ${DAMAPPEROUT} >cat.las
 # convert the alignments to bam format
 lastobam -snone ref.dam ref.fasta reads.dam reads.fasta cat.las >out.bam
 ```
+
+Using call.damapper
+-------------------
+
+call.damapper is a simplified interface to damapper and lastobam. An example call is
+
+```
+call.damapper ref.fasta <reads.fasta >reads.bam
+```
+
+call.damapper requires the programs fasta2DAM, DBsplit (both from https://github.com/thegenemyers/DAZZ_DB),
+HPC.damapper, damapper (both from https://github.com/thegenemyers/DAMAPPER), 
+lascat and lastobam (both in this repository) either accessible via PATH or in the same directory as call.damapper.
