@@ -57,6 +57,8 @@ static std::string getUsage(libmaus2::util::ArgParser const & arg)
 	ostr << "\nFurther parameters\n";
 	ostr << "--refblocksize: reference block size used for DBsplit (--refblocksize250 by default)" << std::endl;
 	ostr << "--readblocksize: read block size used for DBsplit (--refblocksize250 by default)" << std::endl;
+	ostr << "-I<dir>: directory to store the dazzler reference index (directory containing reference FastA by default)" << std::endl;
+	ostr << "-W<dir>: work directory (directory for storing temporary files, by default the current directory)" << std::endl;
 
 	return ostr.str();
 }
@@ -313,6 +315,8 @@ static int call_damapper(libmaus2::util::ArgParser const & arg, libmaus2::util::
 	std::string const indexdir = makeAbsolute(argindexdir.size() ? argindexdir : refdir);
 	std::string const reffile = sbasename(reffn);
 	std::string const reffileclipped = libmaus2::util::OutputFileNameTools::endClip(reffile,&faend[0]);
+
+	mkdirP(indexdir);
 
 	std::string const refdam = indexdir + "/"  + reffileclipped + ".dam";
 	std::string const refidx = indexdir + "/." + reffileclipped + ".idx";
