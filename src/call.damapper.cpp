@@ -666,7 +666,7 @@ static int call_damapper(libmaus2::util::ArgParser const & arg, libmaus2::util::
 
 	/* convert .las file to BAM */
 	std::ostringstream lastobamstr;
-	lastobamstr << PD_lastobam.path << " -t" << damapper_arg_T << " -snone " << refdam << " " << indexfasta << " " << readsdamtmp << " " << readsfastatmp << " " << readslastmp;
+	lastobamstr << PD_lastobam.path << " -t" << numthreads << " -snone " << refdam << " " << indexfasta << " " << readsdamtmp << " " << readsfastatmp << " " << readslastmp;
 	std::string const lastobamcom = lastobamstr.str();
 
 	if ( damapper_arg_v )
