@@ -33,6 +33,7 @@ The contained programs are:
  * lassort: Sort a set of LAS files and merge into a single output file.
  * lastobam: Convert a sorted input LAS file to the BAM format. This does currently not add information about unmapped reads.
  * reformatfasta: Reformats a FastA file so it follows the naming and formatting (limited column width) of the FastA expected by fasta2DB in the DAZZ_DB suite.
+ * call.damapper: A wrapper program for damapper and lastobam. It takes a reference and a read FastA file and produces a BAM file containing the reads as mapped by damapper.
 
 Using lastobam with damapper
 ----------------------------
