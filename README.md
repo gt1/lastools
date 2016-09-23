@@ -76,3 +76,14 @@ call.damapper ref.fasta <reads.fasta >reads.bam
 call.damapper requires the programs fasta2DAM, DBsplit (both from https://github.com/thegenemyers/DAZZ_DB),
 HPC.damapper, damapper (both from https://github.com/thegenemyers/DAMAPPER), 
 lascat and lastobam (both in this repository) either accessible via PATH or in the same directory as call.damapper.
+
+call.damapper passes the parameters k,t,M,e,s,n,B,T,b,v and p through to damapper. Additionally it has the options
+
+ * --refblocksize: reference block size used for DBsplit. The default is --refblocksize256, which sets the block size to 256MB.
+ * --readblocksize: read block size used for DBsplit. The default is --readblocksize256, which sets the block size to 256MB.
+ * -I: directory used for storing the reference index. By default the index is stored in the directory containing the reference FastA file.
+ * -W: working directory. By default the current directory is used for storing temporary files.
+
+Whitespace is not allowed between key and value when providing parameters (e.g. -Idir is valid, -I dir is not).
+
+Please see https://github.com/gt1/damapper_bwt for special aux fields produced in the BAM output by lastobam/call.damapper/damapper_bwt.
