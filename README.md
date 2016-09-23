@@ -77,7 +77,15 @@ call.damapper requires the programs fasta2DAM, DBsplit (both from https://github
 HPC.damapper, damapper (both from https://github.com/thegenemyers/DAMAPPER), 
 lascat and lastobam (both in this repository) either accessible via PATH or in the same directory as call.damapper.
 
-call.damapper passes the parameters k,t,M,e,s,n,B,T,b,v and p through to damapper. Additionally it has the options
+call.damapper passes the parameters k,t,M,e,s,n,B,T,b,v and p through to damapper. 
+Please see https://github.com/thegenemyers/DAMAPPER and https://github.com/thegenemyers/DALIGNER for their meaning.
+Some of the more frequently relevant ones are
+
+ * -T: number of threads (by default -T4)
+ * -M: memory limit (by default the machine's memory size)
+ * -k: k-mer size (by default -k20)
+ 
+Additionally call.damapper has the options
 
  * --refblocksize: reference block size used for DBsplit. The default is --refblocksize256, which sets the block size to 256MB.
  * --readblocksize: read block size used for DBsplit. The default is --readblocksize256, which sets the block size to 256MB.
