@@ -34,3 +34,11 @@ src/fasta2fastq
 stamp-h1
 lasroleswap
 src/bamtolas
+src/blasrtobam
+src/call.damapper
+src/fasta2DAM
+src/lasaligntotracepoints
+src/lascat
+src/laschainsort
+src/lasfilterquality
+src/lasmarkprimary
