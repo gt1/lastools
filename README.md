@@ -32,6 +32,7 @@ The contained programs are:
  * lasroleswap: Swap the roles of the A and B read in an LAS file.
  * lassort: Sort a set of LAS files and merge into a single output file.
  * lastobam: Convert a sorted input LAS file to the BAM format. This does currently not add information about unmapped reads.
+ * laschainsort: Chain aware sorting of LAS files. Use this for sorting LAS files produced by damapper.
  * reformatfasta: Reformats a FastA file so it follows the naming and formatting (limited column width) of the FastA expected by fasta2DB in the DAZZ_DB suite.
  * call.damapper: A wrapper program for damapper and lastobam. It takes a reference and a read FastA file and produces a BAM file containing the reads as mapped by damapper.
 
@@ -40,8 +41,8 @@ Using lastobam with damapper
 
 The lastobam program requires the A reads in LAS files to refer to the reference sequence database and the B reads to the read sequence database.
 This is not the default output format of damapper, so make sure to call damapper (or HPC.damapper) using the the switches -C -N.
-lastobam expects to see the alignments in increasing order of the B read id. This is exactly the order in which damapper outputs the alignments, so it is sufficient to concatenate
-the files as an input for lastobam. A sample pipeline is thus:
+lastobam expects to see the alignments in increasing order of the B read id. Use laschainsort with switch -sba to obtain this order.
+A sample pipeline is thus:
 
 ```
 # k-mer size used by damapper
@@ -57,16 +58,16 @@ fasta2DAM reads.dam reads.fasta
 DBsplit -s250 -x0 reads.dam
 # run damapper
 HPC.damapper -C -N -k${k} <other switches> ref.dam reads.dam | grep "^damapper" | ${SHELL}
-# get output file names produced by damapper
-DAMAPPEROUT=`HPC.damapper -C -N -k${k} <other switches> ref_primary_damapper.dam ref_primary_p10_damapper.dam | grep LAsort | perl -p -e "s/\s*\&.*//" | perl -p -e "s/LAsort.*?ref_/ref_/"`
-# concatenate damapper output files to a single file
-LAcat ${DAMAPPEROUT} >cat.las
+# sort
+laschainsort -sba sorted.las ref.reads.las
 # convert the alignments to bam format
 lastobam -snone ref.dam ref.fasta reads.dam reads.fasta cat.las >out.bam
 ```
 
 Using call.damapper
 -------------------
+
+call.damapper is currently broken due to incompatible changes in the damapper interface. It will be functional again soon.
 
 call.damapper is a simplified interface to damapper and lastobam. An example call is
 
