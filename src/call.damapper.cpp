@@ -306,6 +306,7 @@ static int call_damapper(libmaus2::util::ArgParser const & arg, libmaus2::util::
 	ProgramDescriptor PD_HPC_damapper("HPC.damapper",progname);
 	ProgramDescriptor PD_damapper("damapper",progname);
 	ProgramDescriptor PD_lascat("lascat",progname);
+	ProgramDescriptor PD_laschainsort("laschainsort",progname);
 	ProgramDescriptor PD_lastobam("lastobam",progname);
 	ProgramDescriptor PD_LAsort("LAsort",progname);
 	ProgramDescriptor PD_LAcat("LAcat",progname);
@@ -701,7 +702,7 @@ static int call_damapper(libmaus2::util::ArgParser const & arg, libmaus2::util::
 
 	/* concatenate all output .las files */
 	std::ostringstream catostr;
-	catostr << PD_lascat.path << " " << readslastmp;
+	catostr << PD_laschainsort.path << " -sba " << readslastmp;
 	for ( uint64_t i = 0; i < Voutput.size(); ++i )
 	{
 		catostr << " " << Voutput[i];
@@ -714,7 +715,7 @@ static int call_damapper(libmaus2::util::ArgParser const & arg, libmaus2::util::
 	if ( system(catcom.c_str()) != 0 )
 	{
 		libmaus2::exception::LibMausException lme;
-		lme.getStream() << "call.damapper: lascat call " << catcom << " failed" << std::endl;
+		lme.getStream() << "call.damapper: laschainsort call " << catcom << " failed" << std::endl;
 		lme.finish();
 		throw lme;
 	}
