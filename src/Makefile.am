@@ -8,7 +8,8 @@ man_MANS = ${MANPAGES}
 
 EXTRA_DIST = ${MANPAGES}
 
-bin_PROGRAMS = lassort lasindex lastobam reformatfasta fasta2fastq lasroleswap bamtolas blasrtobam lascat lasmarkprimary call.damapper
+bin_PROGRAMS = lassort lasindex lastobam reformatfasta fasta2fastq lasroleswap bamtolas blasrtobam lascat lasmarkprimary call.damapper lasaligntotracepoints lasfilterquality \
+	laschainsort
 dist_bin_SCRIPTS = swappedLasToBAM.sh
 
 lasindex_SOURCES = lasindex.cpp
@@ -65,3 +66,18 @@ call_damapper_SOURCES = call.damapper.cpp
 call_damapper_LDADD = ${LIBMAUS2LIBS}
 call_damapper_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
 call_damapper_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
+
+lasaligntotracepoints_SOURCES = lasaligntotracepoints.cpp
+lasaligntotracepoints_LDADD = ${LIBMAUS2LIBS}
+lasaligntotracepoints_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
+lasaligntotracepoints_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
+
+lasfilterquality_SOURCES = lasfilterquality.cpp
+lasfilterquality_LDADD = ${LIBMAUS2LIBS}
+lasfilterquality_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
+lasfilterquality_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
+
+laschainsort_SOURCES = laschainsort.cpp
+laschainsort_LDADD = ${LIBMAUS2LIBS}
+laschainsort_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
+laschainsort_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
