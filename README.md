@@ -67,8 +67,6 @@ lastobam -snone ref.dam ref.fasta reads.dam reads.fasta cat.las >out.bam
 Using call.damapper
 -------------------
 
-call.damapper is currently broken due to incompatible changes in the damapper interface. It will be functional again soon.
-
 call.damapper is a simplified interface to damapper and lastobam. An example call is
 
 ```

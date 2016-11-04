@@ -179,6 +179,14 @@ struct ProgramDescriptor
 {
 	std::string program;
 	std::string path;
+	std::string dir;
+
+	static std::string dirname(std::string const & s)
+	{
+		libmaus2::util::WriteableString W(s);
+		char * d = ::dirname(W.A.begin());
+		return std::string(d);
+	}
 
 	ProgramDescriptor() {}
 	ProgramDescriptor(std::string const & rprogram, std::string const & rcall)
@@ -203,6 +211,7 @@ struct ProgramDescriptor
 		}
 
 		path = makeAbsolute(path);
+		dir = dirname(path);
 	}
 };
 
@@ -298,6 +307,24 @@ static int call_damapper(libmaus2::util::ArgParser const & arg, libmaus2::util::
 	ProgramDescriptor PD_damapper("damapper",progname);
 	ProgramDescriptor PD_lascat("lascat",progname);
 	ProgramDescriptor PD_lastobam("lastobam",progname);
+	ProgramDescriptor PD_LAsort("LAsort",progname);
+	ProgramDescriptor PD_LAcat("LAcat",progname);
+	ProgramDescriptor PD_LAmerge("LAmerge",progname);
+
+	std::vector<std::string> Vpathadd;
+	Vpathadd.push_back(PD_LAsort.dir);
+	Vpathadd.push_back(PD_LAcat.dir);
+	Vpathadd.push_back(PD_LAmerge.dir);
+	std::sort(Vpathadd.begin(),Vpathadd.end());
+	Vpathadd.resize ( std::unique(Vpathadd.begin(),Vpathadd.end()) - Vpathadd.begin() );
+
+	std::ostringstream npathstr;
+	npathstr << getenv("PATH");
+	for ( uint64_t i = 0; i < Vpathadd.size(); ++i )
+		npathstr << ":" << Vpathadd[i];
+	std::string const npath = npathstr.str();
+	libmaus2::util::WriteableString Wnpath(npath);
+	setenv("PATH",Wnpath.A.begin(),1 /* overwrite */);
 
 	std::string const reffn = arg[0];
 
@@ -534,6 +561,8 @@ static int call_damapper(libmaus2::util::ArgParser const & arg, libmaus2::util::
 	std::string const exp = "# Catenate jobs (2)";
 	std::string const expdamapper = "# Damapper jobs (1)";
 	std::string const expsub = "LAsort -a ";
+	std::string const expcheck = "# Check all .las files (optional but recommended)";
+	std::string const expchecksub = "LAcheck -vS ";
 
 	bool activedamapper = false;
 	bool activeoutput = false;
@@ -545,6 +574,8 @@ static int call_damapper(libmaus2::util::ArgParser const & arg, libmaus2::util::
 		std::string line;
 		std::getline(*HPCisi,line);
 
+		// std::cerr << line << std::endl;
+
 		if ( line.size() )
 		{
 			if ( line[0] == '#' )
@@ -552,7 +583,7 @@ static int call_damapper(libmaus2::util::ArgParser const & arg, libmaus2::util::
 				activeoutput = false;
 				activedamapper = false;
 
-				if ( line == exp )
+				if ( line == expcheck )
 				{
 					activeoutput = true;
 					activationfound = true;
@@ -566,27 +597,43 @@ static int call_damapper(libmaus2::util::ArgParser const & arg, libmaus2::util::
 			else if ( activeoutput )
 			{
 				if (
-					line.size() >= expsub.size()
+					line.size() >= expchecksub.size()
 					&&
-					line.substr(0,expsub.size()) == expsub
+					line.substr(0,expchecksub.size()) == expchecksub
 				)
 				{
-					line = line.substr(expsub.size());
+					line = line.substr(expchecksub.size());
 
-					if ( line.find(" && LAmerge -a ") == std::string::npos )
+					std::vector<std::string> tokens;
+					uint64_t l = 0;
+					while ( l < line.size() )
 					{
-						libmaus2::exception::LibMausException lme;
-						lme.getStream() << "call.damapper: cannot understand line ending in " << line << std::endl;
-						lme.finish();
-						throw lme;
+						while ( l < line.size() && ::std::isspace(static_cast<unsigned char>(line[l])) )
+							++l;
+
+						uint64_t h = l;
+						while ( h < line.size() && ! ::std::isspace(static_cast<unsigned char>(line[h])) )
+							++h;
+
+						if ( h > l )
+						{
+							tokens.push_back(line.substr(l,h-l));
+							// std::cerr << "token " << tokens.back() << std::endl;
+						}
+
+						l = h;
+					}
+
+					if ( tokens.size() == 3 )
+					{
+						Voutput.push_back(tokens[2] + ".las");
 					}
 					else
 					{
-						line = line.substr(0,line.find(" && LAmerge -a "));
-
-						std::deque<std::string> tokens = libmaus2::util::stringFunctions::tokenize(line,std::string(" "));
-						for ( uint64_t i = 0; i < tokens.size(); ++i )
-							Voutput.push_back(tokens[i] + ".las");
+						libmaus2::exception::LibMausException lme;
+						lme.getStream() << "call.damapper: cannot understand line " << line << std::endl;
+						lme.finish();
+						throw lme;
 					}
 				}
 				else
@@ -617,10 +664,17 @@ static int call_damapper(libmaus2::util::ArgParser const & arg, libmaus2::util::
 	}
 	HPCisi.reset();
 
-	if ( ! activationfound || ! activationdamapperfound )
+	if ( ! activationfound )
 	{
 		libmaus2::exception::LibMausException lme;
-		lme.getStream() << "call.damapper: activation line(s) not found" << std::endl;
+		lme.getStream() << "call.damapper: activation line for cat jobs not found" << std::endl;
+		lme.finish();
+		throw lme;
+	}
+	if ( ! activationdamapperfound )
+	{
+		libmaus2::exception::LibMausException lme;
+		lme.getStream() << "call.damapper: activation line for damapper not found" << std::endl;
 		lme.finish();
 		throw lme;
 	}
