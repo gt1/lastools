@@ -1,3 +1,9 @@
+lastools (0.0.38-1) unstable; urgency=medium
+
+  * add programs laschainsort, lasaligntotracepoints and lasfilterquality
+
+ -- German Tischler <tischler@mpi-cbg.de>  Fri, 04 Nov 2016 15:35:26 +0100
+
 lastools (0.0.37-1) unstable; urgency=medium
 
   * add documentation for -W and -I switches in call.damapper and create index directory if necessary
