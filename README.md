@@ -61,7 +61,7 @@ HPC.damapper -C -N -k${k} <other switches> ref.dam reads.dam | grep "^damapper" 
 # sort
 laschainsort -sba sorted.las ref.reads.las
 # convert the alignments to bam format
-lastobam -snone ref.dam ref.fasta reads.dam reads.fasta cat.las >out.bam
+lastobam -snone ref.dam ref.fasta reads.dam reads.fasta sorted.las >out.bam
 ```
 
 Using call.damapper
