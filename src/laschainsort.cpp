@@ -227,7 +227,7 @@ struct OverlapBuffer
 			for ( uint64_t r = 0; r < numblockruns; ++r )
 			{
 				uint64_t const blow = r * fanin;
-				uint64_t const bhigh = std::min(blow+fanin,B.size());
+				uint64_t const bhigh = std::min(static_cast<uint64_t>(blow+fanin),static_cast<uint64_t>(B.size()));
 				uint64_t const brange = bhigh - blow;
 
 				std::vector<BlockInfo> BB(B.begin()+blow,B.begin()+bhigh);
