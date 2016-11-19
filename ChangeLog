@@ -1,3 +1,9 @@
+lastools (0.0.41-1) unstable; urgency=medium
+
+  * add lasmerge program
+
+ -- German Tischler <tischler@mpi-cbg.de>  Sat, 19 Nov 2016 13:01:41 +0100
+
 lastools (0.0.40-1) unstable; urgency=medium
 
   * fix sort order before calling lastobam in call.damapper
