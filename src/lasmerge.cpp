@@ -44,12 +44,31 @@ int lasmergeTemplate(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgI
 	comparator_type comp;
 	std::string const tmpfilebase = arg.uniqueArgPresent("T") ? arg["T"] : arginfo.getDefaultTmpFileName();
 	uint64_t const mergefanin = arg.uniqueArgPresent("f") ? arg.getUnsignedNumericArg<uint64_t>("f") : 64;
+	bool const iflag = arg.uniqueArgPresent("i");
 	uint64_t nextid = 0;
 
 	std::string const outfilename = arg[0];
 	std::vector<std::string> infilenames;
-	for ( uint64_t i = 1; i < arg.size(); ++i )
-		infilenames.push_back(arg[i]);
+
+	if ( iflag )
+	{
+		for ( uint64_t i = 1; i < arg.size(); ++i )
+		{
+			libmaus2::aio::InputStreamInstance ISI(arg[i]);
+			std::string line;
+			while ( ISI )
+			{
+				std::getline(ISI,line);
+				if ( line.size() )
+					infilenames.push_back(line);
+			}
+		}
+	}
+	else
+	{
+		for ( uint64_t i = 1; i < arg.size(); ++i )
+			infilenames.push_back(arg[i]);
+	}
 
 	assert ( infilenames.size() );
 
