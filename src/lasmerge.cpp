@@ -101,7 +101,7 @@ int lasmergeTemplate(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgI
 
 				if ( deleteinput )
 					for ( uint64_t i = 0; i < I.size(); ++i )
-						libmaus2::aio::FileRemoval::removeFile(I[i]);
+						libmaus2::dazzler::align::SortingOverlapOutputBuffer<>::removeFileAndIndex(I[i]);
 
 				IV[z] = O;
 			}
