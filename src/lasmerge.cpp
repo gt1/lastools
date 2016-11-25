@@ -87,7 +87,7 @@ int lasmergeTemplate(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgI
 			for ( uint64_t z = 0; z < packs; ++z )
 			{
 				uint64_t const low  = z * tmergefanin;
-				uint64_t const high = std::min(low+tmergefanin,infilenames.size());
+				uint64_t const high = std::min(low+tmergefanin,static_cast<uint64_t>(infilenames.size()));
 				assert ( high > low );
 				s += high - low;
 
