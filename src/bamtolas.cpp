@@ -41,10 +41,10 @@ int bamtolas(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo cons
 	libmaus2::bambam::BamAlignment const & algn = dec.getAlignment();
 	libmaus2::autoarray::AutoArray<libmaus2::bambam::cigar_operation> Acigop;
 	libmaus2::lcs::AlignmentTraceContainer ATC;
-	int64_t const tspace = libmaus2::dazzler::align::AlignmentFile::getMinimumNonSmallTspace();
+	uint64_t const tspace = arg.uniqueArgPresent("tspace") ? arg.getUnsignedNumericArg<uint64_t>("tspace") : libmaus2::dazzler::align::AlignmentFile::getMinimumNonSmallTspace();
 	bool const small = libmaus2::dazzler::align::AlignmentFile::tspaceToSmall(tspace);
 
-	assert ( !small );
+	// assert ( !small );
 
 	std::string const outfn = arg[0];
 	std::string const infasta = arg[1];
@@ -95,6 +95,7 @@ int bamtolas(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo cons
 
 			int64_t const abpos = algn.getPos() - libmaus2::bambam::BamAlignmentDecoderBase::getFrontDel(algn.D.begin());
 			int64_t const aepos = abpos + algn.getReferenceLength();
+
 			int64_t const leftclip = libmaus2::bambam::BamAlignmentDecoderBase::getFrontClipping(algn.D.begin());
 			int64_t const rightclip = libmaus2::bambam::BamAlignmentDecoderBase::getBackClipping(algn.D.begin());
 			int64_t const rl = libmaus2::bambam::BamAlignmentDecoderBase::getReadLengthByCigar(algn.D.begin());
