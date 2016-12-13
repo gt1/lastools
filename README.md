@@ -95,3 +95,29 @@ Additionally call.damapper has the options
 Whitespace is not allowed between key and value when providing parameters (e.g. -Idir is valid, -I dir is not).
 
 Please see https://github.com/gt1/damapper_bwt for special aux fields produced in the BAM output by lastobam/call.damapper/damapper_bwt.
+
+Using the tandem aligner
+------------------------
+
+daligner (https://github.com/thegenemyers/DALIGNER) usually does a very good job at computing all significant pairwise local alignments
+in a long read set. However it sometimes does miss some true alignments in tandem repeat regions. The purpose of the following pipeline is
+to compute (most) of these missing alignments. This requires the program *datander*, which is contained in the DAMASKER suite
+(see https://github.com/thegenemyers/DAMASKER). The expected input is a dazzler database (reads.db) and a dazzler alignment files (reads.las)
+produced by daligner for this database (reads.db).
+
+```
+# call datander, this produces TAN.reads.las
+datander reads.db
+# call lascomputetandem to compute tandem regions on reads
+lascomputetandem TAN.reads.las >TAN.reads.las.intv
+# call lasextracttandemrecompute to compute read pair ids
+# for which we want compute alignments
+# this is done by scanning reads.las and checking for
+# reads which overlap with (suspected) tandem repeat
+# regions
+lasextracttandemrecompute TAN.reads.las.intv reads.las >TAN.reads.las.recomp
+# compute alignments in tandem repeat regions
+# This will be slower than daligner, as it uses a more
+# exhaustive approach.
+tandemaligner reads_tandem.las reads.db TAN.reads.las.recomp
+```
