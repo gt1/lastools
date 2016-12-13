@@ -102,7 +102,7 @@ Using the tandem aligner
 daligner (https://github.com/thegenemyers/DALIGNER) usually does a very good job at computing all significant pairwise local alignments
 in a long read set. However it sometimes does miss some true alignments in tandem repeat regions. The purpose of the following pipeline is
 to compute (most) of these missing alignments. This requires the program *datander*, which is contained in the DAMASKER suite
-(see https://github.com/thegenemyers/DAMASKER). The expected input is a dazzler database (reads.db) and a dazzler alignment files (reads.las)
+(see https://github.com/thegenemyers/DAMASKER). The expected input is a dazzler database (reads.db) and a dazzler alignment file (reads.las)
 produced by daligner for this database (reads.db).
 
 ```
