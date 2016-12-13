@@ -9,7 +9,7 @@ man_MANS = ${MANPAGES}
 EXTRA_DIST = ${MANPAGES}
 
 bin_PROGRAMS = lassort lasindex lastobam reformatfasta fasta2fastq lasroleswap bamtolas blasrtobam lascat lasmarkprimary call.damapper lasaligntotracepoints lasfilterquality \
-	laschainsort lasmerge lascomputetandem lasextracttandemrecompute
+	laschainsort lasmerge lascomputetandem lasextracttandemrecompute tandemaligner
 dist_bin_SCRIPTS = swappedLasToBAM.sh
 
 lasindex_SOURCES = lasindex.cpp
@@ -96,3 +96,8 @@ lasextracttandemrecompute_SOURCES = lasextracttandemrecompute.cpp
 lasextracttandemrecompute_LDADD = ${LIBMAUS2LIBS}
 lasextracttandemrecompute_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
 lasextracttandemrecompute_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
+
+tandemaligner_SOURCES = tandemaligner.cpp
+tandemaligner_LDADD = ${LIBMAUS2LIBS}
+tandemaligner_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
+tandemaligner_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
