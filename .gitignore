@@ -43,3 +43,6 @@ src/laschainsort
 src/lasfilterquality
 src/lasmarkprimary
 src/lasmerge
+src/lascomputetandem
+src/lasextracttandemrecompute
+src/tandemaligner
