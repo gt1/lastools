@@ -24,36 +24,36 @@
 #include <libmaus2/util/OutputFileNameTools.hpp>
 
 void handle(
-	std::vector < libmaus2::dazzler::align::Overlap > & VOVL, 
-	libmaus2::autoarray::AutoArray<libmaus2::dazzler::align::TracePoint> & TPV, 
+	std::vector < libmaus2::dazzler::align::Overlap > & VOVL,
+	libmaus2::autoarray::AutoArray<libmaus2::dazzler::align::TracePoint> & TPV,
 	int64_t const tspace,
 	libmaus2::dazzler::align::AlignmentWriter & AW
 )
 {
 	std::sort(VOVL.begin(),VOVL.end(),libmaus2::dazzler::align::OverlapComparator());
-		
+
 	std::vector<bool> killvec(VOVL.size(),false);
-	
+
 	uint64_t l = 0;
 	while ( l < VOVL.size() )
 	{
 		uint64_t h = l+1;
 		while ( h < VOVL.size() && VOVL[h].isInverse() == VOVL[l].isInverse() )
 			++h;
-			
+
 		uint64_t o = 0;
 		for ( uint64_t i = l ; i < h; ++i )
 			o = VOVL[i].getTracePoints(tspace,i,TPV,o);
-			
+
 		std::sort(TPV.begin(),TPV.begin()+o);
-		
+
 		uint64_t tl = 0;
 		while ( tl != o )
 		{
 			uint64_t th = tl+1;
 			while ( th != o && TPV[th].apos == TPV[tl].apos && TPV[th].bpos == TPV[tl].bpos )
 				++th;
-				
+
 			if ( th-tl > 1 )
 			{
 				for ( uint64_t i = tl; i < th-1; ++i )
@@ -61,13 +61,13 @@ void handle(
 					int64_t const aid = TPV[i].id;
 					libmaus2::dazzler::align::Overlap const & A = VOVL[aid];
 					libmaus2::math::IntegerInterval<int64_t> IA(A.path.abpos,A.path.aepos-1);
-					
+
 					for ( uint64_t j = i+1; j < th; ++j )
 					{
 						int64_t const bid = TPV[j].id;
 						libmaus2::dazzler::align::Overlap const & B = VOVL[bid];
 						libmaus2::math::IntegerInterval<int64_t> IB(B.path.abpos,B.path.aepos-1);
-						
+
 						if ( IA == IB )
 						{
 							assert ( aid < bid );
@@ -76,7 +76,7 @@ void handle(
 						else
 						{
 							libmaus2::math::IntegerInterval<int64_t> IC = IA.intersection(IB);
-							
+
 							if ( IB.diameter() < IA.diameter() && IC.diameter() >= 0.95 * IB.diameter() )
 								killvec[bid] = true;
 							else if ( IA.diameter() < IB.diameter() && IC.diameter() >= 0.95 * IA.diameter() )
@@ -85,13 +85,13 @@ void handle(
 					}
 				}
 			}
-				
+
 			tl = th;
 		}
-			
+
 		l = h;
 	}
-	
+
 	uint64_t o = 0;
 	for ( uint64_t i = 0; i < VOVL.size(); ++i )
 		if ( ! killvec[i] )
@@ -99,7 +99,7 @@ void handle(
 	VOVL.resize(o);
 	for ( uint64_t i = 0; i < VOVL.size(); ++i )
 		AW.put(VOVL[i]);
-	
+
 	VOVL.resize(0);
 }
 
