@@ -29,7 +29,7 @@ std::string getUsage(libmaus2::util::ArgParser const & arg)
 {
 	std::ostringstream ostr;
 
-	ostr << "usage: " << arg.progname << " -p<prob=1> <out.las> <in.db> <in.las> ..." << std::endl;
+	ostr << "usage: " << arg.progname << " -p<prob=1> -s<seed> <out.las> <in.db> <in.las> ..." << std::endl;
 	ostr << "\n";
 	ostr << "parameters:\n";
 
@@ -41,10 +41,18 @@ int lassort(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo const
 	std::string const outfilename = arg[0];
 	std::string const dbname = arg[1];
 
-	::libmaus2::random::Random::setup();
 
 	double const p = arg.uniqueArgPresent("p") ? arg.getParsedArg<double>("p") : 1.0;
 	assert ( p <= 1.0 );
+	
+	if ( arg.uniqueArgPresent("s") )
+	{
+		::libmaus2::random::Random::setup(arg.getParsedArg<uint64_t>("s"));
+	}
+	else
+	{
+		::libmaus2::random::Random::setup();
+	}
 
 	libmaus2::dazzler::db::DatabaseFile DB(dbname);
 	DB.computeTrimVector();
