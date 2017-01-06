@@ -1,3 +1,9 @@
+lastools (0.0.47-1) unstable; urgency=medium
+
+  * add seed parameter in lassubsample
+
+ -- German Tischler <tischler@mpi-cbg.de>  Fri, 06 Jan 2017 13:01:41 +0100
+
 lastools (0.0.46-1) unstable; urgency=medium
 
   * add subsampling program
