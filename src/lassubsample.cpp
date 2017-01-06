@@ -44,10 +44,12 @@ int lassort(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo const
 
 	double const p = arg.uniqueArgPresent("p") ? arg.getParsedArg<double>("p") : 1.0;
 	assert ( p <= 1.0 );
-	
+
 	if ( arg.uniqueArgPresent("s") )
 	{
-		::libmaus2::random::Random::setup(arg.getParsedArg<uint64_t>("s"));
+		uint64_t const seed = arg.getParsedArg<uint64_t>("s");
+		std::cerr << "[V] using seed " << seed << std::endl;
+		::libmaus2::random::Random::setup(seed);
 	}
 	else
 	{
