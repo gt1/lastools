@@ -9,7 +9,7 @@ man_MANS = ${MANPAGES}
 EXTRA_DIST = ${MANPAGES}
 
 bin_PROGRAMS = lassort lasindex lastobam reformatfasta fasta2fastq lasroleswap bamtolas blasrtobam lascat lasmarkprimary call.damapper lasaligntotracepoints lasfilterquality \
-	laschainsort lasmerge lascomputetandem lasextracttandemrecompute tandemaligner lasdedup lassubsample
+	laschainsort lasmerge lascomputetandem lasextracttandemrecompute tandemaligner lasdedup lassubsample SLURM.HPC.daligner
 dist_bin_SCRIPTS = swappedLasToBAM.sh
 
 lasindex_SOURCES = lasindex.cpp
@@ -111,3 +111,8 @@ lassubsample_SOURCES = lassubsample.cpp
 lassubsample_LDADD = ${LIBMAUS2LIBS}
 lassubsample_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
 lassubsample_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
+
+SLURM_HPC_daligner_SOURCES = SLURM.HPC.daligner.cpp
+SLURM_HPC_daligner_LDADD = ${LIBMAUS2LIBS}
+SLURM_HPC_daligner_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
+SLURM_HPC_daligner_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
