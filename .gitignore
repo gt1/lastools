@@ -46,3 +46,7 @@ src/lasmerge
 src/lascomputetandem
 src/lasextracttandemrecompute
 src/tandemaligner
+src/SLURM.HPC.daligner
+src/lasdedup
+src/lassubsample
+src/lassuffixprefix
