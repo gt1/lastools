@@ -29,6 +29,19 @@
 #include <libmaus2/util/PosixExecute.hpp>
 #include <cstring>
 
+#if defined(__APPLE__)
+#include <crt_externs.h>
+#endif
+
+char ** getEnviron()
+{
+	#if defined(__APPLE__)
+	return *_NSGetEnviron();
+	#else
+	return environ;
+	#endif
+}
+
 std::string getTmpFileBase(libmaus2::util::ArgParser const & arg)
 {
 	std::string const tmpfilebase = arg.uniqueArgPresent("T") ? arg["T"] : libmaus2::util::ArgInfo::getDefaultTmpFileName(arg.progname);
@@ -264,7 +277,7 @@ int main(int argc, char * argv[])
 			if ( dup2 ( fderr, STDERR_FILENO ) == -1 )
 				return EXIT_FAILURE;
 
-			execve(HPC_daligner.c_str(),AA.begin(),environ);
+			execve(HPC_daligner.c_str(),AA.begin(),getEnviron());
 			_exit(EXIT_FAILURE);
 		}
 
