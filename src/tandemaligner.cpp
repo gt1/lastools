@@ -1,6 +1,6 @@
 /*
     lastools
-    Copyright (C) 2016 German Tischler
+    Copyright (C) 2016-2017 German Tischler
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -15,26 +15,15 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include <config.h>
-
-#include <iostream>
-#include <libmaus2/fastx/FastAReader.hpp>
-#include <libmaus2/util/ArgParser.hpp>
-#include <libmaus2/lcs/NNP.hpp>
-#include <libmaus2/lcs/AlignmentPrint.hpp>
-#include <libmaus2/geometry/RangeSet.hpp>
-#include <libmaus2/dazzler/align/Overlap.hpp>
-#include <libmaus2/dazzler/align/AlignmentWriter.hpp>
-#include <libmaus2/dazzler/align/AlignmentWriterArray.hpp>
-#include <libmaus2/parallel/NumCpus.hpp>
-#include <libmaus2/dazzler/db/DatabaseFile.hpp>
-#include <libmaus2/util/iterator.hpp>
+#include <libmaus2/fastx/acgtnMap.hpp>
+#include <libmaus2/autoarray/AutoArray.hpp>
+#include <libmaus2/math/lowbits.hpp>
+#include <libmaus2/math/IntegerInterval.hpp>
 #include <queue>
-
-static uint64_t getDefaultNumThreads()
-{
-	return libmaus2::parallel::NumCpus::getNumLogicalProcessors();
-}
+#include <libmaus2/lcs/NNP.hpp>
+#include <libmaus2/geometry/RangeSet.hpp>
+#include <libmaus2/dazzler/align/TracePoint.hpp>
+#include <libmaus2/dazzler/align/Overlap.hpp>
 
 struct Kmer
 {
@@ -53,7 +42,7 @@ struct Kmer
 	}
 };
 
-std::string kmerToString(uint64_t const v, uint64_t const k)
+static std::string kmerToString(uint64_t const v, uint64_t const k)
 {
 	std::ostringstream ostr;
 
@@ -173,6 +162,385 @@ struct Match
 		return libmaus2::math::IntegerInterval<int64_t>(getFrom(),getTo()-1);
 	}
 };
+
+void simpleprocess(
+	std::string const & sa, std::string const & sb,
+	uint64_t const k, int64_t const tspace,
+	int64_t const aid, int64_t const bid,
+	uint64_t const minlen
+)
+{
+	std::string const ra = sa;
+	std::string const rb = sb;
+
+	libmaus2::autoarray::AutoArray<Kmer> KA;
+	libmaus2::autoarray::AutoArray<Kmer> KB;
+
+	// compute k-mers in read a and b
+	uint64_t const oa = getKmers(ra,k,KA);
+	uint64_t const ob = getKmers(rb,k,KB);
+
+	uint64_t ia = 0;
+	uint64_t ib = 0;
+
+	std::priority_queue< HeapTodo,std::vector<HeapTodo>,std::greater<HeapTodo> > Q;
+
+	// look for matching k-mers
+	while ( ia < oa && ib < ob )
+	{
+		if ( KA[ia].v < KB[ib].v )
+			++ia;
+		else if ( KB[ib].v < KA[ia].v )
+			++ib;
+		else
+		{
+			assert ( KA[ia].v == KB[ib].v );
+
+			uint64_t ja = ia+1;
+			while ( ja < oa && KA[ja].v == KA[ia].v )
+				++ja;
+			uint64_t jb = ib+1;
+			while ( jb < ob && KB[jb].v == KB[ib].v )
+				++jb;
+
+			// reverse region in B so positions on B are in decreasing order
+			std::reverse(KB.begin()+ib,KB.begin()+jb);
+
+			for ( uint64_t z = ia; z < ja; ++z )
+				Q.push(HeapTodo(KA.begin()+z,KB.begin()+ib,KB.begin()+jb));
+
+			ia = ja;
+			ib = jb;
+		}
+	}
+
+	libmaus2::lcs::NNP nnp;
+	libmaus2::lcs::NNPTraceContainer nnptracecontainer;
+	libmaus2::lcs::AlignmentTraceContainer ATC;
+	libmaus2::autoarray::AutoArray<Match const *> QR;
+	libmaus2::util::SimpleQueue<libmaus2::geometry::RangeSet<Match>::search_q_element> Rtodo;
+
+	std::map< int64_t, libmaus2::geometry::RangeSet<Match>::shared_ptr_type > D;
+
+	#if defined(D_DEBUG)
+	std::map< int64_t, std::vector<libmaus2::math::IntegerInterval<int64_t> > > TT;
+	#endif
+
+	libmaus2::lcs::NNPAlignResult bestres(0,1,0,1,1);
+
+	int64_t prevdiag = std::numeric_limits<int64_t>::min();
+
+	libmaus2::autoarray::AutoArray<libmaus2::dazzler::align::TracePoint> TPV;
+	libmaus2::autoarray::AutoArray<libmaus2::dazzler::align::TracePoint> TPVold;
+	std::set< libmaus2::dazzler::align::TracePoint > TPVseen;
+	std::map< uint64_t, libmaus2::dazzler::align::Overlap > OVLseen;
+
+	// process matching k-mers in order of increasing diagonal index
+	for ( uint64_t traceid = 0; ! Q.empty(); ++traceid )
+	{
+		HeapTodo H = Q.top();
+		Q.pop();
+
+		if ( H.hasNext() )
+			Q.push(H.getNext());
+
+		int64_t const nd = H.getDiag();
+
+		assert ( nd >= prevdiag );
+		prevdiag = nd;
+
+		// remove diagonals which we no longer need
+		while ( D.begin() != D.end() && D.begin()->first < nd )
+		{
+			// std::cerr << "removing " << D.begin()->first << std::endl;
+			D.erase(D.begin());
+		}
+		// std::cerr << nd << " " << H.ka->p << " " << H.kb_c->p << std::endl;
+
+		// check whether seed was already processed (was used on a previous alignment)
+		if ( D.find(nd) != D.end() && D.find(nd)->second->search(Match(std::min(H.ka->p,H.kb_c->p),k),Rtodo) )
+			continue;
+
+		// compute alignment
+		libmaus2::lcs::NNPAlignResult res;
+		if ( aid == bid )
+		{
+			res = nnp.align(
+				ra.begin(),ra.end(),H.ka->p,
+				ra.begin(),ra.end(),H.kb_c->p,
+				nnptracecontainer,
+				aid==bid
+			);
+		}
+		else
+		{
+			res = nnp.align(
+				ra.begin(),ra.end(),H.ka->p,
+				rb.begin(),rb.end(),H.kb_c->p,
+				nnptracecontainer,
+				aid==bid
+			);
+		}
+
+		// compute dense trace
+		nnptracecontainer.computeTrace(ATC);
+
+		libmaus2::lcs::AlignmentTraceContainer::step_type const * ta = ATC.ta;
+		libmaus2::lcs::AlignmentTraceContainer::step_type const * const te = ATC.te;
+
+		// register matches so we can avoid starting from a seed which is already covered by an alignment
+		int64_t apos = res.abpos;
+		int64_t bpos = res.bbpos;
+
+		uint64_t matchcount = 0;
+		for ( ; ta != te; ++ta )
+		{
+			switch ( *ta )
+			{
+				case libmaus2::lcs::AlignmentTraceContainer::STEP_INS:
+				case libmaus2::lcs::AlignmentTraceContainer::STEP_DEL:
+				case libmaus2::lcs::AlignmentTraceContainer::STEP_MISMATCH:
+					if ( matchcount )
+					{
+						int64_t const d = apos - bpos;
+						int64_t const off = std::min(apos,bpos)-matchcount;
+
+						// std::cerr << "M " << matchcount << " " << d << " " << off << std::endl;
+
+						if ( D.find(d) == D.end() )
+						{
+							libmaus2::geometry::RangeSet<Match>::shared_ptr_type R(
+								new libmaus2::geometry::RangeSet<Match>(
+									std::min(ra.size()+k,rb.size()+k)
+								)
+							);
+							D[d] = R;
+						}
+
+						D.find(d)->second->insert(Match(off,matchcount));
+
+						#if defined(D_DEBUG)
+						TT[d].push_back(
+							libmaus2::math::IntegerInterval<int64_t>(off,off+matchcount-1)
+						);
+						#endif
+
+						matchcount = 0;
+					}
+					break;
+				case libmaus2::lcs::AlignmentTraceContainer::STEP_MATCH:
+					++matchcount;
+					break;
+				default:
+					break;
+			}
+			switch ( *ta )
+			{
+				case libmaus2::lcs::AlignmentTraceContainer::STEP_INS:
+					bpos++;
+					break;
+				case libmaus2::lcs::AlignmentTraceContainer::STEP_DEL:
+					apos++;
+					break;
+				case libmaus2::lcs::AlignmentTraceContainer::STEP_MISMATCH:
+					apos++;
+					bpos++;
+					break;
+				case libmaus2::lcs::AlignmentTraceContainer::STEP_MATCH:
+					apos++;
+					bpos++;
+					break;
+				default:
+					break;
+			}
+		}
+
+		if ( matchcount )
+		{
+			int64_t const d = apos - bpos;
+			int64_t const off = std::min(apos,bpos)-matchcount;
+
+			// std::cerr << "M " << matchcount << " " << d << " " << off << std::endl;
+
+			if ( D.find(d) == D.end() )
+			{
+				libmaus2::geometry::RangeSet<Match>::shared_ptr_type R(
+					new libmaus2::geometry::RangeSet<Match>(
+						std::min(ra.size()+k,rb.size()+k)
+					)
+				);
+				D[d] = R;
+			}
+
+			D.find(d)->second->insert(Match(off,matchcount));
+
+			#if defined(D_DEBUG)
+			TT[d].push_back(
+				libmaus2::math::IntegerInterval<int64_t>(off,off+matchcount-1)
+			);
+			#endif
+
+			matchcount = 0;
+		}
+
+		assert ( apos == static_cast<int64_t>(res.aepos) );
+		assert ( bpos == static_cast<int64_t>(res.bepos) );
+
+		// if match is sufficiently long
+		if ( res.aepos - res.abpos >= minlen )
+		{
+			//std::cerr << res << std::endl;
+
+			if ( res.getErrorRate() < bestres.getErrorRate() )
+				bestres = res;
+
+			// compute dazzler style overlap data structure
+			libmaus2::dazzler::align::Overlap const OVL = libmaus2::dazzler::align::Overlap::computeOverlap(
+				0 /* flags */,
+				aid,
+				bid,
+				res.abpos,
+				res.aepos,
+				res.bbpos,
+				res.bepos,
+				tspace,
+				ATC
+			);
+
+			// get dazzler trace points
+			uint64_t const tpvo = OVL.getTracePoints(tspace,traceid,TPV,0);
+			libmaus2::math::IntegerInterval<int64_t> IA(res.abpos,res.aepos-1);
+
+			bool dup = false;
+
+			// check whether this or a previous alignment is a duplicate
+			for ( uint64_t i = 0; (!dup) && i < tpvo; ++i )
+			{
+				// look for trace point
+				std::set<libmaus2::dazzler::align::TracePoint>::const_iterator it = TPVseen.lower_bound(
+					libmaus2::dazzler::align::TracePoint(TPV[i].apos,TPV[i].bpos,0)
+				);
+				std::vector<uint64_t> killlist;
+
+				for (
+					;
+					(!dup)
+					&&
+					it != TPVseen.end()
+					&&
+					it->apos == TPV[i].apos
+					&&
+					it->bpos == TPV[i].bpos
+					;
+					++it
+				)
+				{
+					uint64_t const oldtraceid = it->id;
+
+					assert ( OVLseen.find(oldtraceid) != OVLseen.end() );
+
+					libmaus2::dazzler::align::Overlap const & OVLold = OVLseen.find(oldtraceid)->second;
+
+					libmaus2::math::IntegerInterval<int64_t> IO(OVLold.path.abpos,OVLold.path.aepos-1);
+					libmaus2::math::IntegerInterval<int64_t> IC = IA.intersection(IO);
+
+					if ( IA.diameter() <= IO.diameter() && IC.diameter() >= 0.95 * IA.diameter() )
+					{
+						dup = true;
+
+						#if 0
+						libmaus2::parallel::ScopePosixSpinLock slock(libmaus2::aio::StreamLock::cerrlock);
+						std::cerr << "dup ?\n";
+						std::cerr << OVL << std::endl;
+						std::cerr << OVLold << std::endl;
+						#endif
+					}
+					else if ( IO.diameter() <= IA.diameter() && IC.diameter() >= 0.95 * IO.diameter() )
+					{
+						killlist.push_back(oldtraceid);
+
+						#if 0
+						libmaus2::parallel::ScopePosixSpinLock slock(libmaus2::aio::StreamLock::cerrlock);
+						std::cerr << "dup ?\n";
+						std::cerr << OVLold << std::endl;
+						std::cerr << OVL << std::endl;
+						#endif
+					}
+				}
+
+				for ( uint64_t i = 0; i < killlist.size(); ++i )
+				{
+					uint64_t const oldtraceid = killlist[i];
+					libmaus2::dazzler::align::Overlap const & OVLold = OVLseen.find(oldtraceid)->second;
+
+					uint64_t const tpvoo = OVLold.getTracePoints(tspace,oldtraceid,TPVold,0);
+					for ( uint64_t j = 0; j < tpvoo; ++j )
+					{
+						assert ( TPVseen.find(TPVold[j]) != TPVseen.end() );
+						TPVseen.erase(TPVold[j]);
+					}
+
+					OVLseen.erase(oldtraceid);
+				}
+
+				#if 0
+				if ( TPVseen.find(std::pair<int64_t,int64_t>(TPV[i].apos,TPV[i].bpos)) != TPVseen.end() )
+				{
+					dup = true;
+					break;
+				}
+				#endif
+			}
+
+			if ( ! dup )
+			{
+				for ( uint64_t i = 0; i < tpvo; ++i )
+					TPVseen.insert(TPV[i]);
+				OVLseen[traceid] = OVL;
+			}
+
+			// std::cerr << OVL << std::endl;
+
+			#if 0
+			libmaus2::lcs::AlignmentPrint::printAlignmentLines(
+				std::cerr,
+				ra.begin()+res.abpos,res.aepos-res.abpos,
+				rb.begin()+res.bbpos,res.bepos-res.bbpos,
+				80,
+				ATC.ta,ATC.te
+			);
+			#endif
+		}
+	}
+
+	#if 0
+	for ( std::map<uint64_t,libmaus2::dazzler::align::Overlap>::const_iterator ita = OVLseen.begin();
+		ita != OVLseen.end(); ++ita )
+	{
+		libmaus2::dazzler::align::Overlap const & OVL = ita->second;
+	}
+	#endif
+}
+
+#include <config.h>
+#include <iostream>
+#include <libmaus2/fastx/FastAReader.hpp>
+#include <libmaus2/util/ArgParser.hpp>
+#include <libmaus2/lcs/NNP.hpp>
+#include <libmaus2/lcs/AlignmentPrint.hpp>
+#include <libmaus2/geometry/RangeSet.hpp>
+#include <libmaus2/dazzler/align/Overlap.hpp>
+#include <libmaus2/dazzler/align/AlignmentWriter.hpp>
+#include <libmaus2/dazzler/align/AlignmentWriterArray.hpp>
+#include <libmaus2/parallel/NumCpus.hpp>
+#include <libmaus2/dazzler/db/DatabaseFile.hpp>
+#include <libmaus2/util/iterator.hpp>
+#include <queue>
+
+static uint64_t getDefaultNumThreads()
+{
+	return libmaus2::parallel::NumCpus::getNumLogicalProcessors();
+}
 
 void process(
 	std::string const & sa, std::string const & sb,
