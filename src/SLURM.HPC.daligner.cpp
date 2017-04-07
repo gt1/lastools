@@ -27,6 +27,7 @@
 #include <libmaus2/util/TempFileRemovalContainer.hpp>
 #include <libmaus2/util/WriteableString.hpp>
 #include <libmaus2/util/PosixExecute.hpp>
+#include <libmaus2/util/TempFileNameGenerator.hpp>
 #include <cstring>
 
 #if defined(__APPLE__)
@@ -94,6 +95,21 @@ std::string fullpath(std::string prog)
 
 	return command + " " + args;
 }
+
+#if 0
+struct RunInfo
+{
+	RunInfo()
+	{
+	
+	}
+	
+	RunInfo(std::istream & in)
+	{
+	
+	}
+};
+#endif
 
 int main(int argc, char * argv[])
 {
@@ -237,6 +253,8 @@ int main(int argc, char * argv[])
 
 		std::string const HPC_daligner = which(argv[0]);
 		std::string const tmpfileprefix = getTmpFileBase(arg);
+		libmaus2::util::TempFileNameGenerator tmpgen(tmpfileprefix + "_subdir",5);
+
 		std::string const errfile = tmpfileprefix + "_HPC.err";
 		libmaus2::util::TempFileRemovalContainer::addTempFile(errfile);
 		std::string const outfile = tmpfileprefix + "_HPC.out";
@@ -247,8 +265,10 @@ int main(int argc, char * argv[])
 		if ( pid == static_cast<pid_t>(-1) )
 		{
 			int const error = errno;
-			std::cerr << "[E] fork failed: " << strerror(error) << std::endl;
-			_exit(EXIT_FAILURE);
+			libmaus2::exception::LibMausException lme;
+			lme.getStream() << "[E] fork failed: " << strerror(error) << std::endl;
+			lme.finish();
+			throw lme;
 		}
 		if ( pid == 0 )
 		{
@@ -286,8 +306,10 @@ int main(int argc, char * argv[])
 		if ( r == -1 )
 		{
 			int const error = errno;
-			std::cerr << "[E] waitpid failed: " << strerror(error) << std::endl;
-			return EXIT_FAILURE;
+			libmaus2::exception::LibMausException lme;
+			lme.getStream() << "[E] waitpid failed: " << strerror(error) << std::endl;
+			lme.finish();
+			throw lme;
 		}
 
 		if ( WIFEXITED(status) && (WEXITSTATUS(status) == 0) )
@@ -335,7 +357,7 @@ int main(int argc, char * argv[])
 			ISI.reset();
 
 			std::ostringstream patchfnstr;
-			patchfnstr << tmpfileprefix << "_ndb";
+			patchfnstr << tmpgen.getFileName() << "_ndb";
 			std::string const patchfn = patchfnstr.str();
 
 			int64_t lastmerge = -1;
@@ -432,21 +454,42 @@ int main(int argc, char * argv[])
 			}
 
 			std::vector< std::vector<std::string> > Vlevellogs;
+			std::vector< std::vector<std::string> > Vlevelsublogs;
+
 			std::vector<std::string> Vlevellogcat;
 			std::vector<std::string> Vlevelloglistfiles;
+			std::vector<std::string> Vlevelsublogcat;
+			std::vector<std::string> Vlevelsubloglistfiles;
+
+			std::ostringstream commandlistfnstr;
+			commandlistfnstr << tmpgen.getFileName() << ".commandlist";
+			std::string const commandlistfn = commandlistfnstr.str();
+			
+			libmaus2::aio::OutputStreamInstance::unique_ptr_type comOSI(new libmaus2::aio::OutputStreamInstance(commandlistfn));
+			
 			std::vector<uint64_t> depids;
 			std::vector<uint64_t> allids;
 			for ( uint64_t i = 0; i < Vbatch.size(); ++i )
 			{
 				Vlevellogs.push_back(std::vector<std::string>(0));
+				Vlevelsublogs.push_back(std::vector<std::string>(0));
 
 				std::ostringstream catlogfnstr;
-				catlogfnstr << tmpfileprefix << "_" << i << ".log";
+				catlogfnstr << tmpgen.getFileName() << "_" << i << ".log";
 				std::ostringstream listlogfnstr;
-				listlogfnstr << tmpfileprefix << "_" << i << ".list";
+				listlogfnstr << tmpgen.getFileName() << "_" << i << ".list";
 
 				Vlevellogcat.push_back(catlogfnstr.str());
 				Vlevelloglistfiles.push_back(listlogfnstr.str());
+
+				std::ostringstream catsublogfnstr;
+				catsublogfnstr << tmpgen.getFileName() << "_" << i << ".sublog";
+				std::ostringstream listsublogfnstr;
+				listsublogfnstr << tmpgen.getFileName() << "_" << i << ".sublist";
+
+				Vlevelsublogcat.push_back(catsublogfnstr.str());
+				Vlevelsubloglistfiles.push_back(listsublogfnstr.str());
+				
 				std::cerr << Vbatch[i].first << std::endl;
 				std::vector<uint64_t> ndepids;
 				for ( uint64_t j = 0; j < Vbatch[i].second.size(); ++j )
@@ -497,18 +540,35 @@ int main(int argc, char * argv[])
 							lnumthreads = 1;
 					}
 
+					std::ostringstream commandfnstr;
+					commandfnstr << tmpgen.getFileName() << "_" << i << "_" << j << ".command";
+					std::string const commandfn = commandfnstr.str();
+
+					std::ostringstream sublogfnstr;
+					sublogfnstr << tmpgen.getFileName() << "_" << i << "_" << j << ".sublog";
+					std::string const sublogfn = sublogfnstr.str();
+					
 					std::ostringstream logfnstr;
-					logfnstr << tmpfileprefix << "_" << i << "_" << j << ".log";
+					logfnstr << tmpgen.getFileName() << "_" << i << "_" << j << ".log";
 					std::ostringstream jobfnstr;
-					jobfnstr << tmpfileprefix << "_" << i << "_" << j << ".job";
+					jobfnstr << tmpgen.getFileName() << "_" << i << "_" << j << ".job";
 					std::string const logfn = logfnstr.str();
 					std::ostringstream jobnamestr;
 					jobnamestr << tmpname << "_" << i << "_" << j;
 					std::string const jobname = jobnamestr.str();
 
 					command = fullpath(command);
+					
+					{
+						libmaus2::aio::OutputStreamInstance OSI(commandfn);
+						OSI << "#!/bin/bash" << std::endl;
+						OSI << command << std::endl;
+						// OSI << "rm -f " << commandfn < std::endl;
+						OSI.flush();
+					}
 
 					Vlevellogs.back().push_back(logfn);
+					Vlevelsublogs.back().push_back(sublogfn);
 
 					std::ostringstream ostr;
 					ostr << "#!/bin/bash\n";
@@ -530,7 +590,9 @@ int main(int argc, char * argv[])
 					}
 
 					ostr << "\n";
-					ostr << "srun " << command << "\n";
+					ostr << "srun bash " << commandfn << " >" << sublogfn << " 2>&1" << "\n";
+					
+					(*comOSI) << commandfn << std::endl;
 
 					libmaus2::aio::OutputStreamInstance::unique_ptr_type Pjob(new libmaus2::aio::OutputStreamInstance(jobfnstr.str()));
 					(*Pjob) << ostr.str();
@@ -590,19 +652,26 @@ int main(int argc, char * argv[])
 				for ( uint64_t j = 0; j < Vlevellogs.back().size(); ++j )
 					liststr << Vlevellogs.back()[j] << "\n";
 				}
+				{
+				libmaus2::aio::OutputStreamInstance liststr(Vlevelsubloglistfiles.back());
+				for ( uint64_t j = 0; j < Vlevelsublogs.back().size(); ++j )
+					liststr << Vlevelsublogs.back()[j] << "\n";
+				}
 
 				depids = ndepids;
 			}
+			
+			comOSI.reset();
 
 			uint64_t failjobid = 0;
 			if ( allids.size() )
 			{
 				std::ostringstream logfnstr;
-				logfnstr << tmpfileprefix << "_fail_job.log";
+				logfnstr << tmpgen.getFileName() << "_fail_job.log";
 				std::string const logfn = logfnstr.str();
 
 				std::ostringstream jobfnstr;
-				jobfnstr << tmpfileprefix << "_fail_job.job";
+				jobfnstr << tmpgen.getFileName() << "_fail_job.job";
 
 				std::ostringstream jobnamestr;
 				jobnamestr << tmpname << "_fail_job";
@@ -688,11 +757,11 @@ int main(int argc, char * argv[])
 			if ( allids.size() )
 			{
 				std::ostringstream logfnstr;
-				logfnstr << tmpfileprefix << "_success_job.log";
+				logfnstr << tmpgen.getFileName() << "_success_job.log";
 				std::string const logfn = logfnstr.str();
 
 				std::ostringstream jobfnstr;
-				jobfnstr << tmpfileprefix << "_success_job.job";
+				jobfnstr << tmpgen.getFileName() << "_success_job.job";
 
 				std::ostringstream jobnamestr;
 				jobnamestr << tmpname << "_success_job";
@@ -725,6 +794,16 @@ int main(int argc, char * argv[])
 					ostr << "; rm " << Vlevelloglistfiles[j];
 				}
 
+				for ( uint64_t j = 0; j < Vlevelsubloglistfiles.size(); ++j )
+				{
+					ostr << "; xargs <" << Vlevelsubloglistfiles[j] << " cat > " << Vlevelsublogcat[j];
+					ostr << "; xargs <" << Vlevelsubloglistfiles[j] << " rm";
+					ostr << "; rm " << Vlevelsubloglistfiles[j];
+				}
+
+				ostr << "; xargs <" << commandlistfn << " rm";
+				ostr << "; rm -f " << commandlistfn;
+
 				ostr << "\"\n";
 
 				libmaus2::aio::OutputStreamInstance::unique_ptr_type Pjob(new libmaus2::aio::OutputStreamInstance(jobfnstr.str()));
@@ -756,11 +835,14 @@ int main(int argc, char * argv[])
 		}
 		else
 		{
-			std::cerr << "[E] " << argv[0] << " failed" << std::endl;
+			libmaus2::exception::LibMausException lme;
+			std::ostream & errstr = lme.getStream();
+			
+			errstr << "[E] " << argv[0] << " failed" << std::endl;
 
 			if ( WIFEXITED(status) )
 			{
-				std::cerr << "[E] exit code " << WEXITSTATUS(status) << std::endl;
+				errstr << "[E] exit code " << WEXITSTATUS(status) << std::endl;
 			}
 
 			if ( libmaus2::util::GetFileSize::fileExists(errfile) )
@@ -771,11 +853,13 @@ int main(int argc, char * argv[])
 					std::string line;
 					std::getline(ISI,line);
 					if ( ISI )
-						std::cerr << line << std::endl;
+						errstr << line << std::endl;
 				}
 			}
-
-			return EXIT_FAILURE;
+			
+			lme.finish();
+			
+			throw lme;
 		}
 	}
 	catch(std::exception const & ex)
