@@ -101,12 +101,12 @@ struct RunInfo
 {
 	RunInfo()
 	{
-	
+
 	}
-	
+
 	RunInfo(std::istream & in)
 	{
-	
+
 	}
 };
 #endif
@@ -464,9 +464,9 @@ int main(int argc, char * argv[])
 			std::ostringstream commandlistfnstr;
 			commandlistfnstr << tmpgen.getFileName() << ".commandlist";
 			std::string const commandlistfn = commandlistfnstr.str();
-			
+
 			libmaus2::aio::OutputStreamInstance::unique_ptr_type comOSI(new libmaus2::aio::OutputStreamInstance(commandlistfn));
-			
+
 			std::vector<uint64_t> depids;
 			std::vector<uint64_t> allids;
 			for ( uint64_t i = 0; i < Vbatch.size(); ++i )
@@ -489,7 +489,7 @@ int main(int argc, char * argv[])
 
 				Vlevelsublogcat.push_back(catsublogfnstr.str());
 				Vlevelsubloglistfiles.push_back(listsublogfnstr.str());
-				
+
 				std::cerr << Vbatch[i].first << std::endl;
 				std::vector<uint64_t> ndepids;
 				for ( uint64_t j = 0; j < Vbatch[i].second.size(); ++j )
@@ -547,7 +547,7 @@ int main(int argc, char * argv[])
 					std::ostringstream sublogfnstr;
 					sublogfnstr << tmpgen.getFileName() << "_" << i << "_" << j << ".sublog";
 					std::string const sublogfn = sublogfnstr.str();
-					
+
 					std::ostringstream logfnstr;
 					logfnstr << tmpgen.getFileName() << "_" << i << "_" << j << ".log";
 					std::ostringstream jobfnstr;
@@ -558,7 +558,7 @@ int main(int argc, char * argv[])
 					std::string const jobname = jobnamestr.str();
 
 					command = fullpath(command);
-					
+
 					{
 						libmaus2::aio::OutputStreamInstance OSI(commandfn);
 						OSI << "#!/bin/bash" << std::endl;
@@ -591,7 +591,7 @@ int main(int argc, char * argv[])
 
 					ostr << "\n";
 					ostr << "srun bash " << commandfn << " >" << sublogfn << " 2>&1" << "\n";
-					
+
 					(*comOSI) << commandfn << std::endl;
 
 					libmaus2::aio::OutputStreamInstance::unique_ptr_type Pjob(new libmaus2::aio::OutputStreamInstance(jobfnstr.str()));
@@ -660,7 +660,7 @@ int main(int argc, char * argv[])
 
 				depids = ndepids;
 			}
-			
+
 			comOSI.reset();
 
 			uint64_t failjobid = 0;
@@ -837,7 +837,7 @@ int main(int argc, char * argv[])
 		{
 			libmaus2::exception::LibMausException lme;
 			std::ostream & errstr = lme.getStream();
-			
+
 			errstr << "[E] " << argv[0] << " failed" << std::endl;
 
 			if ( WIFEXITED(status) )
@@ -856,9 +856,9 @@ int main(int argc, char * argv[])
 						errstr << line << std::endl;
 				}
 			}
-			
+
 			lme.finish();
-			
+
 			throw lme;
 		}
 	}
