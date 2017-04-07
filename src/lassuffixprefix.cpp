@@ -62,18 +62,18 @@ int lassuffixprefix(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgIn
 		{
 			// keep containment
 			if (
-				(OVL.path.abpos == 0 && OVL.path.aepos == RL[OVL.aread])
+				(OVL.path.abpos == 0 && OVL.path.aepos == static_cast<int64_t>(RL[OVL.aread]))
 				||
-				(OVL.path.bbpos == 0 && OVL.path.bepos == RL[OVL.bread])
+				(OVL.path.bbpos == 0 && OVL.path.bepos == static_cast<int64_t>(RL[OVL.bread]))
 			)
 				AW->put(OVL);
 			// keep suffix/prefix
 			else if (
 				// suffix of A/prefix of B
-				(OVL.path.aepos == RL[OVL.aread] && OVL.path.bbpos == 0)
+				(OVL.path.aepos == static_cast<int64_t>(RL[OVL.aread]) && OVL.path.bbpos == 0)
 				||
 				// suffix of B/prefix of A
-				(OVL.path.bepos == RL[OVL.bread] && OVL.path.abpos == 0)
+				(OVL.path.bepos == static_cast<int64_t>(RL[OVL.bread]) && OVL.path.abpos == 0)
 			)
 				AW->put(OVL);
 		}
