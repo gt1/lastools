@@ -286,6 +286,50 @@ void parseBatches(std::string const & HPCdalout, std::vector < std::pair< std::s
 	}
 }
 
+std::string basename(std::string const & s)
+{
+	if ( s.find('/') == std::string::npos )
+		return s;
+	else
+		return s.substr(s.find_last_of('/')+1);
+}
+
+std::string dirname(std::string const & s)
+{
+	if ( s.find('/') == std::string::npos )
+		return ".";
+	else
+		return s.substr(0,s.find_last_of('/'));
+}
+
+std::string clipdbdam(std::string const & s)
+{
+	if ( s.find_last_of(".db") == s.size() - 3 )
+		return s.substr(0,s.size()-3);
+	else if ( s.find_last_of(".dam") == s.size() - 4 )
+		return s.substr(0,s.size()-4);
+	else
+		return s;
+}
+
+std::string moveDB(std::string const & from, std::string const & to)
+{
+	std::string const fromdir = dirname(from);
+	std::string const fromdbbase = basename(from);
+	std::string const frombase = clipdbdam(fromdbbase);
+
+	std::string const todir = dirname(to);
+	std::string const todbbase = basename(to);
+	std::string const tobase = clipdbdam(todbbase);
+	
+	std::ostringstream ostr;
+	ostr << "mv " << from << " " << to;
+	ostr << " ; ";
+	ostr << "for i in " << fromdir << "/." << frombase << ".*.data ; do I=${i#" << fromdir << "/} ; I=${i#." << frombase << "} ; I=${I%.data} ; mv ." << frombase << ".${I}.data " << todir << "/." << tobase << ".${I}.data ; done ";
+	
+	return ostr.str();
+}
+
 int main(int argc, char * argv[])
 {
 	try
@@ -820,6 +864,8 @@ int main(int argc, char * argv[])
 
 			ostr << "; xargs <" << commandlistfn << " rm";
 			ostr << "; rm -f " << commandlistfn;
+			
+			ostr << "; " << moveDB(patchfn,"out.db");
 
 			ostr << "\"\n";
 
