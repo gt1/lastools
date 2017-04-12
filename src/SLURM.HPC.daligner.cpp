@@ -28,7 +28,10 @@
 #include <libmaus2/util/WriteableString.hpp>
 #include <libmaus2/util/PosixExecute.hpp>
 #include <libmaus2/util/TempFileNameGenerator.hpp>
+#include <libmaus2/dazzler/db/DatabaseFile.hpp>
 #include <cstring>
+#include <libmaus2/util/CommandContainer.hpp>
+#include <slurm/slurm.h>
 
 #if defined(__APPLE__)
 #include <crt_externs.h>
@@ -87,7 +90,7 @@ std::string whiche(std::string const & prog)
 	try
 	{
 		std::string const s = which(prog);
-		std::cerr << "[V] found " << prog << " at " << s << std::endl;
+		std::cerr << "[V] found " << prog << " at " << s << "\n";
 		return s;
 	}
 	catch(...)
@@ -199,7 +202,7 @@ std::string runProgram(std::vector<std::string> const & args, libmaus2::util::Te
 
 	if ( WIFEXITED(status) && (WEXITSTATUS(status) == 0) )
 	{
-		std::cerr << "[V] " << HPC_daligner << " finished ok" << std::endl;
+		std::cerr << "[V] " << HPC_daligner << " finished ok" << "\n";
 	}
 	else
 	{
@@ -304,9 +307,9 @@ std::string dirname(std::string const & s)
 
 std::string clipdbdam(std::string const & s)
 {
-	if ( s.find_last_of(".db") == s.size() - 3 )
+	if ( s.rfind(".db") == s.size() - 3 )
 		return s.substr(0,s.size()-3);
-	else if ( s.find_last_of(".dam") == s.size() - 4 )
+	else if ( s.rfind(".dam") == s.size() - 4 )
 		return s.substr(0,s.size()-4);
 	else
 		return s;
@@ -323,11 +326,273 @@ std::string moveDB(std::string const & from, std::string const & to)
 	std::string const tobase = clipdbdam(todbbase);
 	
 	std::ostringstream ostr;
-	ostr << "mv " << from << " " << to;
-	ostr << " ; ";
-	ostr << "for i in " << fromdir << "/." << frombase << ".*.data ; do I=${i#" << fromdir << "/} ; I=${i#." << frombase << "} ; I=${I%.data} ; mv ." << frombase << ".${I}.data " << todir << "/." << tobase << ".${I}.data ; done ";
+	ostr << "mv " << from << ".db" << " " << to;
+	ostr << " ; mv " << fromdir << "/." << frombase << ".idx " << todir << "/." << tobase << ".idx";
+	ostr << " ; mv " << fromdir << "/." << frombase << ".bps " << todir << "/." << tobase << ".bps";
+	ostr << " ; for i in " << fromdir << "/." << frombase << ".*.data ; do I=${i#" << fromdir << "/} ; I=${I#." << frombase << ".} ; I=${I%.data}";
+	ostr << " ; mv " << fromdir << "/." << frombase << ".${I}.data " << todir << "/." << tobase << ".${I}.data";
+	ostr << " ; mv " << fromdir << "/." << frombase << ".${I}.anno " << todir << "/." << tobase << ".${I}.anno";
+	ostr << " ; done ";
 	
 	return ostr.str();
+}
+
+uint64_t submitJob(
+	std::string command, 
+	libmaus2::util::TempFileNameGenerator & tmpgen,
+	std::string const & tmpname,
+	uint64_t const i,
+	uint64_t const j,
+	std::vector< std::vector<std::string> > & Vlevellogs,
+	std::vector< std::vector<std::string> > & Vlevelsublogs,
+	uint64_t const mem,
+	uint64_t const lnumthreads,
+	std::vector<uint64_t> const & depids,
+	std::ostream & comOSI,
+	bool const deppos
+)
+{
+	std::ostringstream commandfnstr;
+	commandfnstr << tmpgen.getFileName() << "_" << i << "_" << j << ".command";
+	std::string const commandfn = commandfnstr.str();
+
+	std::ostringstream sublogfnstr;
+	sublogfnstr << tmpgen.getFileName() << "_" << i << "_" << j << ".sublog";
+	std::string const sublogfn = sublogfnstr.str();
+
+	std::ostringstream logfnstr;
+	logfnstr << tmpgen.getFileName() << "_" << i << "_" << j << ".log";
+	std::ostringstream jobfnstr;
+	jobfnstr << tmpgen.getFileName() << "_" << i << "_" << j << ".job";
+	std::string const logfn = logfnstr.str();
+	std::ostringstream jobnamestr;
+	jobnamestr << tmpname << "_" << i << "_" << j;
+	std::string const jobname = jobnamestr.str();
+
+	command = fullpath(command);
+
+	{
+		libmaus2::aio::OutputStreamInstance OSI(commandfn);
+		OSI << "#!/bin/bash" << "\n";
+		OSI << command << "\n";
+		// OSI << "rm -f " << commandfn < std::endl;
+		OSI.flush();
+	}
+
+	Vlevellogs.back().push_back(logfn);
+	Vlevelsublogs.back().push_back(sublogfn);
+
+	std::ostringstream ostr;
+	ostr << "#!/bin/bash\n";
+	ostr << "#\n";
+	ostr << "#SBATCH --job-name=" << jobname << "\n";
+	ostr << "#SBATCH --output=" << logfn << "\n";
+	ostr << "#\n";
+	ostr << "#SBATCH --ntasks=1\n";
+	ostr << "#SBATCH --time=24:00:00\n";
+	ostr << "#SBATCH --mem=" << (mem*1024)+512 << "\n";
+	ostr << "#SBATCH --cpus-per-task=" << lnumthreads << "\n";
+
+	if ( depids.size() )
+	{
+		if ( deppos )
+		{
+			ostr << "#SBATCH --dependency=afterok";
+			for ( uint64_t i = 0; i < depids.size(); ++i )
+				ostr << ":" << depids[i];
+			ostr << "\n";
+		}
+		else
+		{
+			ostr << "#SBATCH --dependency=";
+			for ( uint64_t i = 0; i < depids.size(); ++i )
+				ostr << ((i==0)?"":"?") << "afternotok:" << depids[i];
+			ostr << "\n";
+		}
+	}
+
+	ostr << "\n";
+	ostr << "srun bash " << commandfn << " >" << sublogfn << " 2>&1" << "\n";
+
+	comOSI << commandfn << "\n";
+
+	libmaus2::aio::OutputStreamInstance::unique_ptr_type Pjob(new libmaus2::aio::OutputStreamInstance(jobfnstr.str()));
+	(*Pjob) << ostr.str();
+	Pjob.reset();
+
+	std::cerr << ostr.str() << "\n";
+
+	std::ostringstream comstr;
+	comstr << "sbatch " << jobfnstr.str();
+	std::string const com = comstr.str();
+
+	std::string out;
+	std::string err;
+	std::cerr << "[V] calling " << com << "\n";
+	int const r = libmaus2::util::PosixExecute::execute(com,out,err,false /* do not throw */);
+	std::cerr << "[V] called " << com << "\n";
+
+	if ( r != EXIT_SUCCESS )
+	{
+		libmaus2::exception::LibMausException lme;
+		lme.getStream() << "[E] failed to run " << com << "\n";
+		lme.finish();
+		throw lme;
+	}
+
+	std::istringstream sistr(out);
+	int64_t njobid = -1;
+	while ( sistr )
+	{
+		std::string line;
+		std::getline(sistr,line);
+
+		if (
+			sistr
+			&&
+			line.find("Submitted") == 0
+		)
+		{
+			std::deque<std::string> Vtokens = libmaus2::util::stringFunctions::tokenize(line,std::string(" "));
+			if ( Vtokens.size() )
+			{
+				std::istringstream uistr(Vtokens.back());
+				uint64_t jobid;
+				uistr >> jobid;
+				njobid = jobid;
+
+				std::cerr << "[V] submitted job " << jobid << " for " << com << "\n";
+			}
+		}
+	}
+	
+	if ( njobid < 0 )
+	{
+		libmaus2::exception::LibMausException lme;
+		lme.getStream() << "[E] failed to run " << com << " (job id not found)" << "\n";
+		lme.finish();
+		throw lme;	
+	}
+
+	libmaus2::aio::FileRemoval::removeFile(jobfnstr.str());
+	
+	return njobid;
+}
+
+struct SlurmControlConfig
+{
+	slurm_ctl_conf_t * conf;
+	
+	SlurmControlConfig()
+	: conf(0)
+	{
+		int const r = slurm_load_ctl_conf(static_cast<time_t>(0),&conf);
+		
+		if ( r != 0 )
+		{
+			int const error = slurm_get_errno();
+			libmaus2::exception::LibMausException lme;
+			lme.getStream() << "[E] slurm_load_ctl_conf failed: " << slurm_strerror(error) << std::endl;
+			lme.finish();
+			throw lme;	
+		}
+	}
+	
+	~SlurmControlConfig()
+	{
+		slurm_free_ctl_conf(conf);
+	}
+	
+	uint64_t getMaxArraySize() const
+	{
+		return conf->max_array_sz;
+	}
+};
+
+struct SlurmPartitions
+{
+	partition_info_msg_t * partitions;
+
+	SlurmPartitions()
+	{
+		int const r = slurm_load_partitions(static_cast<time_t>(0),&partitions,0/*flags*/);
+
+		if ( r != 0 )
+		{
+			int const error = slurm_get_errno();
+			libmaus2::exception::LibMausException lme;
+			lme.getStream() << "[E] slurm_load_partitions failed: " << slurm_strerror(error) << std::endl;
+			lme.finish();
+			throw lme;	
+		}
+	}
+	
+	~SlurmPartitions()
+	{
+		slurm_free_partition_info_msg(partitions);
+	}
+	
+	uint64_t size() const
+	{
+		return partitions->record_count;
+	}
+	
+	std::string getName(uint64_t const i) const
+	{
+		assert ( i < size() );
+		return partitions->partition_array[i].name;
+	}
+};
+
+static std::string updateCommand(std::string command, uint64_t & lnumthreads)
+{
+
+	std::vector<std::string> Largs;
+	std::string Targ;
+	uint64_t l = 0;
+	while ( l < command.size() )
+	{
+		while ( l < command.size() && isspace(command[l]) )
+			++l;
+
+		uint64_t h = l;
+		while ( h < command.size() && !isspace(command[h]) )
+			++h;
+
+		if ( h != l )
+		{
+			std::string const arg = command.substr(l,h-l);
+			Largs.push_back(arg);
+			l = h;
+
+			if ( arg.size() >= 2 && arg.substr(0,2) == "-T" )
+				Targ = arg.substr(2);
+		}
+	}
+
+	if ( Targ.size() )
+	{
+		std::istringstream istr(Targ);
+		istr >> lnumthreads;
+	}
+	else
+	{
+		if ( Largs.at(0) == "daligner" )
+		{
+			lnumthreads = 4;
+
+			std::ostringstream snumthreads;
+			snumthreads << lnumthreads;
+
+			command.replace(0,strlen("daligner"),std::string("daligner -T")+snumthreads.str());
+		}
+		else
+			lnumthreads = 1;
+	}
+
+	command = fullpath(command);
+
+	return command;
 }
 
 int main(int argc, char * argv[])
@@ -335,19 +600,31 @@ int main(int argc, char * argv[])
 	try
 	{
 		libmaus2::util::ArgParser const arg(argc,argv);
+		
+		long const slurmapi = slurm_api_version();
+		
+		std::cerr << "[V] slurm API version is " << slurmapi << std::endl;
+		
+		SlurmControlConfig slurmconf;
+		
+		std::cerr << "[V] maximum job array size is " << slurmconf.getMaxArraySize() << std::endl;
 
 		std::string const tmpname = libmaus2::util::ArgInfo::getDefaultTmpFileName(arg.progname);
 		std::vector<std::string> Vsbatch;
 
-		bool const havecoverage = arg.uniqueArgPresent("c");
-		int64_t const coverage = havecoverage ? arg.getParsedArg<unsigned int>("c") : -1;
+		bool const havegenomesize = arg.uniqueArgPresent("g");
+		// bool const havecoverage = arg.uniqueArgPresent("c");
+		// int64_t const coverage = havecoverage ? arg.getParsedArg<unsigned int>("c") : -1;
 
 		std::string const DASedit = whiche("DASedit");
 		std::string const DASpatch = whiche("DASpatch");
 		std::string const DAStrim = whiche("DAStrim");
 		std::string dasqv = whiche("DASqv");
-		std::string cattrack = whiche("Catrack");
-		std::string HPC_TANmask = whiche("HPC.TANmask");
+		std::string cattrack = which("Catrack");
+		std::string DBsplit = which("DBsplit");
+		std::string HPC_TANmask = which("HPC.TANmask");
+		std::string HPC_REPmask = which("HPC.REPmask");
+		std::string cocommand = which("cocommand");
 
 		int64_t sepindex = argc;
 		for ( int i = 1; i < argc; ++i )
@@ -363,7 +640,7 @@ int main(int argc, char * argv[])
 
 		if ( ! (sepindex + 1 < argc) )
 		{
-			std::cerr << "[E] usage: " << argv[0] << " <opts> -- <prog> ..." << std::endl;
+			std::cerr << "[E] usage: " << argv[0] << " <opts> -- <prog> ..." << "\n";
 			return EXIT_FAILURE;
 		}
 
@@ -401,13 +678,329 @@ int main(int argc, char * argv[])
 			args.push_back(ostr.str());
 		}
 
+		std::string const dbname = argdal[0];
+		std::string const dbbase = clipdbdam(dbname);
+		
+		std::cerr << "[V] db=" << dbname << " dbbase=" << dbbase << "\n";
+
+		uint64_t blocksize = 0;
+		uint64_t cutoff = 0;
+		uint64_t basesum = 0;
+		{
+			libmaus2::dazzler::db::DatabaseFile DB(dbname);
+			DB.computeTrimVector();
+			
+			blocksize = DB.blocksize;
+			cutoff = DB.cutoff;
+			basesum = DB.computeReadLengthSum();
+		}
+		
+		std::cerr << "[V] blocksize=" << blocksize << " cutoff=" << cutoff << " basesum=" << basesum << "\n";
+
+		int64_t coverage = havegenomesize ? 
+			( std::floor((static_cast<double>(basesum) / arg.getUnsignedNumericArg<uint64_t>(std::string("g"))) + 0.5) ) : -1;
+		bool const havecoverage = coverage > 0;
+		
+		std::cerr << "[V] basesum=" << basesum << " coverage=" << coverage << "\n";
+
+		uint64_t const bdiv = 1000ull * 1000000ull;
+		uint64_t const bs = (basesum + bdiv - 1)/bdiv;
+		uint64_t const numblocks = (basesum + (bs*1000000) - 1)/(bs*1000000);
+		
+		std::cerr << "[V] expected blocks " << numblocks << "\n";
+		
 		std::string const tmpfileprefix = getTmpFileBase(arg);
 		libmaus2::util::TempFileNameGenerator tmpgen(tmpfileprefix + "_subdir",5);
-		std::string const HPCdalout = runProgram(args,tmpgen);
+
+		std::vector<std::string> tanargs;
+		tanargs.push_back(HPC_TANmask);
+		{
+			std::ostringstream ostr;
+			ostr << "-T" << numthreads;
+			tanargs.push_back(ostr.str());
+		}
+		tanargs.push_back(dbname);
 
 		std::vector < std::pair< std::string, std::vector<std::string> > > Vbatch;
-		parseBatches(HPCdalout,Vbatch);
 
+		std::string const HPCtanout = runProgram(tanargs,tmpgen);
+		parseBatches(HPCtanout,Vbatch);
+
+		{
+			Vbatch.push_back(std::pair< std::string, std::vector<std::string> >("Catrack", std::vector<std::string>()));
+			std::ostringstream ostr;
+			ostr << cattrack << " " << argdal[0] << " " << "tan"; ostr << ";"; 
+			ostr << "rm -f ." << dbbase << ".*.tan.*"; ostr << ";";
+			Vbatch.back().second.push_back(ostr.str());
+		}
+		
+		// 1:   (1*2*c)/numblocks   * 333
+		// 10:  (10*2*c)/numblocks  * 25
+		// 100: (100*2*c)/numblocks * 1.6
+	
+		/*
+		 * REP1
+		 */	
+		{		
+			Vbatch.push_back(std::pair< std::string, std::vector<std::string> >("DBsplit", std::vector<std::string>()));
+			std::ostringstream ostr;
+			ostr << DBsplit << " -f -x" << cutoff << " -s" << bs << " " << dbname;
+			Vbatch.back().second.push_back(ostr.str());
+		}
+		
+		std::vector<std::string> repargs1;
+		repargs1.push_back(HPC_REPmask);
+		repargs1.push_back("-d");
+		repargs1.push_back("-mtan");
+		{
+			std::ostringstream ostr;
+			ostr << "-T" << numthreads;
+			repargs1.push_back(ostr.str());
+		}
+		repargs1.push_back("-g1");
+		{
+			std::ostringstream ostr;
+			ostr << "-c" << (1  *2*coverage*1200)/numblocks;
+			repargs1.push_back(ostr.str());		
+		}
+		repargs1.push_back(dbname);
+
+		{
+			std::ostringstream ostr;
+			ostr << DBsplit << " -f -x" << cutoff << " -s" << bs << " " << dbname;
+			int const r = system(ostr.str().c_str());
+			if ( r != 0 )
+			{
+				libmaus2::exception::LibMausException lme;
+				lme.getStream() << "[E] failed to run DBsplit " << ostr.str() << "\n";
+				lme.finish();
+				throw lme;
+			}
+		}
+		std::string const HPCrep1out = runProgram(repargs1,tmpgen);
+		{
+			std::ostringstream ostr;
+			ostr << DBsplit << " -f -x" << cutoff << " -s" << (blocksize/1000000) << " " << dbname;
+			int const r = system(ostr.str().c_str());
+			if ( r != 0 )
+			{
+				libmaus2::exception::LibMausException lme;
+				lme.getStream() << "[E] failed to run DBsplit" << "\n";
+				lme.finish();
+				throw lme;
+			}
+		}
+
+		parseBatches(HPCrep1out,Vbatch);
+
+		{		
+			Vbatch.push_back(std::pair< std::string, std::vector<std::string> >("work clean", std::vector<std::string>()));
+			std::ostringstream ostr;
+			ostr << "rm -fR work* temp*\n";
+			Vbatch.back().second.push_back(ostr.str());
+		}
+
+		{
+			Vbatch.push_back(std::pair< std::string, std::vector<std::string> >("Catrack", std::vector<std::string>()));
+			std::ostringstream ostr;
+			ostr << cattrack << " " << argdal[0] << " " << "rep1"; ostr << ";"; 
+			ostr << "rm -f ." << dbbase << ".*.rep1.*"; ostr << ";";
+			Vbatch.back().second.push_back(ostr.str());
+		}
+
+		{		
+			Vbatch.push_back(std::pair< std::string, std::vector<std::string> >("DBsplit", std::vector<std::string>()));
+			std::ostringstream ostr;
+			ostr << DBsplit << " -f -x" << cutoff << " -s" << (blocksize/1000000) << " " << dbname;
+			Vbatch.back().second.push_back(ostr.str());
+		}
+
+
+		/*
+		 * REP10
+		 */	
+		{		
+			Vbatch.push_back(std::pair< std::string, std::vector<std::string> >("DBsplit", std::vector<std::string>()));
+			std::ostringstream ostr;
+			ostr << DBsplit << " -f -x" << cutoff << " -s" << bs << " " << dbname;
+			Vbatch.back().second.push_back(ostr.str());
+		}
+		
+		std::vector<std::string> repargs10;
+		repargs10.push_back(HPC_REPmask);
+		repargs10.push_back("-d");
+		repargs10.push_back("-mtan");
+		repargs10.push_back("-mrep1");
+		{
+			std::ostringstream ostr;
+			ostr << "-T" << numthreads;
+			repargs10.push_back(ostr.str());
+		}
+		repargs10.push_back("-g10");
+		{
+			std::ostringstream ostr;
+			ostr << "-c" << (10 *2*coverage*90)/numblocks;
+			repargs10.push_back(ostr.str());		
+		}
+		repargs10.push_back(dbname);
+
+		{
+			std::ostringstream ostr;
+			ostr << DBsplit << " -f -x" << cutoff << " -s" << bs << " " << dbname;
+			int const r = system(ostr.str().c_str());
+			if ( r != 0 )
+			{
+				libmaus2::exception::LibMausException lme;
+				lme.getStream() << "[E] failed to run DBsplit " << ostr.str() << "\n";
+				lme.finish();
+				throw lme;
+			}
+			// system((std::string("cat ") + dbname).c_str());
+			std::cerr << "numblocks=" << numblocks << " " << 72 * static_cast<double>(2*coverage) / numblocks << "\n";
+		}
+		std::string const HPCrep10out = runProgram(repargs10,tmpgen);
+		{
+			std::ostringstream ostr;
+			ostr << DBsplit << " -f -x" << cutoff << " -s" << (blocksize/1000000) << " " << dbname;
+			int const r = system(ostr.str().c_str());
+			if ( r != 0 )
+			{
+				libmaus2::exception::LibMausException lme;
+				lme.getStream() << "[E] failed to run DBsplit" << "\n";
+				lme.finish();
+				throw lme;
+			}
+		}
+		parseBatches(HPCrep10out,Vbatch);
+
+		{		
+			Vbatch.push_back(std::pair< std::string, std::vector<std::string> >("work clean", std::vector<std::string>()));
+			std::ostringstream ostr;
+			ostr << "rm -fR work* temp*\n";
+			Vbatch.back().second.push_back(ostr.str());
+		}
+
+		{
+			Vbatch.push_back(std::pair< std::string, std::vector<std::string> >("Catrack", std::vector<std::string>()));
+			std::ostringstream ostr;
+			ostr << cattrack << " " << argdal[0] << " " << "rep10"; ostr << ";"; 
+			ostr << "rm -f ." << dbbase << ".*.rep10.*"; ostr << ";";
+			Vbatch.back().second.push_back(ostr.str());
+		}
+
+
+		{		
+			Vbatch.push_back(std::pair< std::string, std::vector<std::string> >("DBsplit", std::vector<std::string>()));
+			std::ostringstream ostr;
+			ostr << DBsplit << " -f -x" << cutoff << " -s" << (blocksize/1000000) << " " << dbname;
+			Vbatch.back().second.push_back(ostr.str());
+		}
+
+		/*
+		 * REP100
+		 */	
+		{		
+			Vbatch.push_back(std::pair< std::string, std::vector<std::string> >("DBsplit", std::vector<std::string>()));
+			std::ostringstream ostr;
+			ostr << DBsplit << " -f -x" << cutoff << " -s" << bs << " " << dbname;
+			Vbatch.back().second.push_back(ostr.str());
+		}
+		
+		std::vector<std::string> repargs100;
+		repargs100.push_back(HPC_REPmask);
+		repargs100.push_back("-d");
+		repargs100.push_back("-mtan");
+		repargs100.push_back("-mrep1");
+		repargs100.push_back("-mrep10");
+		{
+			std::ostringstream ostr;
+			ostr << "-T" << numthreads;
+			repargs10.push_back(ostr.str());
+			repargs100.push_back(ostr.str());
+		}
+		repargs100.push_back("-g100");
+		{
+			std::ostringstream ostr;
+			ostr << "-c" << (100*2*coverage*6)/numblocks;
+			repargs100.push_back(ostr.str());		
+		}
+		repargs100.push_back(dbname);
+
+		{
+			std::ostringstream ostr;
+			ostr << DBsplit << " -f -x" << cutoff << " -s" << bs << " " << dbname;
+			int const r = system(ostr.str().c_str());
+			if ( r != 0 )
+			{
+				libmaus2::exception::LibMausException lme;
+				lme.getStream() << "[E] failed to run DBsplit " << ostr.str() << "\n";
+				lme.finish();
+				throw lme;
+			}
+		}
+		std::string const HPCrep100out = runProgram(repargs100,tmpgen);
+		{
+			std::ostringstream ostr;
+			ostr << DBsplit << " -f -x" << cutoff << " -s" << (blocksize/1000000) << " " << dbname;
+			int const r = system(ostr.str().c_str());
+			if ( r != 0 )
+			{
+				libmaus2::exception::LibMausException lme;
+				lme.getStream() << "[E] failed to run DBsplit" << "\n";
+				lme.finish();
+				throw lme;
+			}
+		}
+		parseBatches(HPCrep100out,Vbatch);
+
+		{		
+			Vbatch.push_back(std::pair< std::string, std::vector<std::string> >("work clean", std::vector<std::string>()));
+			std::ostringstream ostr;
+			ostr << "rm -fR work* temp*\n";
+			Vbatch.back().second.push_back(ostr.str());
+		}
+
+		{
+			Vbatch.push_back(std::pair< std::string, std::vector<std::string> >("Catrack", std::vector<std::string>()));
+			std::ostringstream ostr;
+			ostr << cattrack << " " << argdal[0] << " " << "rep100"; ostr << ";"; 
+			ostr << "rm -f ." << dbbase << ".*.rep100.*"; ostr << ";";
+			Vbatch.back().second.push_back(ostr.str());
+		}
+
+
+		{		
+			Vbatch.push_back(std::pair< std::string, std::vector<std::string> >("DBsplit", std::vector<std::string>()));
+			std::ostringstream ostr;
+			ostr << DBsplit << " -f -x" << cutoff << " -s" << (blocksize/1000000) << " " << dbname;
+			Vbatch.back().second.push_back(ostr.str());
+		}
+		
+		#if 0		
+		std::cerr << "1:   " <<  (1  *2*coverage*1200)/numblocks << "\n";
+		std::cerr << "10:  " <<  (10 *2*coverage*90)/numblocks << "\n";
+		std::cerr << "100: " <<  (100*2*coverage*6)/numblocks << "\n";
+		#endif
+				
+		args.push_back("-mtan");
+		args.push_back("-mrep1");
+		args.push_back("-mrep10");
+		args.push_back("-mrep100");
+		
+		std::string const HPCdalout = runProgram(args,tmpgen);
+		parseBatches(HPCdalout,Vbatch);
+		{		
+			Vbatch.push_back(std::pair< std::string, std::vector<std::string> >("work clean", std::vector<std::string>()));
+			std::ostringstream ostr;
+			ostr << "rm -fR work* temp*\n";
+			Vbatch.back().second.push_back(ostr.str());
+		}
+
+		
+		for ( uint64_t i = 0; i < Vbatch.size(); ++i )
+			if ( Vbatch[i].second.size() == 0 )
+				Vbatch[i].second.push_back(std::string("echo OK"));
+		
 		std::ostringstream patchfnstr;
 		patchfnstr << tmpgen.getFileName() << "_ndb";
 		std::string const patchfn = patchfnstr.str();
@@ -432,13 +1025,14 @@ int main(int argc, char * argv[])
 					if ( s.find(" ") )
 					{
 						s = s.substr(0,s.find(" "));
-						std::cerr << "Last merge " << lastmerge << " " << s << std::endl;
+						std::cerr << "Last merge " << lastmerge << " " << s << "\n";
 						Voutputfiles.push_back(s);
 					}
 				}
 			}
 		}
 		// add dasQV etc. call
+		
 		if ( dasqv.size() && havecoverage )
 		{
 			Vbatch.push_back(std::pair< std::string, std::vector<std::string> >("dasqv", std::vector<std::string>()));
@@ -456,7 +1050,7 @@ int main(int argc, char * argv[])
 				std::ostringstream ostr;
 				ostr << cattrack << " " << argdal[0] << " " << "qual";
 				ostr << ";";
-				ostr << "rm -f ." << argdal[0] << ".*.qual.*";
+				ostr << "rm -f ." << dbbase << ".*.qual.*";
 				Vbatch.back().second.push_back(ostr.str());
 
 				if ( DAStrim.size() )
@@ -474,9 +1068,13 @@ int main(int argc, char * argv[])
 					{
 						Vbatch.push_back(std::pair< std::string, std::vector<std::string> >("Catrack", std::vector<std::string>()));
 						std::ostringstream ostr;
-						ostr << cattrack << " " << argdal[0] << " " << "trim";
-						ostr << ";";
-						ostr << "rm -f ." << argdal[0] << ".*.trim.*";
+						ostr << cattrack << " " << argdal[0] << " " << "trim"; ostr << ";"; ostr << "rm -f ." << dbbase << ".*.trim.*"; ostr << ";";
+						ostr << cattrack << " " << argdal[0] << " " << "hq"; ostr << ";"; ostr << "rm -f ." << dbbase << ".*.hq.*"; ostr << ";";
+						ostr << cattrack << " " << argdal[0] << " " << "hole"; ostr << ";"; ostr << "rm -f ." << dbbase << ".*.hole.*"; ostr << ";";
+						ostr << cattrack << " " << argdal[0] << " " << "span"; ostr << ";"; ostr << "rm -f ." << dbbase << ".*.span.*"; ostr << ";";
+						ostr << cattrack << " " << argdal[0] << " " << "split"; ostr << ";"; ostr << "rm -f ." << dbbase << ".*.split.*"; ostr << ";";
+						ostr << cattrack << " " << argdal[0] << " " << "adapt"; ostr << ";"; ostr << "rm -f ." << dbbase << ".*.adapt.*"; ostr << ";";
+						ostr << cattrack << " " << argdal[0] << " " << "keep"; ostr << ";"; ostr << "rm -f ." << dbbase << ".*.keep.*"; ostr << ";";
 						Vbatch.back().second.push_back(ostr.str());
 					}
 				}
@@ -498,7 +1096,7 @@ int main(int argc, char * argv[])
 						std::ostringstream ostr;
 						ostr << cattrack << " " << argdal[0] << " " << "patch";
 						ostr << ";";
-						ostr << "rm -f ." << argdal[0] << ".*.patch.*";
+						ostr << "rm -f ." << dbbase << ".*.patch.*";
 						Vbatch.back().second.push_back(ostr.str());
 					}
 				}
@@ -513,6 +1111,209 @@ int main(int argc, char * argv[])
 				}
 			}
 		}
+
+		{
+			libmaus2::aio::OutputStreamInstance OSI("batches.debug");
+			for ( uint64_t i = 0; i < Vbatch.size(); ++i )
+			{
+				OSI << "#" << "[" << i << "]: " << Vbatch[i].first << "\n";
+				for ( uint64_t j = 0; j < Vbatch[i].second.size(); ++j )
+					OSI << Vbatch[i].second[j] << "\n";
+			}
+			OSI << std::flush;
+		}
+
+		std::vector<uint64_t> depids;
+		for ( uint64_t i = 0; i < Vbatch.size(); ++i )
+		{
+			uint64_t const batchsize = Vbatch[i].second.size();
+			uint64_t const maxjobsperbatch = 512;
+			uint64_t const linesperjob = (batchsize + maxjobsperbatch - 1)/maxjobsperbatch;
+
+			std::vector< std::vector<std::string> > Vpacks;
+			uint64_t lnumthreads = 1;
+			uint64_t const numjobs = (batchsize + linesperjob - 1)/linesperjob;
+			for ( uint64_t j = 0; j < numjobs; ++j )
+			{
+				uint64_t const low = j * linesperjob;
+				uint64_t const high = std::min(low+linesperjob,static_cast<uint64_t>(Vbatch[i].second.size()));
+				
+				Vpacks.push_back(std::vector<std::string>(0));
+				for ( uint64_t k = low; k < high; ++k )
+					Vpacks.back().push_back(updateCommand(Vbatch[i].second[k],lnumthreads));
+			}
+			
+			assert ( Vpacks.size() == numjobs );
+		
+			// uint64_t const numjobs = Vbatch[i].second.size();
+			uint64_t const jobsperarray = slurmconf.getMaxArraySize();
+			uint64_t const numarrays = (numjobs + jobsperarray - 1)/jobsperarray;
+
+			std::vector<uint64_t> ndepids;
+					
+			for ( uint64_t zz = 0; zz < numarrays; ++zz )
+			{
+				uint64_t const jlow = zz * jobsperarray;
+				uint64_t const jhigh = std::min(jlow + jobsperarray, numjobs);
+			
+				std::ostringstream tmppreostr;
+				tmppreostr << tmpgen.getFileName() << "_" << zz;
+				std::string const tmppre = tmppreostr.str();
+			
+				std::string const contfn = tmppre + ".cont";
+				std::string const jobfn = tmppre + ".job";
+				// libmaus2::aio::OutputStreamInstance::unique_ptr_type Pcont(new libmaus2::aio::OutputStreamInstance(contfn));
+								
+				libmaus2::util::CommandContainer CC;
+				
+				for ( uint64_t j = jlow; j < jhigh; ++j )
+				{
+					std::string const tmppre = tmpgen.getFileName();
+					
+					std::string const in = "/dev/null";
+					
+					std::ostringstream outstr;
+					outstr << tmppre << "_" << i << "_" << j << ".out";
+					std::ostringstream errstr;
+					errstr << tmppre << "_" << i << "_" << j << ".err";
+					std::ostringstream comstr;
+					comstr << tmppre << "_" << i << "_" << j << ".command";
+					
+					std::vector<std::string> const & pack = Vpacks[j];
+
+					{
+						libmaus2::aio::OutputStreamInstance OSI(comstr.str());
+						
+						for ( uint64_t i = 0; i < pack.size(); ++i )
+						{
+							OSI << pack[i] << "\n";
+							OSI << "RET=$?\n";
+							OSI << "echo \"return code ${RET}\" >/dev/stderr\n";
+							OSI << "if [ $RET -ne 0 ] ; then\n";
+							OSI << "\texit ${RET}\n";
+							OSI << "fi\n";
+						}
+						
+						OSI << "exit 0\n";
+
+						OSI.flush();
+					}
+					
+					std::vector<std::string> args;
+					
+					args.push_back(which("bash"));
+					args.push_back(comstr.str());
+					
+					libmaus2::util::Command C(in,outstr.str(),errstr.str(),args);
+					CC.V.push_back(C);
+					
+					// Largs
+				}
+				
+				{
+					libmaus2::aio::OutputStreamInstance cOSI(contfn);
+					CC.serialise(cOSI);
+					cOSI.flush();
+				}
+
+
+				std::ostringstream ostr;
+				ostr << "#!/bin/bash\n";
+				ostr << "#\n";
+				ostr << "#SBATCH --job-name=SLURM_HPC_daligner_" << i << "_" << zz << "\n";
+				ostr << "#SBATCH --output=/dev/null\n";
+				ostr << "#SBATCH --error=/dev/null\n";
+				//ostr << "#SBATCH --output=out_%A_%a.out\n";
+				//ostr << "#SBATCH --error=err_%A_%a.err\n";
+				ostr << "#SBATCH --array=0-" << jhigh-jlow-1 << "\n";
+				ostr << "#\n";
+				ostr << "#SBATCH --ntasks=1\n";
+				ostr << "#SBATCH --time=24:00:00\n";
+				ostr << "#SBATCH --mem=" << (mem*1024)+512 << "\n";
+				ostr << "#SBATCH --cpus-per-task=" << lnumthreads << "\n";
+
+				if ( depids.size() )
+				{
+					ostr << "#SBATCH --dependency=afterok";
+					for ( uint64_t i = 0; i < depids.size(); ++i )
+						ostr << ":" << depids[i];
+					ostr << "\n";
+				}
+
+				ostr << "\n";
+				ostr << "srun " << cocommand << " " << contfn << "\n";
+				
+				std::cerr << ostr.str();
+				
+				{
+					libmaus2::aio::OutputStreamInstance OSI(jobfn);
+					OSI << ostr.str();
+				}
+				
+				std::vector<std::string> sbatchargs;
+				sbatchargs.push_back("sbatch");
+				sbatchargs.push_back(jobfn);
+				std::string out;
+				bool outok = false;
+
+				for ( uint64_t qq = 0; (!outok) && (qq < 100); ++qq )
+				{
+					try
+					{
+						std::cerr << "calling " << sbatchargs[0] << " " << sbatchargs[1] << " try " << qq << std::endl;
+						out = runProgram(sbatchargs,tmpgen);
+						outok = true;
+					}
+					catch(std::exception const & ex)
+					{
+						std::cerr << ex.what() << std::endl;
+					}
+				}
+
+				std::istringstream sistr(out);
+				int64_t njobid = -1;
+				while ( sistr )
+				{
+					std::string line;
+					std::getline(sistr,line);
+
+					if (
+						sistr
+						&&
+						line.find("Submitted") == 0
+					)
+					{
+						std::deque<std::string> Vtokens = libmaus2::util::stringFunctions::tokenize(line,std::string(" "));
+						if ( Vtokens.size() )
+						{
+							std::istringstream uistr(Vtokens.back());
+							uint64_t jobid;
+							uistr >> jobid;
+							njobid = jobid;
+
+							std::cerr << "[V] submitted job " << jobid << " for " << sbatchargs[1] << "\n";
+						}
+					}
+				}
+				
+				if ( njobid < 0 )
+				{
+					libmaus2::exception::LibMausException lme;
+					lme.getStream() << "[E] failed to run " << sbatchargs[1] << " (job id not found)" << "\n";
+					lme.finish();
+					throw lme;	
+				}
+				
+				ndepids.push_back(njobid);
+
+				libmaus2::aio::FileRemoval::removeFile(jobfn);
+			}
+			
+			depids = ndepids;
+		}
+		
+		#if 0
+		// exit(0);
 
 		std::vector< std::vector<std::string> > Vlevellogs;
 		std::vector< std::vector<std::string> > Vlevelsublogs;
@@ -551,7 +1352,7 @@ int main(int argc, char * argv[])
 			Vlevelsublogcat.push_back(catsublogfnstr.str());
 			Vlevelsubloglistfiles.push_back(listsublogfnstr.str());
 
-			std::cerr << Vbatch[i].first << std::endl;
+			std::cerr << Vbatch[i].first << "\n";
 			std::vector<uint64_t> ndepids;
 			for ( uint64_t j = 0; j < Vbatch[i].second.size(); ++j )
 			{
@@ -601,6 +1402,12 @@ int main(int argc, char * argv[])
 						lnumthreads = 1;
 				}
 
+				uint64_t const jobid = submitJob(command,tmpgen,tmpname,i,j,Vlevellogs,Vlevelsublogs,mem,lnumthreads,depids,*comOSI,true /* deppos */);
+				ndepids.push_back(jobid);
+				allids.push_back(jobid);
+
+				#if 0
+				// XYZ
 				std::ostringstream commandfnstr;
 				commandfnstr << tmpgen.getFileName() << "_" << i << "_" << j << ".command";
 				std::string const commandfn = commandfnstr.str();
@@ -622,9 +1429,9 @@ int main(int argc, char * argv[])
 
 				{
 					libmaus2::aio::OutputStreamInstance OSI(commandfn);
-					OSI << "#!/bin/bash" << std::endl;
-					OSI << command << std::endl;
-					// OSI << "rm -f " << commandfn < std::endl;
+					OSI << "#!/bin/bash" << "\n";
+					OSI << command << "\n";
+					// OSI << "rm -f " << commandfn < "\n";
 					OSI.flush();
 				}
 
@@ -653,13 +1460,13 @@ int main(int argc, char * argv[])
 				ostr << "\n";
 				ostr << "srun bash " << commandfn << " >" << sublogfn << " 2>&1" << "\n";
 
-				(*comOSI) << commandfn << std::endl;
+				(*comOSI) << commandfn << "\n";
 
 				libmaus2::aio::OutputStreamInstance::unique_ptr_type Pjob(new libmaus2::aio::OutputStreamInstance(jobfnstr.str()));
 				(*Pjob) << ostr.str();
 				Pjob.reset();
 
-				std::cerr << ostr.str() << std::endl;
+				std::cerr << ostr.str() << "\n";
 
 				std::ostringstream comstr;
 				comstr << "sbatch " << jobfnstr.str();
@@ -667,14 +1474,14 @@ int main(int argc, char * argv[])
 
 				std::string out;
 				std::string err;
-				std::cerr << "[V] calling " << com << std::endl;
+				std::cerr << "[V] calling " << com << "\n";
 				int const r = libmaus2::util::PosixExecute::execute(com,out,err,false /* do not throw */);
-				std::cerr << "[V] called " << com << std::endl;
+				std::cerr << "[V] called " << com << "\n";
 
 				if ( r != EXIT_SUCCESS )
 				{
 					libmaus2::exception::LibMausException lme;
-					lme.getStream() << "[E] failed to run " << com << std::endl;
+					lme.getStream() << "[E] failed to run " << com << "\n";
 					lme.finish();
 					throw lme;
 				}
@@ -700,12 +1507,13 @@ int main(int argc, char * argv[])
 							ndepids.push_back(jobid);
 							allids.push_back(jobid);
 
-							std::cerr << "[V] submitted job " << jobid << " for " << com << std::endl;
+							std::cerr << "[V] submitted job " << jobid << " for " << com << "\n";
 						}
 					}
 				}
 
 				libmaus2::aio::FileRemoval::removeFile(jobfnstr.str());
+				#endif
 			}
 
 			{
@@ -718,18 +1526,82 @@ int main(int argc, char * argv[])
 			for ( uint64_t j = 0; j < Vlevelsublogs.back().size(); ++j )
 				liststr << Vlevelsublogs.back()[j] << "\n";
 			}
+			
+			assert ( ndepids.size() );
+			
+			uint64_t zz = 0;
+			while ( ndepids.size() > 1 )
+			{
+				std::vector<uint64_t> nndepids;
+				
+				uint64_t const quant = 64;
+				for ( uint64_t q = 0; q < ndepids.size(); q += quant )
+				{
+					uint64_t const low = q;
+					uint64_t const high = std::min(q+quant,static_cast<uint64_t>(ndepids.size()));
+					
+					uint64_t const jj = Vbatch[i].second.size() + (zz++);
+					std::vector<uint64_t> ldepids(ndepids.begin()+low,ndepids.begin()+high);
+					uint64_t const jobid = submitJob(std::string("echo OK"),tmpgen,tmpname,i,jj,Vlevellogs,Vlevelsublogs,mem,1/*num threads */,ldepids,*comOSI,true /* deppos */);
+					nndepids.push_back(jobid);
+					allids.push_back(jobid);
+					
+					std::cerr << "[V] reducing [" << low << "," << high << ")" << " to " << jobid << "\n";
+				}
+				
+				if ( ndepids.size() % 2 ==  1)
+					nndepids.push_back(ndepids.back());
+					
+				ndepids = nndepids;
+			}
 
 			depids = ndepids;
 		}
 
 		comOSI.reset();
 
-		uint64_t failjobid = 0;
-		if ( allids.size() )
+		std::vector<uint64_t> failids = allids;
 		{
+			
+			uint64_t zz = 0;
+			while ( failids.size() > 1 )
+			{
+				std::vector<uint64_t> nfailids;
+				
+				uint64_t const quant = 64;
+				for ( uint64_t q = 0; q < failids.size(); q += quant )
+				{
+					uint64_t const low = q;
+					uint64_t const high = std::min(q+quant,static_cast<uint64_t>(failids.size()));
+					
+					std::vector<uint64_t> ldepids(failids.begin()+low,failids.begin()+high);
+					uint64_t const jobid = submitJob(std::string("echo OK && exit 1"),tmpgen,tmpname,Vbatch.size(),zz++,Vlevellogs,Vlevelsublogs,mem,1/*num threads */,ldepids,*comOSI,false /* deppos */);
+					nfailids.push_back(jobid);
+					failids.push_back(jobid);
+					
+					std::cerr << "[V] reducing neg [" << low << "," << high << ")" << " to " << jobid << "\n";
+				}
+				
+				failids = nfailids;
+			}
+		}
+
+		uint64_t failjobid = 0;
+		if ( failids.size() )
+		{
+			assert ( failids.size() == 1 );
+		
 			std::ostringstream logfnstr;
 			logfnstr << tmpgen.getFileName() << "_fail_job.log";
 			std::string const logfn = logfnstr.str();
+
+			std::ostringstream commandfnstr;
+			commandfnstr << tmpgen.getFileName() << "_fail_job.command";
+			std::string const commandfn = commandfnstr.str();
+
+			std::ostringstream allpidfnstr;
+			allpidfnstr << tmpgen.getFileName() << "_fail_job.allpid";
+			std::string const allpidfn = allpidfnstr.str();
 
 			std::ostringstream jobfnstr;
 			jobfnstr << tmpgen.getFileName() << "_fail_job.job";
@@ -737,6 +1609,19 @@ int main(int argc, char * argv[])
 			std::ostringstream jobnamestr;
 			jobnamestr << tmpname << "_fail_job";
 			std::string const jobname = jobnamestr.str();
+
+			{
+				libmaus2::aio::OutputStreamInstance OSI(allpidfn);
+				for ( uint64_t i = 0; i < allids.size(); ++i )
+					OSI << allids[i] << "\n";
+			}
+			
+			{
+				libmaus2::aio::OutputStreamInstance OSI(commandfn);
+				OSI << "xargs scancel <" << allpidfn << "\n";
+				OSI << DBsplit << " -f -x" << cutoff << " -s" << (blocksize/1000000) << " " << dbname << "\n";
+				OSI << "rm -f " << commandfn << "\n";
+			}
 
 			std::ostringstream ostr;
 			ostr << "#!/bin/bash\n";
@@ -749,27 +1634,16 @@ int main(int argc, char * argv[])
 			ostr << "#SBATCH --mem=" << 1000 << "\n";
 			ostr << "#SBATCH --cpus-per-task=1\n";
 
-			ostr << "#SBATCH --dependency=";
-			for ( uint64_t i = 0; i < allids.size(); ++i )
-				ostr << ((i==0)?"":"?") << "afternotok:" << allids[i];
+			ostr << "#SBATCH --dependency=afternotok:" << failids.at(0);
 			ostr << "\n";
 
-			ostr << "\n";
-
-			ostr << "srun bash -c \"scancel";
-
-			for ( uint64_t i = 0; i < allids.size(); ++i )
-				ostr << " " << allids[i];
-
-			ostr << "\"";
-
-			ostr << "\n";
+			ostr << "srun bash " << commandfn;
 
 			libmaus2::aio::OutputStreamInstance::unique_ptr_type Pjob(new libmaus2::aio::OutputStreamInstance(jobfnstr.str()));
 			(*Pjob) << ostr.str();
 			Pjob.reset();
 
-			std::cerr << ostr.str() << std::endl;
+			std::cerr << ostr.str() << "\n";
 
 			std::ostringstream comstr;
 			comstr << "sbatch " << jobfnstr.str();
@@ -777,14 +1651,14 @@ int main(int argc, char * argv[])
 
 			std::string out;
 			std::string err;
-			std::cerr << "[V] calling " << com << std::endl;
+			std::cerr << "[V] calling " << com << "\n";
 			int const r = libmaus2::util::PosixExecute::execute(com,out,err,false /* do not throw */);
-			std::cerr << "[V] called " << com << std::endl;
+			std::cerr << "[V] called " << com << "\n";
 
 			if ( r != EXIT_SUCCESS )
 			{
 				libmaus2::exception::LibMausException lme;
-				lme.getStream() << "[E] failed to run " << com << "\n" << out << err << std::endl;
+				lme.getStream() << "[E] failed to run " << com << "\n" << out << err << "\n";
 				lme.finish();
 				throw lme;
 			}
@@ -807,7 +1681,7 @@ int main(int argc, char * argv[])
 						std::istringstream uistr(Vtokens.back());
 						uistr >> failjobid;
 
-						std::cerr << "[V] submitted job " << failjobid << " for " << com << std::endl;
+						std::cerr << "[V] submitted job " << failjobid << " for " << com << "\n";
 					}
 				}
 			}
@@ -815,7 +1689,7 @@ int main(int argc, char * argv[])
 			libmaus2::aio::FileRemoval::removeFile(jobfnstr.str());
 		}
 
-		if ( allids.size() )
+		if ( depids.size() )
 		{
 			std::ostringstream logfnstr;
 			logfnstr << tmpgen.getFileName() << "_success_job.log";
@@ -840,8 +1714,8 @@ int main(int argc, char * argv[])
 			ostr << "#SBATCH --cpus-per-task=1\n";
 
 			ostr << "#SBATCH --dependency=afterok";
-			for ( uint64_t i = 0; i < allids.size(); ++i )
-				ostr << ":" << allids[i];
+			for ( uint64_t i = 0; i < depids.size(); ++i )
+				ostr << ":" << depids[i];
 			ostr << "\n";
 
 			ostr << "\n";
@@ -865,7 +1739,16 @@ int main(int argc, char * argv[])
 			ostr << "; xargs <" << commandlistfn << " rm";
 			ostr << "; rm -f " << commandlistfn;
 			
-			ostr << "; " << moveDB(patchfn,"out.db");
+			std::string const movedbfn = tmpgen.getFileName();
+			
+			{
+				libmaus2::aio::OutputStreamInstance OSI(movedbfn);
+				OSI << moveDB(patchfn,"out.db");
+			}
+			
+			ostr << "; bash " << movedbfn;
+
+			ostr << ";" << DBsplit << " -f -x" << cutoff << " -s" << (blocksize/1000000) << " " << dbname;
 
 			ostr << "\"\n";
 
@@ -873,7 +1756,7 @@ int main(int argc, char * argv[])
 			(*Pjob) << ostr.str();
 			Pjob.reset();
 
-			std::cerr << ostr.str() << std::endl;
+			std::cerr << ostr.str() << "\n";
 
 			std::ostringstream comstr;
 			comstr << "sbatch " << jobfnstr.str();
@@ -881,24 +1764,25 @@ int main(int argc, char * argv[])
 
 			std::string out;
 			std::string err;
-			std::cerr << "[V] calling " << com << std::endl;
+			std::cerr << "[V] calling " << com << "\n";
 			int const r = libmaus2::util::PosixExecute::execute(com,out,err,false /* do not throw */);
-			std::cerr << "[V] called " << com << std::endl;
+			std::cerr << "[V] called " << com << "\n";
 
 			if ( r != EXIT_SUCCESS )
 			{
 				libmaus2::exception::LibMausException lme;
-				lme.getStream() << "[E] failed to run " << com << "\n" << out << err << std::endl;
+				lme.getStream() << "[E] failed to run " << com << "\n" << out << err << "\n";
 				lme.finish();
 				throw lme;
 			}
 
 			libmaus2::aio::FileRemoval::removeFile(jobfnstr.str());
 		}
+		#endif
 	}
 	catch(std::exception const & ex)
 	{
-		std::cerr << ex.what() << std::endl;
+		std::cerr << ex.what() << "\n";
 		return EXIT_FAILURE;
 	}
 }
