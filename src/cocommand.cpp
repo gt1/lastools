@@ -29,11 +29,11 @@ int64_t getTaskId()
                 lme.finish();
                 throw lme;
 	}
-	
+
 	std::istringstream istr(s);
 	uint64_t id;
 	istr >> id;
-	
+
 	if ( istr && istr.peek() == std::istream::traits_type::eof() )
 	        return id;
         else
@@ -41,7 +41,7 @@ int64_t getTaskId()
 	        libmaus2::exception::LibMausException lme;
                 lme.getStream() << "SLURM_ARRAY_TASK_ID: cannot parse " << s << std::endl;
                 lme.finish();
-                throw lme;        
+                throw lme;
         }
 }
 
@@ -50,9 +50,9 @@ int main(int argc, char * argv[])
 	try
 	{
 		libmaus2::util::ArgParser const arg(argc,argv);
-		
+
 		libmaus2::aio::InputStreamInstance ISI(arg[0]);
-		int64_t const taskid = getTaskId();		
+		int64_t const taskid = getTaskId();
 		return libmaus2::util::CommandContainer::dispatch(ISI,taskid);
 	}
 	catch(std::exception const & ex)
