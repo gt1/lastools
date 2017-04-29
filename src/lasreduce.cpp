@@ -22,6 +22,7 @@
 #include <libmaus2/util/ArgParser.hpp>
 #include <libmaus2/geometry/RangeSet.hpp>
 #include <libmaus2/random/Random.hpp>
+#include <libmaus2/rank/ImpCacheLineRank.hpp>
 
 #include <config.h>
 
@@ -36,7 +37,7 @@ std::string getUsage(libmaus2::util::ArgParser const & arg)
 	return ostr.str();
 }
 
-int lassubsample(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo const &)
+int lasreduce(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo const &)
 {
 	std::string const outfilename = arg[0];
 	std::string const dbname = arg[1];
@@ -87,6 +88,32 @@ int lassubsample(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo 
 			nkeep++;
 		}
 	}
+	
+	libmaus2::rank::ImpCacheLineRank ICLR(num);
+	libmaus2::rank::ImpCacheLineRank::WriteContext WC = ICLR.getWriteContext();
+	for ( uint64_t i = 0; i < num; ++i )
+		WC.writeBit(B[i]);
+	WC.flush();
+	
+	for ( uint64_t i = 0; i < num; ++i )
+		if ( B[i] )
+		{
+			std::string const data = DB[i];
+			
+			std::cout << ">L0/" << i << "/0_" << data.size() << " RQ=0.851\n";
+
+			uint64_t p = 0;
+			while ( p < data.size() )
+			{
+				uint64_t const rest = data.size()-p;
+				uint64_t const cols = 80;
+				uint64_t const print = std::min(cols,rest);
+				
+				std::cout << data.substr(p,print) << "\n";
+				
+				p += print;
+			}
+		}
 
 	std::cerr << "[V] keeping " << static_cast<double>(nkeep) / num << " bases " << static_cast<double>(accsum)/accrl << std::endl;
 
@@ -106,7 +133,13 @@ int lassubsample(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo 
 
 		while ( PIN->getNextOverlap(OVL) )
 			if ( B[OVL.aread] && B[OVL.bread] )
+			{
+				uint64_t const r0 = ICLR.rankm1(OVL.aread);
+				uint64_t const r1 = ICLR.rankm1(OVL.bread);
+				OVL.aread = r0;
+				OVL.bread = r1;
 				AW->put(OVL);
+			}
 	}
 
 	AW.reset();
@@ -141,7 +174,7 @@ int main(int argc, char *argv[])
 			return EXIT_FAILURE;
 		}
 
-		return lassubsample(arg,arginfo);
+		return lasreduce(arg,arginfo);
 	}
 	catch(std::exception const & ex)
 	{
