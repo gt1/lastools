@@ -41,7 +41,6 @@ int lassort(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo const
 	std::string const outfilename = arg[0];
 	std::string const dbname = arg[1];
 
-
 	double const p = arg.uniqueArgPresent("p") ? arg.getParsedArg<double>("p") : 1.0;
 	assert ( p <= 1.0 );
 
@@ -59,6 +58,12 @@ int lassort(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo const
 	libmaus2::dazzler::db::DatabaseFile DB(dbname);
 	DB.computeTrimVector();
 
+	std::vector<uint64_t> RL;
+	DB.getAllReadLengths(RL);
+	uint64_t const accrl = std::accumulate(RL.begin(),RL.end(),0ull);
+	uint64_t const paccrl = static_cast<uint64_t>(std::floor(p * accrl + 0.5));
+	assert ( paccrl < accrl );
+
 	std::pair<int64_t,int64_t> P = DB.getTrimmedBlockInterval(0);
 	uint64_t const num = P.second-P.first;
 	assert ( P.first == 0 );
@@ -69,19 +74,21 @@ int lassort(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo const
 
 	std::vector<bool> B(num,false);
 	uint64_t nkeep = 0;
+	uint64_t accsum = 0;
 
-	while ( nkeep < keep )
+	while ( accsum < paccrl )
 	{
 		uint64_t const i = ::libmaus2::random::Random::rand64() % num;
 
 		if ( ! B[i] )
 		{
 			B[i] = true;
+			accsum += RL[i];
 			nkeep++;
 		}
 	}
 
-	std::cerr << "[V] keeping " << static_cast<double>(nkeep) / num << std::endl;
+	std::cerr << "[V] keeping " << static_cast<double>(nkeep) / num << " bases " << static_cast<double>(accsum)/accrl << std::endl;
 
 	std::vector<std::string> VI;
 	for ( uint64_t i = 2 ; i < arg.size(); ++i )
