@@ -542,6 +542,30 @@ struct SlurmPartitions
 		assert ( i < size() );
 		return partitions->partition_array[i].name;
 	}
+
+	std::string getNodes(uint64_t const i) const
+	{
+		assert ( i < size() );
+		return partitions->partition_array[i].nodes;
+	}
+	
+	uint64_t getTotalCpus(uint64_t const i) const
+	{
+		assert ( i < size() );
+		return partitions->partition_array[i].total_cpus;
+	}
+
+	uint64_t getTotalNodes(uint64_t const i) const
+	{
+		assert ( i < size() );
+		return partitions->partition_array[i].total_nodes;
+	}
+
+	uint64_t getMaxTime(uint64_t const i) const
+	{
+		assert ( i < size() );
+		return partitions->partition_array[i].max_time;
+	}
 };
 
 static std::string updateCommand(std::string command, uint64_t & lnumthreads)
@@ -608,6 +632,17 @@ int main(int argc, char * argv[])
 		SlurmControlConfig slurmconf;
 
 		std::cerr << "[V] maximum job array size is " << slurmconf.getMaxArraySize() << std::endl;
+		
+		SlurmPartitions slurmpart;
+		for ( uint64_t i = 0; i < slurmpart.size(); ++i )
+		{
+			std::cerr << "partition " << i << " name " << slurmpart.getName(i) 
+				<< " nodes " << slurmpart.getNodes(i)
+				<< " numnodes=" << slurmpart.getTotalNodes(i)
+				<< " numcpus=" << slurmpart.getTotalCpus(i)
+				<< " maxtime=" << slurmpart.getMaxTime(i)
+				<< std::endl;
+		}
 
 		std::string const tmpname = libmaus2::util::ArgInfo::getDefaultTmpFileName(arg.progname);
 		std::vector<std::string> Vsbatch;
