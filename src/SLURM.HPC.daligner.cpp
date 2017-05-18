@@ -1143,6 +1143,20 @@ int main(int argc, char * argv[])
 					std::ostringstream ostr;
 					ostr << DASedit << " -v -x2000 " << " " << argdal[0] << " " << patchfn;
 					Vbatch.back().second.push_back(ostr.str());
+
+					{
+						std::string const movedbfn = tmpgen.getFileName();
+
+						{
+							libmaus2::aio::OutputStreamInstance OSI(movedbfn);
+							OSI << moveDB(patchfn,"out.db");
+						}
+
+						Vbatch.push_back(std::pair< std::string, std::vector<std::string> >("movedb", std::vector<std::string>()));
+						Vbatch.back().second.push_back(
+							std::string("bash ") + movedbfn
+						);
+					}
 				}
 			}
 		}
