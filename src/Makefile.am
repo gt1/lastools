@@ -10,7 +10,7 @@ EXTRA_DIST = ${MANPAGES}
 EXTRA_PROGRAMS = SLURM.HPC.daligner
 
 bin_PROGRAMS = lassort lasindex lastobam reformatfasta fasta2fastq lasroleswap bamtolas blasrtobam lascat lasmarkprimary call.damapper lasaligntotracepoints lasfilterquality \
-	laschainsort lasmerge lascomputetandem lasextracttandemrecompute tandemaligner lasdedup lassubsample @SLURM_HPC_daligner@ lassuffixprefix cocommand
+	laschainsort lasmerge lascomputetandem lasextracttandemrecompute tandemaligner lasdedup lassubsample @SLURM_HPC_daligner@ lassuffixprefix cocommand lasreduce
 dist_bin_SCRIPTS = swappedLasToBAM.sh
 
 lasindex_SOURCES = lasindex.cpp
@@ -127,3 +127,8 @@ cocommand_SOURCES = cocommand.cpp
 cocommand_LDADD = ${LIBMAUS2LIBS}
 cocommand_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
 cocommand_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
+
+lasreduce_SOURCES = lasreduce.cpp
+lasreduce_LDADD = ${LIBMAUS2LIBS}
+lasreduce_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
+lasreduce_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
