@@ -88,18 +88,18 @@ int lasreduce(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo con
 			nkeep++;
 		}
 	}
-	
+
 	libmaus2::rank::ImpCacheLineRank ICLR(num);
 	libmaus2::rank::ImpCacheLineRank::WriteContext WC = ICLR.getWriteContext();
 	for ( uint64_t i = 0; i < num; ++i )
 		WC.writeBit(B[i]);
 	WC.flush();
-	
+
 	for ( uint64_t i = 0; i < num; ++i )
 		if ( B[i] )
 		{
 			std::string const data = DB[i];
-			
+
 			std::cout << ">L0/" << ICLR.rankm1(i) << "/0_" << data.size() << " RQ=0.851\n";
 
 			uint64_t p = 0;
@@ -108,9 +108,9 @@ int lasreduce(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo con
 				uint64_t const rest = data.size()-p;
 				uint64_t const cols = 80;
 				uint64_t const print = std::min(cols,rest);
-				
+
 				std::cout << data.substr(p,print) << "\n";
-				
+
 				p += print;
 			}
 		}
