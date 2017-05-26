@@ -548,7 +548,7 @@ struct SlurmPartitions
 		assert ( i < size() );
 		return partitions->partition_array[i].nodes;
 	}
-	
+
 	uint64_t getTotalCpus(uint64_t const i) const
 	{
 		assert ( i < size() );
@@ -632,11 +632,11 @@ int main(int argc, char * argv[])
 		SlurmControlConfig slurmconf;
 
 		std::cerr << "[V] maximum job array size is " << slurmconf.getMaxArraySize() << std::endl;
-		
+
 		SlurmPartitions slurmpart;
 		for ( uint64_t i = 0; i < slurmpart.size(); ++i )
 		{
-			std::cerr << "partition " << i << " name " << slurmpart.getName(i) 
+			std::cerr << "partition " << i << " name " << slurmpart.getName(i)
 				<< " nodes " << slurmpart.getNodes(i)
 				<< " numnodes=" << slurmpart.getTotalNodes(i)
 				<< " numcpus=" << slurmpart.getTotalCpus(i)
