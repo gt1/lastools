@@ -648,6 +648,8 @@ int main(int argc, char * argv[])
 		std::vector<std::string> Vsbatch;
 
 		bool const havegenomesize = arg.uniqueArgPresent("g");
+		
+		std::string const outdbname = arg.uniqueArgPresent("O") ? arg["O"] : std::string("out.db");
 		// bool const havecoverage = arg.uniqueArgPresent("c");
 		// int64_t const coverage = havecoverage ? arg.getParsedArg<unsigned int>("c") : -1;
 
@@ -1149,7 +1151,7 @@ int main(int argc, char * argv[])
 
 						{
 							libmaus2::aio::OutputStreamInstance OSI(movedbfn);
-							OSI << moveDB(patchfn,"out.db");
+							OSI << moveDB(patchfn,outdbname);
 						}
 
 						Vbatch.push_back(std::pair< std::string, std::vector<std::string> >("movedb", std::vector<std::string>()));
