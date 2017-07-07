@@ -1175,8 +1175,10 @@ int main(int argc, char * argv[])
 		}
 
 		std::vector<uint64_t> depids;
+		// iterate over batches
 		for ( uint64_t i = 0; i < Vbatch.size(); ++i )
 		{
+			// size of batch in commands
 			uint64_t const batchsize = Vbatch[i].second.size();
 			uint64_t const maxjobsperbatch = 512;
 			uint64_t const linesperjob = (batchsize + maxjobsperbatch - 1)/maxjobsperbatch;
