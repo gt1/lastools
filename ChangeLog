@@ -1,3 +1,9 @@
+lastools (0.0.54-1) unstable; urgency=medium
+
+  * introduce -O parameter in SLURM.HPC.daligner
+
+ -- German Tischler <tischler@mpi-cbg.de>  Fri, 14 Jul 2017 12:23:50 +0200
+
 lastools (0.0.53-1) unstable; urgency=medium
 
   * add lasfilterlength
