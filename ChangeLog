@@ -1,3 +1,9 @@
+lastools (0.0.55-1) unstable; urgency=medium
+
+  * add paftolas program
+
+ -- German Tischler <tischler@mpi-cbg.de>  Wed, 02 Aug 2017 14:30:41 +0200
+
 lastools (0.0.54-1) unstable; urgency=medium
 
   * introduce -O parameter in SLURM.HPC.daligner
