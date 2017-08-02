@@ -648,7 +648,7 @@ int main(int argc, char * argv[])
 		std::vector<std::string> Vsbatch;
 
 		bool const havegenomesize = arg.uniqueArgPresent("g");
-		
+
 		std::string const outdbname = arg.uniqueArgPresent("O") ? arg["O"] : std::string("out.db");
 		// bool const havecoverage = arg.uniqueArgPresent("c");
 		// int64_t const coverage = havecoverage ? arg.getParsedArg<unsigned int>("c") : -1;
