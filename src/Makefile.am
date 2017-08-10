@@ -11,7 +11,7 @@ EXTRA_PROGRAMS = SLURM.HPC.daligner
 
 bin_PROGRAMS = lassort lasindex lastobam reformatfasta fasta2fastq lasroleswap bamtolas blasrtobam lascat lasmarkprimary call.damapper lasaligntotracepoints lasfilterquality \
 	laschainsort lasmerge lascomputetandem lasextracttandemrecompute tandemaligner lasdedup lassubsample @SLURM_HPC_daligner@ lassuffixprefix cocommand lasreduce \
-	lasfilterlength paftolas
+	lasfilterlength paftolas commandpack
 dist_bin_SCRIPTS = swappedLasToBAM.sh
 
 lasindex_SOURCES = lasindex.cpp
@@ -143,3 +143,8 @@ paftolas_SOURCES = paftolas.cpp
 paftolas_LDADD = ${LIBMAUS2LIBS}
 paftolas_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
 paftolas_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
+
+commandpack_SOURCES = commandpack.cpp
+commandpack_LDADD = ${LIBMAUS2LIBS}
+commandpack_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
+commandpack_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
