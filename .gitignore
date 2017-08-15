@@ -50,3 +50,11 @@ src/SLURM.HPC.daligner
 src/lasdedup
 src/lassubsample
 src/lassuffixprefix
+src/cocommand
+src/commandfollowup
+src/commandpack
+src/commandstart
+src/lasfilterlength
+src/lasreduce
+src/paftolas
+
