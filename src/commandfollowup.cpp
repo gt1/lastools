@@ -217,21 +217,21 @@ int commandfollowup(libmaus2::util::ArgParser const & arg)
 	std::string const fn = arg[0];
 	uint64_t const id = arg.getParsedRestArg<uint64_t>(1);
 	std::string const commandstart = arg[2];
-	
+
 	libmaus2::aio::PosixFdInputOutputStream PIS(fn,std::ios::in|std::ios::out);
 	libmaus2::aio::PosixFdInputOutputStreamBuffer::LockObject const LO = PIS.lock();
 	libmaus2::util::ContainerDescriptionList CDL(PIS);
-	
+
 	libmaus2::aio::InputStreamInstance::unique_ptr_type ISI(new libmaus2::aio::InputStreamInstance(CDL.V[id].fn));
 	libmaus2::util::CommandContainer CC(*ISI);
 	ISI.reset();
-	
+
 	libmaus2::util::CommandContainer CCU = CC.check(true,&std::cerr);
-	
+
 	// any sub commands failed?
 	if ( CCU.V.size() )
 	{
-		libmaus2::aio::OutputStreamInstance::unique_ptr_type OSI(new libmaus2::aio::OutputStreamInstance(CDL.V[id].fn));	
+		libmaus2::aio::OutputStreamInstance::unique_ptr_type OSI(new libmaus2::aio::OutputStreamInstance(CDL.V[id].fn));
 		CCU.serialise(*OSI);
 		CDL.V[id].started = false;
 	}
@@ -244,20 +244,20 @@ int commandfollowup(libmaus2::util::ArgParser const & arg)
 			std::string const & fn = CDL.V[i].fn;
 			libmaus2::aio::InputStreamInstance ISI(fn);
 			libmaus2::util::CommandContainer CC(ISI);
-			
+
 			for ( uint64_t j = 0; j < CC.depid.size(); ++j )
 				if ( CC.depid[j] == id )
 					CDL.V[j].missingdep -= 1;
 		}
 	}
-	
+
 	PIS.seekp(0);
 	CDL.serialise(PIS);
 	PIS.unlock(LO);
-	
+
 	std::string const checknext = commandstart + " " + fn;
 	int const r = system(checknext.c_str());
-	
+
 	if ( r != 0 )
 	{
 		std::cerr << "failed to run " << checknext << std::endl;
