@@ -22,6 +22,8 @@
 #include <libmaus2/util/ArgInfo.hpp>
 #include <libmaus2/util/TempFileNameGenerator.hpp>
 #include <libmaus2/aio/OutputStreamInstance.hpp>
+#include <libmaus2/util/ContainerDescriptionList.hpp>
+#include <libmaus2/aio/PosixFdInputOutputStream.hpp>
 
 std::string getUsage(libmaus2::util::ArgParser const & arg)
 {
@@ -75,9 +77,23 @@ std::string which(std::string const prog)
 	throw lme;
 }
 
-void handle(libmaus2::util::TempFileNameGenerator & tgen, std::vector<std::string> & lines, uint64_t const id, uint64_t & subid)
+struct ContainerInfo
 {
 	libmaus2::util::CommandContainer CN;
+	std::string fn;
+	
+	ContainerInfo()
+	{
+	
+	}
+};
+
+
+ContainerInfo handle(libmaus2::util::TempFileNameGenerator & tgen, std::vector<std::string> & lines, uint64_t const id, uint64_t & subid, uint64_t const cnid, std::vector<uint64_t> const & depid)
+{
+	libmaus2::util::CommandContainer CN;
+	CN.id = cnid;
+	CN.depid = depid;
 
 	for ( uint64_t i = 0; i < lines.size(); ++i )
 	{
@@ -135,7 +151,7 @@ void handle(libmaus2::util::TempFileNameGenerator & tgen, std::vector<std::strin
 			tokens.push_back("/bin/bash");
 			tokens.push_back(script);
 
-			libmaus2::util::Command const C(in,out,err,tokens);
+			libmaus2::util::Command const C(in,out,err,code,tokens);
 			CN.V.push_back(C);
 		}
 	}
@@ -151,10 +167,61 @@ void handle(libmaus2::util::TempFileNameGenerator & tgen, std::vector<std::strin
 		OSI.flush();
 	}
 
-	std::cout << container << "\t" << CN.V.size() << std::endl;
+	// std::cout << container << "\t" << CN.V.size() << std::endl;
 
 	++subid;
 	lines.resize(0);
+	
+	ContainerInfo CI;
+	CI.CN = CN;
+	CI.fn = container;
+	
+	return CI;
+}
+
+std::string getcontextdir()
+{
+	char const * home = getenv("HOME");
+	
+	if ( ! home )
+	{
+		libmaus2::exception::LibMausException lme;
+		lme.getStream() << "[E] unable to get ${HOME} directory" << std::endl;
+		lme.finish();
+		throw lme;
+	}
+	
+	return std::string(home) + "/.commandpack";
+}
+
+void makecontextdir()
+{
+	std::string const command = std::string("mkdir -p ") + getcontextdir();
+	
+	int const r = system(command.c_str());
+	
+	if ( r != 0 )
+	{
+		libmaus2::exception::LibMausException lme;
+		lme.getStream() << "[E] failed to run " << command << std::endl;
+		lme.finish();
+		throw lme;		
+	}
+}
+
+bool canlock(std::string const & fn)
+{
+	try
+	{
+		libmaus2::aio::PosixFdInputOutputStream PIS(fn,std::ios::in|std::ios::out);
+		libmaus2::aio::PosixFdInputOutputStreamBuffer::LockObject const LO = PIS.lock();
+		PIS.unlock(LO);
+		return true;
+	}
+	catch(...)
+	{
+		return false;
+	}
 }
 
 int commandpack(libmaus2::util::ArgParser const & arg)
@@ -164,7 +231,12 @@ int commandpack(libmaus2::util::ArgParser const & arg)
 	std::vector < std::string > lines;
 	uint64_t id = 0;
 	uint64_t subid = 0;
+	uint64_t cnid = 0;
 	libmaus2::util::TempFileNameGenerator tgen(dn,4);
+	
+	std::vector < uint64_t > depid;
+	std::vector < uint64_t > ndepid;
+	std::vector < ContainerInfo > containers;
 
 	while ( std::cin )
 	{
@@ -177,8 +249,12 @@ int commandpack(libmaus2::util::ArgParser const & arg)
 			if ( line.size() && line[0] == '#' )
 			{
 				if ( lines.size() )
-					handle(tgen,lines,id,subid);
+				{
+					ndepid.push_back(cnid);
+					containers.push_back(handle(tgen,lines,id,subid,cnid++,depid));
+				}
 
+				depid = ndepid;
 				id++;
 			}
 			else
@@ -187,14 +263,67 @@ int commandpack(libmaus2::util::ArgParser const & arg)
 
 				if ( lines.size() >= linesperpack )
 				{
-					handle(tgen,lines,id,subid);
+					ndepid.push_back(cnid);
+					containers.push_back(handle(tgen,lines,id,subid,cnid++,depid));
 				}
 			}
 		}
 	}
 
 	if ( lines.size() )
-		handle(tgen,lines,id,subid);
+	{
+		ndepid.push_back(cnid);
+		containers.push_back(handle(tgen,lines,id,subid,cnid++,depid));
+	}
+	
+	libmaus2::util::ContainerDescriptionList CDL;
+	for ( uint64_t i = 0; i < containers.size(); ++i )
+	{
+		ContainerInfo const & CI = containers[i];
+		
+		std::string const & fn = CI.fn;
+		std::vector<uint64_t> const & dep = CI.CN.depid;
+
+		libmaus2::util::ContainerDescription const CD(fn, false /* started */, dep.size());
+		CDL.V.push_back(CD);
+	}
+
+	std::string outfn;
+
+	{
+		std::ostringstream ostrfn;
+		ostrfn << tgen.getFileName() << "_CDL";
+				
+		libmaus2::aio::OutputStreamInstance OSI(ostrfn.str());
+		CDL.serialise(OSI);	
+
+		if ( canlock(ostrfn.str()) )
+			outfn = ostrfn.str();
+		else
+		{
+			std::cerr << "[W] cannot lock " << ostrfn.str() << std::endl;
+		}
+	}
+	
+	if ( ! outfn.size() )
+	{
+		makecontextdir();
+		std::string const contextdir = getcontextdir();
+		std::string const fn = contextdir + "/" + libmaus2::util::ArgInfo::getDefaultTmpFileName(arg.progname) + "_CDL";
+
+		libmaus2::aio::OutputStreamInstance OSI(fn);
+		CDL.serialise(OSI);	
+
+		if ( canlock(fn) )
+			outfn = fn;
+		else
+		{
+			std::cerr << "[W] cannot lock " << fn << std::endl;
+		}
+
+	}
+
+	std::cout << outfn << std::endl;
 
 	return EXIT_SUCCESS;
 }

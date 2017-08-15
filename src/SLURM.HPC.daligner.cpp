@@ -1257,7 +1257,7 @@ int main(int argc, char * argv[])
 					args.push_back(which("bash"));
 					args.push_back(comstr.str());
 
-					libmaus2::util::Command C(in,outstr.str(),errstr.str(),args);
+					libmaus2::util::Command C(in,outstr.str(),errstr.str(),std::string() /* return code file */,args);
 					CC.V.push_back(C);
 
 					// Largs
