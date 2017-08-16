@@ -221,7 +221,7 @@ int commandfollowup(libmaus2::util::ArgParser const & arg)
 	uint64_t const port = arg.getParsedRestArg<uint64_t>(2);
 
 	libmaus2::network::ClientSocket CS(port,hostname.c_str());
-	
+
 	std::string data = CS.readString();
 	std::istringstream PIS(data);
 
@@ -250,9 +250,9 @@ int commandfollowup(libmaus2::util::ArgParser const & arg)
 	else
 	{
 		std::cerr << "[V] CommandContainer " << id << " finished succesfully" << std::endl;
-		
+
 		CDL.V[id].finished = true;
-		
+
 		for ( uint64_t i = 0; i < CC.rdepid.size(); ++i )
 		{
 			uint64_t const rid = CC.rdepid[i];
@@ -265,14 +265,14 @@ int commandfollowup(libmaus2::util::ArgParser const & arg)
 	CDL.serialise(OPIS);
 
 	CS.writeString(OPIS.str());
-	
+
 	uint64_t numfinished = 0;
 	for ( uint64_t i = 0; i < CDL.V.size(); ++i )
 		if ( CDL.V[i].finished )
 			++numfinished;
-	
+
 	bool const allfinished = numfinished == CDL.V.size();
-	
+
 	CS.writeSingle<uint64_t>(allfinished);
 
 	std::string const checknext = commandstart + " " + arg[1] /* host name */ + " " + arg[2] /* port */;

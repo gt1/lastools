@@ -109,9 +109,9 @@ ContainerInfo handle(libmaus2::util::TempFileNameGenerator & tgen, std::vector<s
 			lines[o++] = line;
 	}
 	lines.resize(o);
-	
+
 	CN.V.resize(lines.size());
-	
+
 	int volatile tfailed = 0;
 	libmaus2::parallel::PosixSpinLock tfailedlock;
 	libmaus2::parallel::PosixSpinLock tgenlock;
@@ -147,7 +147,7 @@ ContainerInfo handle(libmaus2::util::TempFileNameGenerator & tgen, std::vector<s
 				std::string const in = "/dev/null";
 
 				std::ostringstream ostr;
-				
+
 				{
 					libmaus2::parallel::ScopePosixSpinLock slock(tgenlock);
 					ostr << tgen.getFileName() << "_" << id << "_" << subid;
@@ -191,13 +191,13 @@ ContainerInfo handle(libmaus2::util::TempFileNameGenerator & tgen, std::vector<s
 				libmaus2::parallel::ScopePosixSpinLock slock(libmaus2::aio::StreamLock::cerrlock);
 				std::cerr << ex.what() << std::endl;
 			}
-		
+
 			tfailedlock.lock();
 			tfailed = 1;
 			tfailedlock.unlock();
 		}
 	}
-	
+
 	if ( tfailed )
 	{
 		libmaus2::exception::LibMausException lme;
@@ -276,7 +276,7 @@ bool canlock(std::string const & fn)
 static std::vector < std::pair< std::string, std::vector<std::string> > > parseBatches(std::istream & ISI)
 {
 	std::vector < std::pair< std::string, std::vector<std::string> > > Vbatch;
-	
+
 	while ( ISI )
 	{
 		std::string line;
@@ -309,14 +309,14 @@ static std::vector < std::pair< std::string, std::vector<std::string> > > parseB
 			}
 		}
 	}
-	
+
 	return Vbatch;
 }
 
 std::vector < std::pair< std::string, std::vector<std::string> > > splitBatches(std::vector < std::pair< std::string, std::vector<std::string> > > const & Vin, uint64_t const linesperpack)
 {
 	std::vector < std::pair< std::string, std::vector<std::string> > > Vout;
-	
+
 	for ( uint64_t i = 0; i < Vin.size(); ++i )
 	{
 		if ( Vin[i].second.size() <= linesperpack )
@@ -333,12 +333,12 @@ std::vector < std::pair< std::string, std::vector<std::string> > > splitBatches(
 			{
 				uint64_t const low = subid * linesperpack;
 				uint64_t const high = std::min(low + linesperpack, static_cast<uint64_t>(V.size()));
-			
+
 				std::vector < std::string > lines(V.begin() + low, V.begin()+high);
-				
+
 				std::ostringstream nnamestr;
 				nnamestr << basename << "_" << subid;
-				
+
 				Vout.push_back(
 					std::pair< std::string, std::vector<std::string> >(
 						nnamestr.str(),
@@ -348,7 +348,7 @@ std::vector < std::pair< std::string, std::vector<std::string> > > splitBatches(
 			}
 		}
 	}
-	
+
 	return Vout;
 }
 
@@ -371,39 +371,39 @@ int commandpack(libmaus2::util::ArgParser const & arg)
 	{
 		std::vector < uint64_t > ndepid;
 		std::vector<std::string> & V = Vbatch[id].second;
-		
+
 		if ( ! V.size() )
 		{
 			std::string const com = "echo OK";
 			V.push_back(com);
 		}
-		
+
 		assert ( V.size() );
-		
+
 		uint64_t const packs = (V.size() + linesperpack - 1)/linesperpack;
-		
+
 		std::cerr << "[V] processing id=" << id << " " << Vbatch[id].first << " of size " << V.size() << " with " << packs << " packages" << std::endl;
-		
+
 		for ( uint64_t subid = 0; subid < packs; ++subid )
 		{
 			uint64_t const low = subid * linesperpack;
 			uint64_t const high = std::min(low + linesperpack, static_cast<uint64_t>(V.size()));
-			
+
 			std::cerr << "\t[V] handling [" << low << "," << high << ") for cnid=" << cnid << std::endl;
-			
+
 			std::vector < std::string > lines(V.begin() + low, V.begin()+high);
 			ndepid.push_back(cnid);
 			containers.push_back(handle(tgen,lines,id,subid,cnid++,depid,numthreads));
 		}
-		
+
 		depid = ndepid;
 	}
-	
+
 	for ( uint64_t i = 0; i < containers.size(); ++i )
 	{
 		libmaus2::util::CommandContainer & CC = containers[i].CN;
 		std::vector<uint64_t> const & depid = CC.depid;
-		
+
 		for ( uint64_t j = 0; j < depid.size(); ++j )
 			containers [ depid[j] ] . CN . rdepid.push_back(i);
 	}
@@ -415,7 +415,7 @@ int commandpack(libmaus2::util::ArgParser const & arg)
 		containers[i].CN.serialise(OSI);
 		OSI.flush();
 	}
-	
+
 	libmaus2::util::ContainerDescriptionList CDL;
 	for ( uint64_t i = 0; i < containers.size(); ++i )
 	{

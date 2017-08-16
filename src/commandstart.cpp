@@ -219,9 +219,9 @@ int commandstart(libmaus2::util::ArgParser const & arg)
 	std::string cocommand = which("cocommand");
 	std::string commandfollowup = which("commandfollowup");
 	std::string commandstart = which("commandstart");
-	
+
 	libmaus2::network::ClientSocket CS(port,hostname.c_str());
-	
+
 	std::string data = CS.readString();
 	std::istringstream PIS(data);
 

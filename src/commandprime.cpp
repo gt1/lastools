@@ -213,11 +213,11 @@ std::string runProgram(std::vector<std::string> const & args, libmaus2::util::Ar
 int commandprime(libmaus2::util::ArgParser const & arg)
 {
 	std::string commandstart = which("commandstart");
-	
+
 	std::string const fn = arg[0];
-	
+
 	std::string data;
-	
+
 	{
 		libmaus2::aio::InputStreamInstance ISI(fn);
 		uint64_t const n = libmaus2::util::GetFileSize::getFileSize(ISI);
@@ -229,23 +229,23 @@ int commandprime(libmaus2::util::ArgParser const & arg)
 		assert ( ISI.gcount() == static_cast<int64_t>(n) );
 		data = std::string(C.begin(),C.end());
 	}
-	
+
 	std::string const hostname = libmaus2::network::GetHostName::getHostName();
 
 	unsigned short port = 1024;
 	unsigned int const backlog = 16*1024;
 	unsigned int const tries = 8192;
 	libmaus2::network::ServerSocket::unique_ptr_type ssocket(libmaus2::network::ServerSocket::allocateServerSocket(port,backlog,hostname,tries));
-	
+
 	std::cerr << "[V] hostname " << hostname << std::endl;
 	std::cerr << "[V] port " << port << std::endl;
-	
+
 	std::ostringstream ostr;
 	ostr << commandstart << " " << hostname << " " << port;
 	std::string const startcom = ostr.str();
-	
+
 	pid_t const pid = fork();
-	
+
 	if ( pid == static_cast<pid_t>(-1) )
 	{
 		int const error = errno;
@@ -255,26 +255,26 @@ int commandprime(libmaus2::util::ArgParser const & arg)
 	if ( pid == 0 )
 	{
 		bool running = true;
-		
+
 		while ( running )
 		{
 			libmaus2::network::SocketBase::unique_ptr_type sockptr(ssocket->accept());
-			
+
 			std::cerr << "in" << std::endl;
-			
+
 			sockptr->writeString(data);
 			data = sockptr->readString();
-			
+
 			uint64_t const r = sockptr->readSingle<uint64_t>();
 
 			std::cerr << "out " << r << std::endl;
-			
+
 			running = (r == 0);
-		}	
+		}
 	}
-	
+
 	int const r = system(startcom.c_str());
-	
+
 	if ( r != 0 )
 	{
 		int const error = errno;
@@ -282,16 +282,16 @@ int commandprime(libmaus2::util::ArgParser const & arg)
 		kill(pid,SIGTERM); // terminate child
 		return EXIT_FAILURE;
 	}
-	
+
 	while ( true )
 	{
 		int status = 0;
 		pid_t const r = waitpid(pid,&status,0);
-		
+
 		if ( r == static_cast<pid_t>(-1) )
 		{
 			int const error = errno;
-			
+
 			switch ( error )
 			{
 				case EINTR:
