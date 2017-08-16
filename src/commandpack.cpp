@@ -81,10 +81,10 @@ struct ContainerInfo
 {
 	libmaus2::util::CommandContainer CN;
 	std::string fn;
-	
+
 	ContainerInfo()
 	{
-	
+
 	}
 };
 
@@ -171,18 +171,18 @@ ContainerInfo handle(libmaus2::util::TempFileNameGenerator & tgen, std::vector<s
 
 	++subid;
 	lines.resize(0);
-	
+
 	ContainerInfo CI;
 	CI.CN = CN;
 	CI.fn = container;
-	
+
 	return CI;
 }
 
 std::string getcontextdir()
 {
 	char const * home = getenv("HOME");
-	
+
 	if ( ! home )
 	{
 		libmaus2::exception::LibMausException lme;
@@ -190,22 +190,22 @@ std::string getcontextdir()
 		lme.finish();
 		throw lme;
 	}
-	
+
 	return std::string(home) + "/.commandpack";
 }
 
 void makecontextdir()
 {
 	std::string const command = std::string("mkdir -p ") + getcontextdir();
-	
+
 	int const r = system(command.c_str());
-	
+
 	if ( r != 0 )
 	{
 		libmaus2::exception::LibMausException lme;
 		lme.getStream() << "[E] failed to run " << command << std::endl;
 		lme.finish();
-		throw lme;		
+		throw lme;
 	}
 }
 
@@ -233,7 +233,7 @@ int commandpack(libmaus2::util::ArgParser const & arg)
 	uint64_t subid = 0;
 	uint64_t cnid = 0;
 	libmaus2::util::TempFileNameGenerator tgen(dn,4);
-	
+
 	std::vector < uint64_t > depid;
 	std::vector < uint64_t > ndepid;
 	std::vector < ContainerInfo > containers;
@@ -298,7 +298,7 @@ int commandpack(libmaus2::util::ArgParser const & arg)
 	for ( uint64_t i = 0; i < containers.size(); ++i )
 	{
 		ContainerInfo const & CI = containers[i];
-		
+
 		std::string const & fn = CI.fn;
 		std::vector<uint64_t> const & dep = CI.CN.depid;
 
@@ -311,9 +311,9 @@ int commandpack(libmaus2::util::ArgParser const & arg)
 	{
 		std::ostringstream ostrfn;
 		ostrfn << tgen.getFileName() << "_CDL";
-				
+
 		libmaus2::aio::OutputStreamInstance OSI(ostrfn.str());
-		CDL.serialise(OSI);	
+		CDL.serialise(OSI);
 
 		if ( canlock(ostrfn.str()) )
 			outfn = ostrfn.str();
@@ -322,7 +322,7 @@ int commandpack(libmaus2::util::ArgParser const & arg)
 			std::cerr << "[W] cannot lock " << ostrfn.str() << std::endl;
 		}
 	}
-	
+
 	if ( ! outfn.size() )
 	{
 		makecontextdir();
@@ -330,7 +330,7 @@ int commandpack(libmaus2::util::ArgParser const & arg)
 		std::string const fn = contextdir + "/" + libmaus2::util::ArgInfo::getDefaultTmpFileName(arg.progname) + "_CDL";
 
 		libmaus2::aio::OutputStreamInstance OSI(fn);
-		CDL.serialise(OSI);	
+		CDL.serialise(OSI);
 
 		if ( canlock(fn) )
 			outfn = fn;

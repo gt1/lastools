@@ -217,7 +217,7 @@ int commandstart(libmaus2::util::ArgParser const & arg)
 	std::string cocommand = which("cocommand");
 	std::string commandfollowup = which("commandfollowup");
 	std::string commandstart = which("commandstart");
-	
+
 	libmaus2::aio::PosixFdInputOutputStream PIS(fn,std::ios::in|std::ios::out);
 	libmaus2::aio::PosixFdInputOutputStreamBuffer::LockObject const LO = PIS.lock();
 	libmaus2::util::ContainerDescriptionList CDL(PIS);
@@ -225,10 +225,10 @@ int commandstart(libmaus2::util::ArgParser const & arg)
 	std::string const tmpprefix = std::string("/tmp/") + libmaus2::util::ArgInfo::getDefaultTmpFileName(arg.progname);
 	std::string const jobfn = tmpprefix + "_job.sbatch";
 	libmaus2::util::TempFileRemovalContainer::addTempFile(jobfn);
-	
+
 	for ( uint64_t i = 0; i < CDL.V.size(); ++i )
 		if ( !CDL.V[i].started && !CDL.V[i].missingdep )
-		{	
+		{
 			std::string const fn = CDL.V[i].fn;
 			libmaus2::aio::InputStreamInstance CCISI(fn);
 			libmaus2::util::CommandContainer CC(CCISI);
@@ -330,7 +330,7 @@ int commandstart(libmaus2::util::ArgParser const & arg)
 					libmaus2::exception::LibMausException lme;
 					lme.getStream() << "[E] failed to run " << sbatchargs[1] << " (job id not found)" << "\n";
 					lme.finish();
-					throw lme;			
+					throw lme;
 				}
 
 				libmaus2::aio::FileRemoval::removeFile(jobfn);
@@ -422,19 +422,19 @@ int commandstart(libmaus2::util::ArgParser const & arg)
 					libmaus2::exception::LibMausException lme;
 					lme.getStream() << "[E] failed to run " << sbatchargs[1] << " (job id not found)" << "\n";
 					lme.finish();
-					throw lme;			
+					throw lme;
 				}
 
 				libmaus2::aio::FileRemoval::removeFile(jobfn);
 			}
-			
+
 			CDL.V[i].started = true;
 		}
 
-	// serialise updated file	
+	// serialise updated file
 	PIS.seekp(0,std::ios::beg);
 	CDL.serialise(PIS);
-	
+
 	PIS.unlock(LO);
 
 	return EXIT_SUCCESS;
