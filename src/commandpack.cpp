@@ -131,6 +131,7 @@ ContainerInfo handle(libmaus2::util::TempFileNameGenerator & tgen, std::vector<s
 			if ( ! line.size() )
 				continue;
 
+			#if 0
 			uint64_t h = 0;
 			while ( h < line.size() && !isspace(line[h]) )
 				++h;
@@ -141,6 +142,7 @@ ContainerInfo handle(libmaus2::util::TempFileNameGenerator & tgen, std::vector<s
 				++h;
 
 			line = fcom + " " + line.substr(h);
+			#endif
 
 			if ( line.size() )
 			{
