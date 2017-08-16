@@ -232,7 +232,7 @@ int commandfollowup(libmaus2::util::ArgParser const & arg)
 	ISI.reset();
 
 	libmaus2::util::CommandContainer CCU = CC.check(true,&std::cerr);
-	
+
 	bool failed = false;
 
 	// any sub commands failed?
@@ -247,7 +247,7 @@ int commandfollowup(libmaus2::util::ArgParser const & arg)
 		else
 		{
 			std::cerr << "[E] CommandContainer " << id << " failed " << CCU.attempt << " times, stopping" << std::endl;
-			
+
 			failed = true;
 		}
 	}

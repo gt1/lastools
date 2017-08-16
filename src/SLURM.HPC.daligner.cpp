@@ -31,7 +31,7 @@
 #include <libmaus2/dazzler/db/DatabaseFile.hpp>
 #include <cstring>
 #include <libmaus2/util/CommandContainer.hpp>
-#include <slurm/slurm.h>
+// #include <slurm/slurm.h>
 
 #if defined(__APPLE__)
 #include <crt_externs.h>
