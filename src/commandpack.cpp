@@ -255,6 +255,7 @@ int commandpack(libmaus2::util::ArgParser const & arg)
 				}
 
 				depid = ndepid;
+				ndepid.resize(0);
 				id++;
 			}
 			else
@@ -274,6 +275,23 @@ int commandpack(libmaus2::util::ArgParser const & arg)
 	{
 		ndepid.push_back(cnid);
 		containers.push_back(handle(tgen,lines,id,subid,cnid++,depid));
+	}
+	
+	for ( uint64_t i = 0; i < containers.size(); ++i )
+	{
+		libmaus2::util::CommandContainer & CC = containers[i].CN;
+		std::vector<uint64_t> const & depid = CC.depid;
+		
+		for ( uint64_t j = 0; j < depid.size(); ++j )
+			containers [ depid[j] ] . CN . rdepid.push_back(i);
+	}
+
+	for ( uint64_t i = 0; i < containers.size(); ++i )
+	{
+		std::cerr << containers[i].CN << std::endl;
+		libmaus2::aio::OutputStreamInstance OSI(containers[i].fn);
+		containers[i].CN.serialise(OSI);
+		OSI.flush();
 	}
 	
 	libmaus2::util::ContainerDescriptionList CDL;
