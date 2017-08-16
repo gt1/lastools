@@ -95,6 +95,7 @@ ContainerInfo handle(libmaus2::util::TempFileNameGenerator & tgen, std::vector<s
 	libmaus2::util::CommandContainer CN;
 	CN.id = cnid;
 	CN.depid = depid;
+	CN.maxattempt = 2;
 
 	uint64_t o = 0;
 	for ( uint64_t i = 0; i < lines.size(); ++i )
@@ -312,6 +313,44 @@ static std::vector < std::pair< std::string, std::vector<std::string> > > parseB
 	return Vbatch;
 }
 
+std::vector < std::pair< std::string, std::vector<std::string> > > splitBatches(std::vector < std::pair< std::string, std::vector<std::string> > > const & Vin, uint64_t const linesperpack)
+{
+	std::vector < std::pair< std::string, std::vector<std::string> > > Vout;
+	
+	for ( uint64_t i = 0; i < Vin.size(); ++i )
+	{
+		if ( Vin[i].second.size() <= linesperpack )
+		{
+			Vout.push_back(Vin[i]);
+		}
+		else
+		{
+			std::string const basename = Vin[i].first;
+			std::vector<std::string> const & V = Vin[i].second;
+			uint64_t const packs = (V.size() + linesperpack - 1)/linesperpack;
+
+			for ( uint64_t subid = 0; subid < packs; ++subid )
+			{
+				uint64_t const low = subid * linesperpack;
+				uint64_t const high = std::min(low + linesperpack, static_cast<uint64_t>(V.size()));
+			
+				std::vector < std::string > lines(V.begin() + low, V.begin()+high);
+				
+				std::ostringstream nnamestr;
+				nnamestr << basename << "_" << subid;
+				
+				Vout.push_back(
+					std::pair< std::string, std::vector<std::string> >(
+						nnamestr.str(),
+						lines
+					)
+				);
+			}
+		}
+	}
+	
+	return Vout;
+}
 
 int commandpack(libmaus2::util::ArgParser const & arg)
 {
@@ -326,6 +365,7 @@ int commandpack(libmaus2::util::ArgParser const & arg)
 	std::vector < ContainerInfo > containers;
 
 	std::vector < std::pair< std::string, std::vector<std::string> > > Vbatch = parseBatches(std::cin);
+	Vbatch = splitBatches(Vbatch,linesperpack);
 
 	for ( uint64_t id = 0; id < Vbatch.size(); ++id )
 	{

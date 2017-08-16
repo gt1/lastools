@@ -210,77 +210,101 @@ std::string runProgram(std::vector<std::string> const & args, libmaus2::util::Ar
 	return res;
 }
 
-
-int commandfollowup(libmaus2::util::ArgParser const & arg)
+int commandprime(libmaus2::util::ArgParser const & arg)
 {
-	std::cerr << arg << std::endl;
-
-	uint64_t const id = arg.getParsedRestArg<uint64_t>(0);
 	std::string commandstart = which("commandstart");
-	std::string const hostname = arg[1];
-	uint64_t const port = arg.getParsedRestArg<uint64_t>(2);
-
-	libmaus2::network::ClientSocket CS(port,hostname.c_str());
 	
-	std::string data = CS.readString();
-	std::istringstream PIS(data);
-
-	libmaus2::util::ContainerDescriptionList CDL(PIS);
-
-	libmaus2::aio::InputStreamInstance::unique_ptr_type ISI(new libmaus2::aio::InputStreamInstance(CDL.V[id].fn));
-	libmaus2::util::CommandContainer CC(*ISI);
-	ISI.reset();
-
-	libmaus2::util::CommandContainer CCU = CC.check(true,&std::cerr);
-
-	// any sub commands failed?
-	if ( CCU.V.size() )
+	std::string const fn = arg[0];
+	
+	std::string data;
+	
 	{
-		if ( CCU.attempt < CCU.maxattempt )
-		{
-			libmaus2::aio::OutputStreamInstance::unique_ptr_type OSI(new libmaus2::aio::OutputStreamInstance(CDL.V[id].fn));
-			CCU.serialise(*OSI);
-			CDL.V[id].started = false;
-		}
-		else
-		{
-			std::cerr << "[E] CommandContainer " << id << " failed " << CCU.attempt << " times, stopping" << std::endl;
-		}
+		libmaus2::aio::InputStreamInstance ISI(fn);
+		uint64_t const n = libmaus2::util::GetFileSize::getFileSize(ISI);
+		ISI.clear();
+		ISI.seekg(0);
+		ISI.clear();
+		libmaus2::autoarray::AutoArray<char> C(n);
+		ISI.read(C.begin(),n);
+		assert ( ISI.gcount() == static_cast<int64_t>(n) );
+		data = std::string(C.begin(),C.end());
 	}
-	else
+	
+	std::string const hostname = libmaus2::network::GetHostName::getHostName();
+
+	unsigned short port = 1024;
+	unsigned int const backlog = 16*1024;
+	unsigned int const tries = 8192;
+	libmaus2::network::ServerSocket::unique_ptr_type ssocket(libmaus2::network::ServerSocket::allocateServerSocket(port,backlog,hostname,tries));
+	
+	std::cerr << "[V] hostname " << hostname << std::endl;
+	std::cerr << "[V] port " << port << std::endl;
+	
+	std::ostringstream ostr;
+	ostr << commandstart << " " << hostname << " " << port;
+	std::string const startcom = ostr.str();
+	
+	pid_t const pid = fork();
+	
+	if ( pid == static_cast<pid_t>(-1) )
 	{
-		std::cerr << "[V] CommandContainer " << id << " finished succesfully" << std::endl;
-		
-		CDL.V[id].finished = true;
-		
-		for ( uint64_t i = 0; i < CC.rdepid.size(); ++i )
-		{
-			uint64_t const rid = CC.rdepid[i];
-			CDL.V[rid].missingdep -= 1;
-			std::cerr << "[V] reduced missingdep for id " << rid << " to " << CDL.V[rid].missingdep << std::endl;
-		}
+		int const error = errno;
+		std::cerr << "[E] failed to fork: " << strerror(error) << std::endl;
+		return EXIT_FAILURE;
 	}
+	if ( pid == 0 )
+	{
+		bool running = true;
+		
+		while ( running )
+		{
+			libmaus2::network::SocketBase::unique_ptr_type sockptr(ssocket->accept());
+			
+			std::cerr << "in" << std::endl;
+			
+			sockptr->writeString(data);
+			data = sockptr->readString();
+			
+			uint64_t const r = sockptr->readSingle<uint64_t>();
 
-	std::ostringstream OPIS;
-	CDL.serialise(OPIS);
-
-	CS.writeString(OPIS.str());
+			std::cerr << "out " << r << std::endl;
+			
+			running = (r == 0);
+		}	
+	}
 	
-	uint64_t numfinished = 0;
-	for ( uint64_t i = 0; i < CDL.V.size(); ++i )
-		if ( CDL.V[i].finished )
-			++numfinished;
+	int const r = system(startcom.c_str());
 	
-	bool const allfinished = numfinished == CDL.V.size();
-	
-	CS.writeSingle<uint64_t>(allfinished);
-
-	std::string const checknext = commandstart + " " + arg[1] /* host name */ + " " + arg[2] /* port */;
-	int const r = system(checknext.c_str());
-
 	if ( r != 0 )
 	{
-		std::cerr << "failed to run " << checknext << std::endl;
+		int const error = errno;
+		std::cerr << "[E] failed to run " << startcom << " :" << strerror(error) << std::endl;
+		kill(pid,SIGTERM); // terminate child
+		return EXIT_FAILURE;
+	}
+	
+	while ( true )
+	{
+		int status = 0;
+		pid_t const r = waitpid(pid,&status,0);
+		
+		if ( r == static_cast<pid_t>(-1) )
+		{
+			int const error = errno;
+			
+			switch ( error )
+			{
+				case EINTR:
+					break;
+				default:
+				{
+					std::cerr << "waitpid failed: " << strerror(error) << std::endl;
+					kill(pid,SIGTERM);
+					return EXIT_FAILURE;
+					break;
+				}
+			}
+		}
 	}
 
 	return EXIT_SUCCESS;
@@ -311,7 +335,7 @@ int main(int argc, char *argv[])
 		}
 		else
 		{
-			return commandfollowup(arg);
+			return commandprime(arg);
 		}
 	}
 	catch(std::exception const & ex)

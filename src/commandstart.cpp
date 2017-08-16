@@ -25,6 +25,7 @@
 #include <libmaus2/util/ContainerDescriptionList.hpp>
 #include <libmaus2/aio/PosixFdInputOutputStream.hpp>
 #include <libmaus2/util/WriteableString.hpp>
+#include <libmaus2/network/Socket.hpp>
 #include <sys/wait.h>
 
 #if defined(__APPLE__)
@@ -212,14 +213,18 @@ std::string runProgram(std::vector<std::string> const & args, libmaus2::util::Ar
 
 int commandstart(libmaus2::util::ArgParser const & arg)
 {
-	std::string const fn = arg[0];
+	std::string const hostname = arg[0];
+	uint64_t const port = arg.getParsedRestArg<uint64_t>(1);
 
 	std::string cocommand = which("cocommand");
 	std::string commandfollowup = which("commandfollowup");
 	std::string commandstart = which("commandstart");
+	
+	libmaus2::network::ClientSocket CS(port,hostname.c_str());
+	
+	std::string data = CS.readString();
+	std::istringstream PIS(data);
 
-	libmaus2::aio::PosixFdInputOutputStream PIS(fn,std::ios::in|std::ios::out);
-	libmaus2::aio::PosixFdInputOutputStreamBuffer::LockObject const LO = PIS.lock();
 	libmaus2::util::ContainerDescriptionList CDL(PIS);
 
 	std::string const tmpprefix = std::string("/tmp/") + libmaus2::util::ArgInfo::getDefaultTmpFileName(arg.progname);
@@ -353,7 +358,7 @@ int commandstart(libmaus2::util::ArgParser const & arg)
 				ostr << "#SBATCH --dependency=afterany:" << njobid << "\n";
 
 				ostr << "\n";
-				ostr << "srun " << commandfollowup << " " << arg[0] << " " << i << " " << commandstart << "\n";
+				ostr << "srun " << commandfollowup << " " << i << " " << hostname << " " << port << "\n";
 
 				std::cerr << ostr.str();
 
@@ -431,11 +436,11 @@ int commandstart(libmaus2::util::ArgParser const & arg)
 			CDL.V[i].started = true;
 		}
 
-	// serialise updated file
-	PIS.seekp(0,std::ios::beg);
-	CDL.serialise(PIS);
+	std::ostringstream OPIS;
+	CDL.serialise(OPIS);
 
-	PIS.unlock(LO);
+	CS.writeString(OPIS.str());
+	CS.writeSingle<uint64_t>(0); // keep running
 
 	return EXIT_SUCCESS;
 }
