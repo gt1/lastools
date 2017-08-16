@@ -439,30 +439,7 @@ int commandpack(libmaus2::util::ArgParser const & arg)
 		libmaus2::aio::OutputStreamInstance OSI(ostrfn.str());
 		CDL.serialise(OSI);
 
-		if ( canlock(ostrfn.str()) )
-			outfn = ostrfn.str();
-		else
-		{
-			std::cerr << "[W] cannot lock " << ostrfn.str() << std::endl;
-		}
-	}
-
-	if ( ! outfn.size() )
-	{
-		makecontextdir();
-		std::string const contextdir = getcontextdir();
-		std::string const fn = contextdir + "/" + libmaus2::util::ArgInfo::getDefaultTmpFileName(arg.progname) + "_CDL";
-
-		libmaus2::aio::OutputStreamInstance OSI(fn);
-		CDL.serialise(OSI);
-
-		if ( canlock(fn) )
-			outfn = fn;
-		else
-		{
-			std::cerr << "[W] cannot lock " << fn << std::endl;
-		}
-
+		outfn = ostrfn.str();
 	}
 
 	std::cout << outfn << std::endl;
