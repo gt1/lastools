@@ -238,16 +238,12 @@ int commandfollowup(libmaus2::util::ArgParser const & arg)
 	else
 	{
 		std::cerr << "[V] CommandContainer " << id << " finished succesfully" << std::endl;
-
-		for ( uint64_t i = 0; i < CDL.V.size(); ++i )
+		
+		for ( uint64_t i = 0; i < CC.rdepid.size(); ++i )
 		{
-			std::string const & fn = CDL.V[i].fn;
-			libmaus2::aio::InputStreamInstance ISI(fn);
-			libmaus2::util::CommandContainer CC(ISI);
-			
-			for ( uint64_t j = 0; j < CC.depid.size(); ++j )
-				if ( CC.depid[j] == id )
-					CDL.V[j].missingdep -= 1;
+			uint64_t const rid = CC.rdepid[i];
+			CDL.V[rid].missingdep -= 1;
+			std::cerr << "[V] reduced missingdep for id " << rid << " to " << CDL.V[rid].missingdep << std::endl;
 		}
 	}
 	
