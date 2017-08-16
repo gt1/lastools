@@ -255,16 +255,6 @@ int commandstart(libmaus2::util::ArgParser const & arg)
 				ostr << "#SBATCH --mem=240000\n";
 				ostr << "#SBATCH --cpus-per-task=24\n";
 
-				#if 0
-				if ( depids.size() )
-				{
-					ostr << "#SBATCH --dependency=afterok";
-					for ( uint64_t i = 0; i < depids.size(); ++i )
-						ostr << ":" << depids[i];
-					ostr << "\n";
-				}
-				#endif
-
 				ostr << "\n";
 				ostr << "srun " << cocommand << " " << fn << "\n";
 
