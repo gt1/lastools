@@ -24,6 +24,7 @@
 #include <libmaus2/aio/OutputStreamInstance.hpp>
 #include <libmaus2/util/ContainerDescriptionList.hpp>
 #include <libmaus2/aio/PosixFdInputOutputStream.hpp>
+#include <libmaus2/parallel/NumCpus.hpp>
 
 std::string getUsage(libmaus2::util::ArgParser const & arg)
 {
@@ -89,12 +90,13 @@ struct ContainerInfo
 };
 
 
-ContainerInfo handle(libmaus2::util::TempFileNameGenerator & tgen, std::vector<std::string> & lines, uint64_t const id, uint64_t & subid, uint64_t const cnid, std::vector<uint64_t> const & depid)
+ContainerInfo handle(libmaus2::util::TempFileNameGenerator & tgen, std::vector<std::string> & lines, uint64_t const id, uint64_t const subid, uint64_t const cnid, std::vector<uint64_t> const & depid, uint64_t const numthreads)
 {
 	libmaus2::util::CommandContainer CN;
 	CN.id = cnid;
 	CN.depid = depid;
 
+	uint64_t o = 0;
 	for ( uint64_t i = 0; i < lines.size(); ++i )
 	{
 		std::string line = lines[i];
@@ -102,58 +104,105 @@ ContainerInfo handle(libmaus2::util::TempFileNameGenerator & tgen, std::vector<s
 		while ( line.size() && isspace(line[0]) )
 			line = line.substr(1);
 
-		if ( ! line.size() )
-			continue;
-
-		uint64_t h = 0;
-		while ( h < line.size() && !isspace(line[h]) )
-			++h;
-
-		std::string const fcom = which(line.substr(0,h));
-
-		while ( h < line.size() && isspace(line[h]) )
-			++h;
-
-		line = fcom + " " + line.substr(h);
-
 		if ( line.size() )
+			lines[o++] = line;
+	}
+	lines.resize(o);
+	
+	CN.V.resize(lines.size());
+	
+	int volatile tfailed = 0;
+	libmaus2::parallel::PosixSpinLock tfailedlock;
+	libmaus2::parallel::PosixSpinLock tgenlock;
+
+	#if defined(_OPENMP)
+	#pragma omp parallel for schedule(dynamic,1) num_threads(numthreads)
+	#endif
+	for ( uint64_t i = 0; i < lines.size(); ++i )
+	{
+		try
 		{
-			std::string const in = "/dev/null";
+			std::string line = lines[i];
 
-			std::ostringstream ostr;
-			ostr << tgen.getFileName() << "_" << id << "_" << subid;
+			while ( line.size() && isspace(line[0]) )
+				line = line.substr(1);
 
-			std::string const filebase = ostr.str();
-			std::string const out = filebase + ".out";
-			std::string const err = filebase + ".err";
-			std::string const script = filebase + ".script";
-			std::string const code = filebase + ".returncode";
-			std::string const command = filebase + ".com";
+			if ( ! line.size() )
+				continue;
 
+			uint64_t h = 0;
+			while ( h < line.size() && !isspace(line[h]) )
+				++h;
+
+			std::string const fcom = which(line.substr(0,h));
+
+			while ( h < line.size() && isspace(line[h]) )
+				++h;
+
+			line = fcom + " " + line.substr(h);
+
+			if ( line.size() )
 			{
-				libmaus2::aio::OutputStreamInstance OSI(script);
-				OSI << "#! /bin/bash\n";
-				OSI << line << "\n";
-				OSI << "RT=$?\n";
-				OSI << "echo ${RT} >" << code << "\n";
-				OSI << "exit ${RT}\n";
-				OSI.flush();
+				std::string const in = "/dev/null";
+
+				std::ostringstream ostr;
+				
+				{
+					libmaus2::parallel::ScopePosixSpinLock slock(tgenlock);
+					ostr << tgen.getFileName() << "_" << id << "_" << subid;
+				}
+
+				std::string const filebase = ostr.str();
+				std::string const out = filebase + ".out";
+				std::string const err = filebase + ".err";
+				std::string const script = filebase + ".script";
+				std::string const code = filebase + ".returncode";
+				std::string const command = filebase + ".com";
+
+				{
+					libmaus2::aio::OutputStreamInstance OSI(script);
+					OSI << "#! /bin/bash\n";
+					OSI << line << "\n";
+					OSI << "RT=$?\n";
+					OSI << "echo ${RT} >" << code << "\n";
+					OSI << "exit ${RT}\n";
+					OSI.flush();
+				}
+
+				{
+					libmaus2::aio::OutputStreamInstance OSI(command);
+					OSI << line << "\n";
+					OSI.flush();
+				}
+
+				std::vector<std::string> tokens;
+
+				tokens.push_back("/bin/bash");
+				tokens.push_back(script);
+
+				libmaus2::util::Command const C(in,out,err,code,tokens);
+				CN.V[i] = C;
 			}
-
-			{
-				libmaus2::aio::OutputStreamInstance OSI(command);
-				OSI << line << "\n";
-				OSI.flush();
-			}
-
-			std::vector<std::string> tokens;
-
-			tokens.push_back("/bin/bash");
-			tokens.push_back(script);
-
-			libmaus2::util::Command const C(in,out,err,code,tokens);
-			CN.V.push_back(C);
 		}
+		catch(std::exception const & ex)
+		{
+			{
+				libmaus2::parallel::ScopePosixSpinLock slock(libmaus2::aio::StreamLock::cerrlock);
+				std::cerr << ex.what() << std::endl;
+			}
+		
+			tfailedlock.lock();
+			tfailed = 1;
+			tfailedlock.unlock();
+		}
+	}
+	
+	if ( tfailed )
+	{
+		libmaus2::exception::LibMausException lme;
+		lme.getStream() << "[E] handle failed" << std::endl;
+		lme.finish();
+		throw lme;
 	}
 
 	std::ostringstream ostr;
@@ -169,7 +218,6 @@ ContainerInfo handle(libmaus2::util::TempFileNameGenerator & tgen, std::vector<s
 
 	// std::cout << container << "\t" << CN.V.size() << std::endl;
 
-	++subid;
 	lines.resize(0);
 
 	ContainerInfo CI;
@@ -224,57 +272,91 @@ bool canlock(std::string const & fn)
 	}
 }
 
-int commandpack(libmaus2::util::ArgParser const & arg)
+static std::vector < std::pair< std::string, std::vector<std::string> > > parseBatches(std::istream & ISI)
 {
-	uint64_t linesperpack = arg.uniqueArgPresent("l") ? arg.getUnsignedNumericArg<uint64_t>("l") : getDefaultLinesPerPack();
-	std::string const dn = arg.uniqueArgPresent("d") ? arg["d"] : getDefaultD(arg);
-	std::vector < std::string > lines;
-	uint64_t id = 0;
-	uint64_t subid = 0;
-	uint64_t cnid = 0;
-	libmaus2::util::TempFileNameGenerator tgen(dn,4);
-
-	std::vector < uint64_t > depid;
-	std::vector < uint64_t > ndepid;
-	std::vector < ContainerInfo > containers;
-
-	while ( std::cin )
+	std::vector < std::pair< std::string, std::vector<std::string> > > Vbatch;
+	
+	while ( ISI )
 	{
 		std::string line;
-		std::getline(std::cin,line);
-
-		if ( line.size() )
+		std::getline(ISI,line);
+		if ( ISI )
 		{
-			// force split at #
-			if ( line.size() && line[0] == '#' )
+			if ( line.size() && line.at(0) == '#' )
 			{
-				if ( lines.size() )
-				{
-					ndepid.push_back(cnid);
-					containers.push_back(handle(tgen,lines,id,subid,cnid++,depid));
-				}
-
-				depid = ndepid;
-				ndepid.resize(0);
-				id++;
+				line = line.substr(1);
+				while ( line.size() && isspace(line[0]) )
+					line = line.substr(1);
+				Vbatch.push_back(
+					std::pair< std::string, std::vector<std::string> >(
+						line,
+						std::vector<std::string>()
+					)
+				);
 			}
 			else
 			{
-				lines.push_back(line);
-
-				if ( lines.size() >= linesperpack )
+				if ( Vbatch.size() == 0 )
 				{
-					ndepid.push_back(cnid);
-					containers.push_back(handle(tgen,lines,id,subid,cnid++,depid));
+					libmaus2::exception::LibMausException lme;
+					lme.getStream() << "[E] first line outside batch: " << line << std::endl;
+					lme.finish();
+					throw lme;
 				}
+
+				Vbatch.back().second.push_back(line);
 			}
 		}
 	}
+	
+	return Vbatch;
+}
 
-	if ( lines.size() )
+
+int commandpack(libmaus2::util::ArgParser const & arg)
+{
+	uint64_t const numthreads = arg.uniqueArgPresent("t") ? arg.getUnsignedNumericArg<uint64_t>("t") : libmaus2::parallel::NumCpus::getNumLogicalProcessors();
+	uint64_t linesperpack = arg.uniqueArgPresent("l") ? arg.getUnsignedNumericArg<uint64_t>("l") : getDefaultLinesPerPack();
+	std::string const dn = arg.uniqueArgPresent("d") ? arg["d"] : getDefaultD(arg);
+	std::vector < std::string > lines;
+	uint64_t cnid = 0;
+	libmaus2::util::TempFileNameGenerator tgen(dn,4,16 /* dirmod */, 16 /* filemod */);
+
+	std::vector < uint64_t > depid;
+	std::vector < ContainerInfo > containers;
+
+	std::vector < std::pair< std::string, std::vector<std::string> > > Vbatch = parseBatches(std::cin);
+
+	for ( uint64_t id = 0; id < Vbatch.size(); ++id )
 	{
-		ndepid.push_back(cnid);
-		containers.push_back(handle(tgen,lines,id,subid,cnid++,depid));
+		std::vector < uint64_t > ndepid;
+		std::vector<std::string> & V = Vbatch[id].second;
+		
+		if ( ! V.size() )
+		{
+			std::string const com = "echo OK";
+			V.push_back(com);
+		}
+		
+		assert ( V.size() );
+		
+		uint64_t const packs = (V.size() + linesperpack - 1)/linesperpack;
+		
+		std::cerr << "[V] processing id=" << id << " " << Vbatch[id].first << " of size " << V.size() << " with " << packs << " packages" << std::endl;
+		
+		for ( uint64_t subid = 0; subid < packs; ++subid )
+		{
+			uint64_t const low = subid * linesperpack;
+			uint64_t const high = std::min(low + linesperpack, static_cast<uint64_t>(V.size()));
+			
+			std::cerr << "\t[V] handling [" << low << "," << high << ") for cnid=" << cnid << std::endl;
+			
+			std::vector < std::string > lines(V.begin() + low, V.begin()+high);
+			ndepid.push_back(cnid);
+			containers.push_back(handle(tgen,lines,id,subid,cnid++,depid,numthreads));
+		}
+		
+		depid = ndepid;
 	}
 	
 	for ( uint64_t i = 0; i < containers.size(); ++i )
