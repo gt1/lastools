@@ -279,12 +279,16 @@ int commandfollowup(libmaus2::util::ArgParser const & arg)
 
 	CS.writeSingle<uint64_t>(allfinished || failed);
 
-	std::string const checknext = commandstart + " " + arg[1] /* host name */ + " " + arg[2] /* port */;
-	int const r = system(checknext.c_str());
-
-	if ( r != 0 )
+	if ( ! (allfinished || failed) )
 	{
-		std::cerr << "failed to run " << checknext << std::endl;
+		std::string const checknext = commandstart + " " + arg[1] /* host name */ + " " + arg[2] /* port */;
+		int const r = system(checknext.c_str());
+
+		if ( r != 0 )
+		{
+			std::cerr << "failed to run " << checknext << std::endl;
+			return EXIT_FAILURE;
+		}
 	}
 
 	return EXIT_SUCCESS;
