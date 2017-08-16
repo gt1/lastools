@@ -10,7 +10,7 @@ EXTRA_DIST = ${MANPAGES}
 # EXTRA_PROGRAMS = 
 
 bin_PROGRAMS = lassort lasindex lastobam reformatfasta fasta2fastq lasroleswap bamtolas blasrtobam lascat lasmarkprimary call.damapper lasaligntotracepoints lasfilterquality \
-	laschainsort lasmerge lascomputetandem lasextracttandemrecompute tandemaligner lasdedup lassubsample @SLURM_HPC_daligner@ lassuffixprefix cocommand lasreduce \
+	laschainsort lasmerge lascomputetandem lasextracttandemrecompute tandemaligner lasdedup lassubsample lassuffixprefix cocommand lasreduce \
 	lasfilterlength paftolas commandpack commandstart commandfollowup commandprime SLURM.HPC.daligner
 dist_bin_SCRIPTS = swappedLasToBAM.sh
 
