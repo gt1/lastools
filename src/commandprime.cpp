@@ -318,6 +318,10 @@ int commandprime(libmaus2::util::ArgParser const & arg)
 				}
 			}
 		}
+		else
+		{
+			break;
+		}
 	}
 
 	return EXIT_SUCCESS;
