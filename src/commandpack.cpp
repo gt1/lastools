@@ -365,7 +365,7 @@ int commandpack(libmaus2::util::ArgParser const & arg)
 	std::vector < ContainerInfo > containers;
 
 	std::vector < std::pair< std::string, std::vector<std::string> > > Vbatch = parseBatches(std::cin);
-	Vbatch = splitBatches(Vbatch,linesperpack);
+	// Vbatch = splitBatches(Vbatch,linesperpack);
 
 	for ( uint64_t id = 0; id < Vbatch.size(); ++id )
 	{
