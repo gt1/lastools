@@ -166,9 +166,9 @@ fi
 
 AC_CHECK_LIB([slurm],[slurm_api_version],[SLURMLIB=YES],[SLURMLIB=NO])
 
-if test "${SLURMLIB}" = "YES" ; then
-	SLURM_HPC_daligner=SLURM.HPC.daligner
-fi
+dnl if test "${SLURMLIB}" = "YES" ; then
+dnl	SLURM_HPC_daligner=SLURM.HPC.daligner
+dnl fi
 
 AC_MSG_NOTICE([Using flags ${CFLAGS} for C compiler ${CC}])
 AC_MSG_NOTICE([Using flags ${CXXFLAGS} for C++ compiler ${CXX}])
@@ -181,6 +181,6 @@ AC_SUBST([PACKAGE_VERSION])
 # libmaus2
 AC_SUBST([LIBMAUS2CPPFLAGS])
 AC_SUBST([LIBMAUS2LIBS])
-AC_SUBST([SLURM_HPC_daligner])
+dnl AC_SUBST([SLURM_HPC_daligner])
 # 
 AC_OUTPUT(Makefile src/Makefile)

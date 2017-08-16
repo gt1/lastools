@@ -282,7 +282,7 @@ int commandprime(libmaus2::util::ArgParser const & arg)
 				running = false;
 			}
 		}
-		
+
 		_exit(0);
 	}
 
