@@ -342,8 +342,9 @@ int commandstart(libmaus2::util::ArgParser const & arg)
 				ostr << "#!/bin/bash\n";
 				ostr << "#\n";
 				ostr << "#SBATCH --job-name=followup_" << CC.id << "\n";
-				ostr << "#SBATCH --output=/dev/null\n";
-				ostr << "#SBATCH --error=/dev/null\n";
+				// ostr << "#SBATCH --output=/dev/null\n";
+				ostr << "#SBATCH --output=followup_" << CC.id << ".out\n";
+				//ostr << "#SBATCH --error=/dev/null\n";
 				ostr << "#\n";
 				ostr << "#SBATCH --ntasks=1\n";
 				ostr << "#SBATCH --time=1440\n";
