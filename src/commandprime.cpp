@@ -258,19 +258,32 @@ int commandprime(libmaus2::util::ArgParser const & arg)
 
 		while ( running )
 		{
-			libmaus2::network::SocketBase::unique_ptr_type sockptr(ssocket->accept());
+			try
+			{
+				libmaus2::network::SocketBase::unique_ptr_type sockptr(ssocket->accept());
 
-			std::cerr << "in" << std::endl;
+				sockptr->writeString(data);
+				data = sockptr->readString();
 
-			sockptr->writeString(data);
-			data = sockptr->readString();
+				uint64_t const r = sockptr->readSingle<uint64_t>();
 
-			uint64_t const r = sockptr->readSingle<uint64_t>();
+				std::cerr << "out " << r << std::endl;
 
-			std::cerr << "out " << r << std::endl;
-
-			running = (r == 0);
+				running = (r == 0);
+			}
+			catch(std::exception const & ex)
+			{
+				std::cerr << ex.what() << std::endl;
+				running = false;
+			}
+			catch(...)
+			{
+				std::cerr << "caught inidentified exception" << std::endl;
+				running = false;
+			}
 		}
+		
+		_exit(0);
 	}
 
 	int const r = system(startcom.c_str());
