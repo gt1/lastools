@@ -232,6 +232,8 @@ int commandfollowup(libmaus2::util::ArgParser const & arg)
 	ISI.reset();
 
 	libmaus2::util::CommandContainer CCU = CC.check(true,&std::cerr);
+	
+	bool failed = false;
 
 	// any sub commands failed?
 	if ( CCU.V.size() )
@@ -245,6 +247,8 @@ int commandfollowup(libmaus2::util::ArgParser const & arg)
 		else
 		{
 			std::cerr << "[E] CommandContainer " << id << " failed " << CCU.attempt << " times, stopping" << std::endl;
+			
+			failed = true;
 		}
 	}
 	else
@@ -273,7 +277,7 @@ int commandfollowup(libmaus2::util::ArgParser const & arg)
 
 	bool const allfinished = numfinished == CDL.V.size();
 
-	CS.writeSingle<uint64_t>(allfinished);
+	CS.writeSingle<uint64_t>(allfinished || failed);
 
 	std::string const checknext = commandstart + " " + arg[1] /* host name */ + " " + arg[2] /* port */;
 	int const r = system(checknext.c_str());
