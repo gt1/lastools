@@ -1,0 +1,3 @@
+# comment
+daligner	thread	optional	T	1	0	4
+daligner	mem	mandatory	M	1000	1000
