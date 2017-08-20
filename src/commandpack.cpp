@@ -89,22 +89,43 @@ struct ContainerInfo
 	}
 };
 
+static uint64_t parseNumber(std::string const & s)
+{
+	std::istringstream istr(s);
+
+	uint64_t i;
+	istr >> i;
+
+	if ( !(istr && istr.peek() == std::istream::traits_type::eof()) )
+	{
+		libmaus2::exception::LibMausException lme;
+		lme.getStream() << "[E] cannot parse \"" << s << "\" as number" << std::endl;
+		lme.finish();
+		throw lme;
+	}
+
+	return i;
+}
 
 ContainerInfo handle(libmaus2::util::TempFileNameGenerator & tgen, std::vector<std::string> & lines, uint64_t const id, uint64_t const subid, uint64_t const cnid, std::vector<uint64_t> const & depid, uint64_t const numthreads)
 {
 	libmaus2::util::CommandContainer CN;
 	CN.id = cnid;
 	CN.depid = depid;
+	CN.attempt = 0;
 	CN.maxattempt = 2;
 
+	// remove empty lines
 	uint64_t o = 0;
 	for ( uint64_t i = 0; i < lines.size(); ++i )
 	{
 		std::string line = lines[i];
 
+		// remove leading spaces
 		while ( line.size() && isspace(line[0]) )
 			line = line.substr(1);
 
+		// keep non empty lines
 		if ( line.size() )
 			lines[o++] = line;
 	}
@@ -116,6 +137,10 @@ ContainerInfo handle(libmaus2::util::TempFileNameGenerator & tgen, std::vector<s
 	libmaus2::parallel::PosixSpinLock tfailedlock;
 	libmaus2::parallel::PosixSpinLock tgenlock;
 
+	uint64_t volatile gthreads = 1;
+	uint64_t volatile gmem = 1;
+	libmaus2::parallel::PosixSpinLock glock;
+
 	#if defined(_OPENMP)
 	#pragma omp parallel for schedule(dynamic,1) num_threads(numthreads)
 	#endif
@@ -125,27 +150,28 @@ ContainerInfo handle(libmaus2::util::TempFileNameGenerator & tgen, std::vector<s
 		{
 			std::string line = lines[i];
 
-			while ( line.size() && isspace(line[0]) )
-				line = line.substr(1);
+			std::deque < std::string > tokens = libmaus2::util::stringFunctions::tokenize(
+				line,std::string("\t")
+			);
 
-			if ( ! line.size() )
-				continue;
-
-			#if 0
-			uint64_t h = 0;
-			while ( h < line.size() && !isspace(line[h]) )
-				++h;
-
-			std::string const fcom = which(line.substr(0,h));
-
-			while ( h < line.size() && isspace(line[h]) )
-				++h;
-
-			line = fcom + " " + line.substr(h);
-			#endif
-
-			if ( line.size() )
+			if ( tokens.size() >= 3 )
 			{
+				uint64_t const lthreads = parseNumber(tokens[0]);
+				uint64_t const lmem = parseNumber(tokens[1]);
+
+				glock.lock();
+				gthreads = std::max(static_cast<uint64_t>(gthreads),lthreads);
+				gmem = std::max(static_cast<uint64_t>(gmem),lmem);
+				glock.unlock();
+
+				std::ostringstream comstr;
+				for ( uint64_t i = 2; i < tokens.size(); ++i )
+				{
+					comstr << tokens[i];
+					if ( i+1 < tokens.size() )
+						comstr.put('\t');
+				}
+
 				std::string const in = "/dev/null";
 
 				std::ostringstream ostr;
@@ -165,7 +191,7 @@ ContainerInfo handle(libmaus2::util::TempFileNameGenerator & tgen, std::vector<s
 				{
 					libmaus2::aio::OutputStreamInstance OSI(script);
 					OSI << "#! /bin/bash\n";
-					OSI << line << "\n";
+					OSI << comstr.str() << "\n";
 					OSI << "RT=$?\n";
 					OSI << "echo ${RT} >" << code << "\n";
 					OSI << "exit ${RT}\n";
@@ -207,6 +233,12 @@ ContainerInfo handle(libmaus2::util::TempFileNameGenerator & tgen, std::vector<s
 		lme.finish();
 		throw lme;
 	}
+
+	CN.threads = gthreads;
+	CN.mem = gmem;
+
+	std::cerr << "\t\t[V] threads=" << CN.threads << std::endl;
+	std::cerr << "\t\t[V] mem=" << CN.mem << std::endl;
 
 	std::ostringstream ostr;
 	ostr << tgen.getFileName() << "_" << id << "_" << subid;
