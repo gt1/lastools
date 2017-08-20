@@ -252,8 +252,8 @@ int commandstart(libmaus2::util::ArgParser const & arg)
 				ostr << "#\n";
 				ostr << "#SBATCH --ntasks=1\n";
 				ostr << "#SBATCH --time=1440\n";
-				ostr << "#SBATCH --mem=240000\n";
-				ostr << "#SBATCH --cpus-per-task=24\n";
+				ostr << "#SBATCH --mem=" << CC.mem << "\n";
+				ostr << "#SBATCH --cpus-per-task=" << CC.threads << "\n";
 
 				ostr << "\n";
 				ostr << "srun " << cocommand << " " << fn << "\n";
