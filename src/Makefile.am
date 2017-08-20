@@ -1,17 +1,21 @@
 ACLOCAL_AMFLAGS=-I m4
 
+AM_CPPFLAGS = -DDATA_PATH=\"$(datadir)\"
+
 noinst_HEADERS =
 
 MANPAGES = 
 
 man_MANS = ${MANPAGES}
 
-EXTRA_DIST = ${MANPAGES}
+data_DATA = derive.rc
+
+EXTRA_DIST = ${MANPAGES} derive.rc
 # EXTRA_PROGRAMS = 
 
 bin_PROGRAMS = lassort lasindex lastobam reformatfasta fasta2fastq lasroleswap bamtolas blasrtobam lascat lasmarkprimary call.damapper lasaligntotracepoints lasfilterquality \
 	laschainsort lasmerge lascomputetandem lasextracttandemrecompute tandemaligner lasdedup lassubsample lassuffixprefix cocommand lasreduce \
-	lasfilterlength paftolas commandpack commandstart commandfollowup commandprime SLURM.HPC.daligner
+	lasfilterlength paftolas commandpack commandstart commandfollowup commandprime SLURM.HPC.daligner commandderive
 dist_bin_SCRIPTS = swappedLasToBAM.sh
 
 lasindex_SOURCES = lasindex.cpp
@@ -163,3 +167,8 @@ commandprime_SOURCES = commandprime.cpp
 commandprime_LDADD = ${LIBMAUS2LIBS}
 commandprime_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
 commandprime_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
+
+commandderive_SOURCES = commandderive.cpp
+commandderive_LDADD = ${LIBMAUS2LIBS}
+commandderive_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
+commandderive_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
