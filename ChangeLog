@@ -1,3 +1,12 @@
+lastools (0.0.58-1) unstable; urgency=medium
+
+  * generate mem and thread fields in commandpack
+  * use mem and thread fields of CommandContainer in commandstart
+  * add commandderive program
+  * parallelise paftolas
+
+ -- German Tischler <tischler@mpi-cbg.de>  Sun, 20 Aug 2017 23:17:04 +0200
+
 lastools (0.0.57-1) unstable; urgency=medium
 
   * make SLURM.HPC.daligner produce batches only, not start them
