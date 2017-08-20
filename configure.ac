@@ -1,4 +1,4 @@
-AC_INIT(lastools,0.0.58,[tischler@mpi-cbg.de],[lastools],[http://www.mpi-cbg.de])
+AC_INIT(lastools,0.0.59,[tischler@mpi-cbg.de],[lastools],[http://www.mpi-cbg.de])
 AC_CANONICAL_SYSTEM
 AC_PROG_LIBTOOL
 
