@@ -224,7 +224,7 @@ std::map < std::string, std::vector<ConfigEntry> > loadConfig(libmaus2::util::Ar
 					int64_t defaultvalue = -1;
 					if ( 6 < tokens.size() )
 					{
-						defaultvalue = atol(tokens[4].c_str());
+						defaultvalue = atol(tokens[6].c_str());
 					}
 
 					ConfigEntry CE(mandatory,tokens[3],type,defaultvalue,multiplier,add);
