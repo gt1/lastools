@@ -247,6 +247,7 @@ int commandfollowup(libmaus2::util::ArgParser const & arg)
 		else
 		{
 			std::cerr << "[E] CommandContainer " << id << " failed " << CCU.attempt << " times, stopping" << std::endl;
+			std::cerr << CCU << std::endl;
 
 			failed = true;
 		}
