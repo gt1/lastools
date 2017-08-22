@@ -210,6 +210,105 @@ std::string runProgram(std::vector<std::string> const & args, libmaus2::util::Ar
 	return res;
 }
 
+static int64_t startSLURMJob(std::map<std::string,std::string> const & params, std::string const & command, std::string const & jobfn, libmaus2::util::ArgParser const & arg)
+{
+	std::ostringstream ostr;
+	ostr << "#!/bin/bash\n";
+	ostr << "\n";
+
+	for ( std::map<std::string,std::string>::const_iterator it = params.begin(); it != params.end(); ++it )
+		ostr << "#SBATCH --" << it->first << "=" << it->second << "\n";
+
+	ostr << "srun " << command << "\n";
+
+	{
+		libmaus2::aio::OutputStreamInstance OSI(jobfn);
+		OSI << ostr.str();
+	}
+
+	std::vector<std::string> sbatchargs;
+	sbatchargs.push_back("sbatch");
+	sbatchargs.push_back(jobfn);
+	std::string out;
+	bool outok = false;
+
+	for ( uint64_t qq = 0; (!outok) && (qq < 100); ++qq )
+	{
+		try
+		{
+			std::cerr << "calling " << sbatchargs[0] << " " << sbatchargs[1] << " try " << qq << std::endl;
+			out = runProgram(sbatchargs,arg);
+			outok = true;
+		}
+		catch(std::exception const & ex)
+		{
+			std::cerr << ex.what() << std::endl;
+		}
+	}
+
+	int64_t nnjobid = -1;
+
+	if ( outok )
+	{
+		std::istringstream sistr(out);
+		while ( sistr )
+		{
+			std::string line;
+			std::getline(sistr,line);
+
+			if (
+				sistr
+				&&
+				line.find("Submitted") == 0
+			)
+			{
+				std::deque<std::string> Vtokens = libmaus2::util::stringFunctions::tokenize(line,std::string(" "));
+				if ( Vtokens.size() )
+				{
+					std::istringstream uistr(Vtokens.back());
+					uint64_t jobid;
+					uistr >> jobid;
+					nnjobid = jobid;
+
+					std::cerr << "[V] submitted job " << jobid << " for " << sbatchargs[1] << "\n";
+				}
+			}
+		}
+
+		if ( nnjobid < 0 )
+		{
+			libmaus2::exception::LibMausException lme;
+			lme.getStream() << "[E] failed to run " << sbatchargs[1] << " (job id not found)" << "\n";
+			lme.finish();
+			throw lme;
+		}
+	}
+	else
+	{
+		libmaus2::exception::LibMausException lme;
+		lme.getStream() << "[E] failed to run " << sbatchargs[1] << " (job id not found)" << "\n";
+		lme.finish();
+		throw lme;
+	}
+
+	libmaus2::aio::FileRemoval::removeFile(jobfn);
+
+	return nnjobid;
+}
+
+static int64_t startSLURMJob(
+	std::pair<std::string,std::string> const * a,
+	std::pair<std::string,std::string> const * e,
+	std::string const & command,
+	std::string const & jobfn,
+	libmaus2::util::ArgParser const & arg
+)
+{
+	std::map<std::string,std::string> M;
+	for ( std::pair<std::string,std::string> const * c = a; c != e; ++c )
+		M[c->first] = c->second;
+	return startSLURMJob(M,command,jobfn,arg);
+}
 
 int commandstart(libmaus2::util::ArgParser const & arg)
 {
@@ -231,7 +330,6 @@ int commandstart(libmaus2::util::ArgParser const & arg)
 
 		libmaus2::util::ContainerDescriptionList CDL(PIS);
 
-
 		for ( uint64_t i = 0; i < CDL.V.size(); ++i )
 			if ( !CDL.V[i].started && !CDL.V[i].missingdep )
 			{
@@ -252,98 +350,25 @@ int commandstart(libmaus2::util::ArgParser const & arg)
 	std::string const jobfn = tmpprefix + "_job.sbatch";
 	libmaus2::util::TempFileRemovalContainer::addTempFile(jobfn);
 
+	typedef std::string st;
+	typedef std::pair<st,st> sp;
+
 	if ( commandrestart >= 0 )
 	{
-		int64_t nnjobid = -1;
-		{
-			std::ostringstream ostr;
-			ostr << "#!/bin/bash\n";
-			ostr << "#\n";
-			ostr << "#SBATCH --job-name=commandstart_restart_" << commandrestart << "\n";
-			ostr << "#SBATCH --output=command_restart" << commandrestart << ".out\n";
-			//ostr << "#SBATCH --error=/dev/null\n";
-			ostr << "#\n";
-			ostr << "#SBATCH --ntasks=1\n";
-			ostr << "#SBATCH --time=1440\n";
-			ostr << "#SBATCH --mem=4000\n";
-			ostr << "#SBATCH --cpus-per-task=1\n";
+		sp const args[] = {
+			sp("job-name",st("commandstart_restart_") + libmaus2::util::NumberSerialisation::formatNumber(commandrestart,0)),
+			sp("output",st("commandstart_restart_") + libmaus2::util::NumberSerialisation::formatNumber(commandrestart,0) + ".out"),
+			sp("ntasks",libmaus2::util::NumberSerialisation::formatNumber(1,0)),
+			sp("time",libmaus2::util::NumberSerialisation::formatNumber(1440,0)),
+			sp("mem",libmaus2::util::NumberSerialisation::formatNumber(4000,0)),
+			sp("cpus-per-task",libmaus2::util::NumberSerialisation::formatNumber(1,0)),
+		};
+		uint64_t const nargs = sizeof(args)/sizeof(args[0]);
 
-			ostr << "\n";
-			ostr << "srun " << commandstart << " " << hostname << " " << port << "\n";
+		std::ostringstream commandstr;
+		commandstr << commandstart << " " << hostname << " " << port;
 
-			std::cerr << ostr.str();
-
-			{
-				libmaus2::aio::OutputStreamInstance OSI(jobfn);
-				OSI << ostr.str();
-			}
-
-			std::vector<std::string> sbatchargs;
-			sbatchargs.push_back("sbatch");
-			sbatchargs.push_back(jobfn);
-			std::string out;
-			bool outok = false;
-
-			for ( uint64_t qq = 0; (!outok) && (qq < 100); ++qq )
-			{
-				try
-				{
-					std::cerr << "calling " << sbatchargs[0] << " " << sbatchargs[1] << " try " << qq << std::endl;
-					out = runProgram(sbatchargs,arg);
-					outok = true;
-				}
-				catch(std::exception const & ex)
-				{
-					std::cerr << ex.what() << std::endl;
-				}
-			}
-
-			if ( outok )
-			{
-				std::istringstream sistr(out);
-				while ( sistr )
-				{
-					std::string line;
-					std::getline(sistr,line);
-
-					if (
-						sistr
-						&&
-						line.find("Submitted") == 0
-					)
-					{
-						std::deque<std::string> Vtokens = libmaus2::util::stringFunctions::tokenize(line,std::string(" "));
-						if ( Vtokens.size() )
-						{
-							std::istringstream uistr(Vtokens.back());
-							uint64_t jobid;
-							uistr >> jobid;
-							nnjobid = jobid;
-
-							std::cerr << "[V] submitted follow up job " << jobid << " for " << sbatchargs[1] << "\n";
-						}
-					}
-				}
-
-				if ( nnjobid < 0 )
-				{
-					libmaus2::exception::LibMausException lme;
-					lme.getStream() << "[E] failed to run " << sbatchargs[1] << " (job id not found)" << "\n";
-					lme.finish();
-					throw lme;
-				}
-			}
-			else
-			{
-				libmaus2::exception::LibMausException lme;
-				lme.getStream() << "[E] failed to run " << sbatchargs[1] << " (job id not found)" << "\n";
-				lme.finish();
-				throw lme;
-			}
-
-			libmaus2::aio::FileRemoval::removeFile(jobfn);
-		}
-
+		startSLURMJob(&args[0],&args[nargs],commandstr.str(),jobfn,arg);
 	}
 
 	for ( std::map<uint64_t,std::string>::const_iterator it = startset.begin(); it != startset.end(); ++it )
@@ -352,190 +377,50 @@ int commandstart(libmaus2::util::ArgParser const & arg)
 		std::string const fn = it->second;
 		libmaus2::aio::InputStreamInstance CCISI(fn);
 		libmaus2::util::CommandContainer CC(CCISI);
-		std::cerr << "could start " << i << " " << fn << std::endl;
+		std::cerr << "[V] could start " << i << " " << fn << std::endl;
 
 		int64_t njobid = -1;
 
 		{
-			std::ostringstream ostr;
-			ostr << "#!/bin/bash\n";
-			ostr << "#\n";
-			ostr << "#SBATCH --job-name=command_" << CC.id << "\n";
-			ostr << "#SBATCH --output=command_" << '%' << "A_" << '%' << "a.out\n";
-			// ostr << "#SBATCH --error=/dev/null\n";
-			ostr << "#SBATCH --array=0-" << CC.V.size()-1 << "\n";
-			ostr << "#\n";
-			ostr << "#SBATCH --ntasks=1\n";
-			ostr << "#SBATCH --time=1440\n";
-			ostr << "#SBATCH --mem=" << CC.mem << "\n";
-			ostr << "#SBATCH --cpus-per-task=" << CC.threads << "\n";
+			std::ostringstream outputstr;
+			outputstr << "command_" << '%' << "A_" << '%' << "a.out";
+			std::ostringstream arraystr;
+			arraystr << 0 << "-" << CC.V.size()-1;
 
-			ostr << "\n";
-			ostr << "srun " << cocommand << " " << fn << "\n";
+			sp const args[] = {
+				sp("job-name",st("command") + libmaus2::util::NumberSerialisation::formatNumber(CC.id,0)),
+				sp("output",outputstr.str()),
+				sp("array",arraystr.str()),
+				sp("ntasks",libmaus2::util::NumberSerialisation::formatNumber(1,0)),
+				sp("time",libmaus2::util::NumberSerialisation::formatNumber(1440,0)),
+				sp("mem",libmaus2::util::NumberSerialisation::formatNumber(CC.mem,0)),
+				sp("cpus-per-task",libmaus2::util::NumberSerialisation::formatNumber(CC.threads,0)),
+			};
+			uint64_t const nargs = sizeof(args)/sizeof(args[0]);
 
-			std::cerr << ostr.str();
+			std::ostringstream commandstr;
+			commandstr << cocommand << " " << fn;
 
-			{
-				libmaus2::aio::OutputStreamInstance OSI(jobfn);
-				OSI << ostr.str();
-			}
-
-			std::vector<std::string> sbatchargs;
-			sbatchargs.push_back("sbatch");
-			sbatchargs.push_back(jobfn);
-			std::string out;
-			bool outok = false;
-
-			for ( uint64_t qq = 0; (!outok) && (qq < 100); ++qq )
-			{
-				try
-				{
-					std::cerr << "calling " << sbatchargs[0] << " " << sbatchargs[1] << " try " << qq << std::endl;
-					out = runProgram(sbatchargs,arg);
-					outok = true;
-				}
-				catch(std::exception const & ex)
-				{
-					std::cerr << ex.what() << std::endl;
-				}
-			}
-
-			if ( outok )
-			{
-				std::istringstream sistr(out);
-				while ( sistr )
-				{
-					std::string line;
-					std::getline(sistr,line);
-
-					if (
-						sistr
-						&&
-						line.find("Submitted") == 0
-					)
-					{
-						std::deque<std::string> Vtokens = libmaus2::util::stringFunctions::tokenize(line,std::string(" "));
-						if ( Vtokens.size() )
-						{
-							std::istringstream uistr(Vtokens.back());
-							uint64_t jobid;
-							uistr >> jobid;
-							njobid = jobid;
-
-							std::cerr << "[V] submitted job " << jobid << " for " << sbatchargs[1] << "\n";
-						}
-					}
-				}
-
-				if ( njobid < 0 )
-				{
-					libmaus2::exception::LibMausException lme;
-					lme.getStream() << "[E] failed to run " << sbatchargs[1] << " (job id not found)" << "\n";
-					lme.finish();
-					throw lme;
-				}
-			}
-			else
-			{
-				libmaus2::exception::LibMausException lme;
-				lme.getStream() << "[E] failed to run " << sbatchargs[1] << " (job id not found)" << "\n";
-				lme.finish();
-				throw lme;
-			}
-
-			libmaus2::aio::FileRemoval::removeFile(jobfn);
+			njobid = startSLURMJob(&args[0],&args[nargs],commandstr.str(),jobfn,arg);
 		}
 
-		int64_t nnjobid = -1;
 		{
-			std::ostringstream ostr;
-			ostr << "#!/bin/bash\n";
-			ostr << "#\n";
-			ostr << "#SBATCH --job-name=followup_" << CC.id << "\n";
-			// ostr << "#SBATCH --output=/dev/null\n";
-			ostr << "#SBATCH --output=followup_" << CC.id << ".out\n";
-			//ostr << "#SBATCH --error=/dev/null\n";
-			ostr << "#\n";
-			ostr << "#SBATCH --ntasks=1\n";
-			ostr << "#SBATCH --time=1440\n";
-			ostr << "#SBATCH --mem=4000\n";
-			ostr << "#SBATCH --cpus-per-task=1\n";
-			ostr << "#SBATCH --dependency=afterany:" << njobid << "\n";
+			sp const args[] = {
+				sp("job-name",st("followup_") + libmaus2::util::NumberSerialisation::formatNumber(CC.id,0)),
+				sp("output",st("followup_") + libmaus2::util::NumberSerialisation::formatNumber(CC.id,0) + ".out"),
+				sp("ntasks",libmaus2::util::NumberSerialisation::formatNumber(1,0)),
+				sp("time",libmaus2::util::NumberSerialisation::formatNumber(1440,0)),
+				sp("mem",libmaus2::util::NumberSerialisation::formatNumber(4000,0)),
+				sp("cpus-per-task",libmaus2::util::NumberSerialisation::formatNumber(1,0)),
+				sp("dependency",st("afterany:") + libmaus2::util::NumberSerialisation::formatNumber(njobid,0))
+			};
+			uint64_t const nargs = sizeof(args)/sizeof(args[0]);
 
-			ostr << "\n";
-			ostr << "srun " << commandfollowup << " " << i << " " << hostname << " " << port << "\n";
+			std::ostringstream commandstr;
+			commandstr << commandfollowup << " " << i << " " << hostname << " " << port << " " << njobid << " " << CC.V.size();
 
-			std::cerr << ostr.str();
-
-			{
-				libmaus2::aio::OutputStreamInstance OSI(jobfn);
-				OSI << ostr.str();
-			}
-
-			std::vector<std::string> sbatchargs;
-			sbatchargs.push_back("sbatch");
-			sbatchargs.push_back(jobfn);
-			std::string out;
-			bool outok = false;
-
-			for ( uint64_t qq = 0; (!outok) && (qq < 100); ++qq )
-			{
-				try
-				{
-					std::cerr << "calling " << sbatchargs[0] << " " << sbatchargs[1] << " try " << qq << std::endl;
-					out = runProgram(sbatchargs,arg);
-					outok = true;
-				}
-				catch(std::exception const & ex)
-				{
-					std::cerr << ex.what() << std::endl;
-				}
-			}
-
-			if ( outok )
-			{
-				std::istringstream sistr(out);
-				while ( sistr )
-				{
-					std::string line;
-					std::getline(sistr,line);
-
-					if (
-						sistr
-						&&
-						line.find("Submitted") == 0
-					)
-					{
-						std::deque<std::string> Vtokens = libmaus2::util::stringFunctions::tokenize(line,std::string(" "));
-						if ( Vtokens.size() )
-						{
-							std::istringstream uistr(Vtokens.back());
-							uint64_t jobid;
-							uistr >> jobid;
-							nnjobid = jobid;
-
-							std::cerr << "[V] submitted follow up job " << jobid << " for " << sbatchargs[1] << "\n";
-						}
-					}
-				}
-
-				if ( nnjobid < 0 )
-				{
-					libmaus2::exception::LibMausException lme;
-					lme.getStream() << "[E] failed to run " << sbatchargs[1] << " (job id not found)" << "\n";
-					lme.finish();
-					throw lme;
-				}
-			}
-			else
-			{
-				libmaus2::exception::LibMausException lme;
-				lme.getStream() << "[E] failed to run " << sbatchargs[1] << " (job id not found)" << "\n";
-				lme.finish();
-				throw lme;
-			}
-
-			libmaus2::aio::FileRemoval::removeFile(jobfn);
+			// submit followup job
+			startSLURMJob(&args[0],&args[nargs],commandstr.str(),jobfn,arg);
 		}
 
 	}
