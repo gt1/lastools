@@ -23,7 +23,7 @@
 #include <libmaus2/util/TempFileNameGenerator.hpp>
 #include <libmaus2/aio/OutputStreamInstance.hpp>
 #include <libmaus2/util/ContainerDescriptionList.hpp>
-#include <libmaus2/aio/PosixFdInputOutputStream.hpp>
+#include <libmaus2/aio/OutputStreamFactoryContainer.hpp>
 #include <libmaus2/util/WriteableString.hpp>
 #include <libmaus2/network/Socket.hpp>
 #include <sys/wait.h>
@@ -268,6 +268,33 @@ int commandprime(libmaus2::util::ArgParser const & arg)
 				uint64_t const r = sockptr->readSingle<uint64_t>();
 
 				std::cerr << "out " << r << std::endl;
+
+				{
+					std::string const outtmp = fn + ".tmp";
+					libmaus2::aio::OutputStreamInstance::unique_ptr_type pOSI(
+						new libmaus2::aio::OutputStreamInstance(outtmp)
+					);
+					pOSI->write(data.c_str(),data.size());
+					if ( ! *pOSI )
+					{
+						libmaus2::exception::LibMausException lme;
+						lme.getStream() << "[E] failed to write back data to " << outtmp << std::endl;
+						lme.finish();
+						throw lme;
+					}
+					pOSI->flush();
+					if ( ! *pOSI )
+					{
+						libmaus2::exception::LibMausException lme;
+						lme.getStream() << "[E] failed to flush " << outtmp << std::endl;
+						lme.finish();
+						throw lme;
+					}
+					pOSI.reset();
+					libmaus2::aio::OutputStreamFactoryContainer::rename(outtmp,fn);
+
+					std::cerr << "[V] wrote data back to " << fn << " using " << outtmp << std::endl;
+				}
 
 				running = (r == 0);
 			}
