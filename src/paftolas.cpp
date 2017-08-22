@@ -136,6 +136,22 @@ struct Meta
 	}
 };
 
+static std::pair<char const *, char const *> arc(char const * c_ab, char const * c_ae, libmaus2::autoarray::AutoArray<char> & R)
+{
+	uint64_t const n = c_ae - c_ab;
+
+	R.ensureSize(n);
+
+	char * r = R.begin() + n;
+
+	for ( char const * c_c = c_ab; c_c != c_ae; ++c_c )
+		*(--r) = libmaus2::fastx::invertUnmapped(*c_c);
+
+	assert ( r == R.begin() );
+
+	return std::pair<char const *,char const *>(R.begin(), R.begin() + n);
+}
+
 int paftolas(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo const & arginfo)
 {
 	libmaus2::util::LineBuffer LB(std::cin);
@@ -238,7 +254,7 @@ int paftolas(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo cons
 	rtc.start();
 
 	libmaus2::autoarray::AutoArray < libmaus2::autoarray::AutoArray < std::pair<char const *, char const *> > > A_AP(numthreads);
-	libmaus2::autoarray::AutoArray < libmaus2::autoarray::AutoArray < char > > A_C;
+	libmaus2::autoarray::AutoArray < libmaus2::autoarray::AutoArray < char > > A_C(numthreads);
 	libmaus2::autoarray::AutoArray < libmaus2::lcs::NNPCor::unique_ptr_type > A_nnpcor(numthreads);
 	for ( uint64_t i = 0; i < numthreads; ++i )
 	{
@@ -246,6 +262,9 @@ int paftolas(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo cons
 		A_nnpcor[i] = UNIQUE_PTR_MOVE(tptr);
 	}
 	libmaus2::autoarray::AutoArray < libmaus2::lcs::NNPTraceContainer > A_nnptrace(numthreads);
+
+	libmaus2::autoarray::AutoArray < libmaus2::autoarray::AutoArray < char > > A_RC(numthreads);
+	libmaus2::autoarray::AutoArray < libmaus2::autoarray::AutoArray < char > > B_RC(numthreads);
 
 	while ( running )
 	{
@@ -395,10 +414,26 @@ int paftolas(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo cons
 
 							bool const rc = (AP[4].first[0] == '-');
 
-							std::string const a(D.begin() + MA.od, D.begin() + MA.od + MA.size);
-							std::string const b(D.begin() + MB.od, D.begin() + MB.od + MB.size);
-							std::string const an = rc ? libmaus2::fastx::reverseComplementUnmapped(a) : a;
-							std::string const bn = rc ? libmaus2::fastx::reverseComplementUnmapped(b) : b;
+							char const * c_ab = D.begin() + MA.od;
+							char const * c_ae = c_ab + MA.size;
+
+							char const * c_bb = D.begin() + MB.od;
+							char const * c_be = c_bb + MB.size;
+
+							char const * c_n_ab;
+							char const * c_n_ae;
+
+							if ( rc )
+							{
+								std::pair<char const *, char const *> const AP = arc(c_ab,c_ae,A_RC[tid]);
+								c_n_ab = AP.first;
+								c_n_ae = AP.second;
+							}
+							else
+							{
+								c_n_ab = c_ab;
+								c_n_ae = c_ae;
+							}
 
 							libmaus2::lcs::AlignmentTraceContainer ATC;
 							int64_t abpos;
@@ -412,12 +447,10 @@ int paftolas(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo cons
 								libmaus2::lcs::NNPTraceContainer & nnptrace = A_nnptrace[tid];
 
 								libmaus2::lcs::NNPAlignResult res = nnpcor.align(
-									an.begin(),an.end(),rc ? (MA.size - aend) : astart,
-									b.begin(),b.end(),bstart,
+									c_n_ab,c_n_ae,rc ? (MA.size - aend) : astart,
+									c_bb,c_be,bstart,
 									nnptrace
 								);
-
-								// std::cerr << res << std::endl;
 
 								abpos = res.abpos;
 								aepos = res.aepos;
@@ -433,8 +466,8 @@ int paftolas(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo cons
 								bbpos = bstart;
 								bepos = bend;
 
-								std::string::const_iterator ita = an.begin() + abpos;
-								std::string::const_iterator itb = b.begin()  + bbpos;
+								char const * ita = c_n_ab + abpos; // ita = an.begin() + abpos;
+								char const * itb = c_bb +   bbpos; // itb = b.begin()  + bbpos;
 
 								char const * cigptr = AP[cigid].first + cigprefixlen;
 								uint64_t const ciglen = AP[cigid].second - cigptr;
@@ -531,8 +564,8 @@ int paftolas(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo cons
 								std::cerr << (itb -  b.begin()+bbpos) << " " << bepos-bbpos << std::endl;
 								#endif
 
-								assert ( ita == an.begin() + aepos );
-								assert ( itb == b.begin()  + bepos );
+								assert ( ita == c_n_ab + aepos );
+								assert ( itb == c_bb   + bepos );
 
 								ATC.reverse();
 
