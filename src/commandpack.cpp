@@ -442,13 +442,19 @@ int commandpack(libmaus2::util::ArgParser const & arg)
 			containers [ depid[j] ] . CN . rdepid.push_back(i);
 	}
 
+	std::string const logfn = tgen.getFileName();
+
+	std::cerr << "[V] writing container descriptions to " << logfn << std::endl;
+
+	libmaus2::aio::OutputStreamInstance logOSI(logfn);
 	for ( uint64_t i = 0; i < containers.size(); ++i )
 	{
-		std::cerr << containers[i].CN << std::endl;
+		logOSI << containers[i].CN << "\n";
 		libmaus2::aio::OutputStreamInstance OSI(containers[i].fn);
 		containers[i].CN.serialise(OSI);
 		OSI.flush();
 	}
+	logOSI.flush();
 
 	libmaus2::util::ContainerDescriptionList CDL;
 	for ( uint64_t i = 0; i < containers.size(); ++i )
