@@ -222,6 +222,7 @@ int commandstart(libmaus2::util::ArgParser const & arg)
 
 	std::map<uint64_t,std::string> startset;
 
+	int64_t commandrestart = -1;
 	{
 		libmaus2::network::ClientSocket CS(port,hostname.c_str());
 
@@ -236,6 +237,8 @@ int commandstart(libmaus2::util::ArgParser const & arg)
 			{
 				startset[i] = CDL.V[i].fn;
 				CDL.V[i].started = true;
+				commandrestart = i;
+				break;
 			}
 
 		std::ostringstream OPIS;
@@ -248,6 +251,100 @@ int commandstart(libmaus2::util::ArgParser const & arg)
 	std::string const tmpprefix = std::string("/tmp/") + libmaus2::util::ArgInfo::getDefaultTmpFileName(arg.progname);
 	std::string const jobfn = tmpprefix + "_job.sbatch";
 	libmaus2::util::TempFileRemovalContainer::addTempFile(jobfn);
+
+	if ( commandrestart >= 0 )
+	{
+		int64_t nnjobid = -1;
+		{
+			std::ostringstream ostr;
+			ostr << "#!/bin/bash\n";
+			ostr << "#\n";
+			ostr << "#SBATCH --job-name=commandstart_restart_" << commandrestart << "\n";
+			ostr << "#SBATCH --output=command_restart" << commandrestart << ".out\n";
+			//ostr << "#SBATCH --error=/dev/null\n";
+			ostr << "#\n";
+			ostr << "#SBATCH --ntasks=1\n";
+			ostr << "#SBATCH --time=1440\n";
+			ostr << "#SBATCH --mem=4000\n";
+			ostr << "#SBATCH --cpus-per-task=1\n";
+
+			ostr << "\n";
+			ostr << "srun " << commandstart << " " << hostname << " " << port << "\n";
+
+			std::cerr << ostr.str();
+
+			{
+				libmaus2::aio::OutputStreamInstance OSI(jobfn);
+				OSI << ostr.str();
+			}
+
+			std::vector<std::string> sbatchargs;
+			sbatchargs.push_back("sbatch");
+			sbatchargs.push_back(jobfn);
+			std::string out;
+			bool outok = false;
+
+			for ( uint64_t qq = 0; (!outok) && (qq < 100); ++qq )
+			{
+				try
+				{
+					std::cerr << "calling " << sbatchargs[0] << " " << sbatchargs[1] << " try " << qq << std::endl;
+					out = runProgram(sbatchargs,arg);
+					outok = true;
+				}
+				catch(std::exception const & ex)
+				{
+					std::cerr << ex.what() << std::endl;
+				}
+			}
+
+			if ( outok )
+			{
+				std::istringstream sistr(out);
+				while ( sistr )
+				{
+					std::string line;
+					std::getline(sistr,line);
+
+					if (
+						sistr
+						&&
+						line.find("Submitted") == 0
+					)
+					{
+						std::deque<std::string> Vtokens = libmaus2::util::stringFunctions::tokenize(line,std::string(" "));
+						if ( Vtokens.size() )
+						{
+							std::istringstream uistr(Vtokens.back());
+							uint64_t jobid;
+							uistr >> jobid;
+							nnjobid = jobid;
+
+							std::cerr << "[V] submitted follow up job " << jobid << " for " << sbatchargs[1] << "\n";
+						}
+					}
+				}
+
+				if ( nnjobid < 0 )
+				{
+					libmaus2::exception::LibMausException lme;
+					lme.getStream() << "[E] failed to run " << sbatchargs[1] << " (job id not found)" << "\n";
+					lme.finish();
+					throw lme;
+				}
+			}
+			else
+			{
+				libmaus2::exception::LibMausException lme;
+				lme.getStream() << "[E] failed to run " << sbatchargs[1] << " (job id not found)" << "\n";
+				lme.finish();
+				throw lme;
+			}
+
+			libmaus2::aio::FileRemoval::removeFile(jobfn);
+		}
+
+	}
 
 	for ( std::map<uint64_t,std::string>::const_iterator it = startset.begin(); it != startset.end(); ++it )
 	{
@@ -264,8 +361,8 @@ int commandstart(libmaus2::util::ArgParser const & arg)
 			ostr << "#!/bin/bash\n";
 			ostr << "#\n";
 			ostr << "#SBATCH --job-name=command_" << CC.id << "\n";
-			ostr << "#SBATCH --output=/dev/null\n";
-			ostr << "#SBATCH --error=/dev/null\n";
+			ostr << "#SBATCH --output=command_" << '%' << "A_" << '%' << "a.out\n";
+			// ostr << "#SBATCH --error=/dev/null\n";
 			ostr << "#SBATCH --array=0-" << CC.V.size()-1 << "\n";
 			ostr << "#\n";
 			ostr << "#SBATCH --ntasks=1\n";
