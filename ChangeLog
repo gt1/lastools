@@ -1,3 +1,10 @@
+lastools (0.0.64-1) unstable; urgency=medium
+
+  * remove job logs after successful job execution in commandfollowup
+  * print details of failed CommandContainer in commandfollowup
+
+ -- German Tischler <tischler@mpi-cbg.de>  Tue, 22 Aug 2017 19:13:06 +0200
+
 lastools (0.0.63-1) unstable; urgency=medium
 
   * start jobs one at a time in commandstart, then reschedule
