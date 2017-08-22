@@ -219,6 +219,8 @@ int commandfollowup(libmaus2::util::ArgParser const & arg)
 	std::string commandstart = which("commandstart");
 	std::string const hostname = arg[1];
 	uint64_t const port = arg.getParsedRestArg<uint64_t>(2);
+	uint64_t const depjobid = arg.getParsedRestArg<uint64_t>(3);
+	uint64_t const depjobnum = arg.getParsedRestArg<uint64_t>(4);
 
 	libmaus2::network::ClientSocket CS(port,hostname.c_str());
 
@@ -263,6 +265,14 @@ int commandfollowup(libmaus2::util::ArgParser const & arg)
 			uint64_t const rid = CC.rdepid[i];
 			CDL.V[rid].missingdep -= 1;
 			std::cerr << "[V] reduced missingdep for id " << rid << " to " << CDL.V[rid].missingdep << std::endl;
+		}
+
+		for ( uint64_t i = 0; i < depjobnum; ++i )
+		{
+			std::ostringstream logfnostr;
+			logfnostr << "command_" << depjobid << "_" << i << ".out";
+			std::string const logfn = logfnostr.str();
+			libmaus2::aio::FileRemoval::removeFile(logfn);
 		}
 	}
 
