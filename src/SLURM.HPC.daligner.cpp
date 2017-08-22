@@ -552,6 +552,11 @@ int main(int argc, char * argv[])
 		repargs1.push_back("-mtan");
 		{
 			std::ostringstream ostr;
+			ostr << "-M" << mem;
+			repargs1.push_back(ostr.str());
+		}
+		{
+			std::ostringstream ostr;
 			ostr << "-T" << numthreads;
 			repargs1.push_back(ostr.str());
 		}
@@ -634,6 +639,11 @@ int main(int argc, char * argv[])
 			ostr << "-T" << numthreads;
 			repargs10.push_back(ostr.str());
 		}
+		{
+			std::ostringstream ostr;
+			ostr << "-M" << mem;
+			repargs10.push_back(ostr.str());
+		}
 		repargs10.push_back("-g10");
 		{
 			std::ostringstream ostr;
@@ -714,6 +724,11 @@ int main(int argc, char * argv[])
 			std::ostringstream ostr;
 			ostr << "-T" << numthreads;
 			repargs10.push_back(ostr.str());
+			repargs100.push_back(ostr.str());
+		}
+		{
+			std::ostringstream ostr;
+			ostr << "-M" << mem;
 			repargs100.push_back(ostr.str());
 		}
 		repargs100.push_back("-g100");
