@@ -38,7 +38,7 @@ std::string getUsage(libmaus2::util::ArgParser const & arg)
 {
 	std::ostringstream ostr;
 
-	ostr << "usage: " << arg.progname << " out.las in.fasta <in.paf" << std::endl;
+	ostr << "usage: " << arg.progname << " out.las query.fasta [target.fasta] <in.paf" << std::endl;
 	ostr << "\n";
 	ostr << "parameters:\n";
 	#if 0
@@ -152,27 +152,21 @@ static std::pair<char const *, char const *> arc(char const * c_ab, char const *
 	return std::pair<char const *,char const *>(R.begin(), R.begin() + n);
 }
 
-int paftolas(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo const & arginfo)
+struct Index
 {
-	libmaus2::util::LineBuffer LB(std::cin);
+	typedef Index this_type;
+	typedef libmaus2::util::unique_ptr<this_type>::type unique_ptr_type;
 
-	//int64_t const tspace = 100;
-	uint64_t const numthreads = arg.uniqueArgPresent("t") ? arg.getUnsignedNumericArg<uint64_t>("t") : libmaus2::parallel::NumCpus::getNumLogicalProcessors();
-	uint64_t const tspace = arg.uniqueArgPresent("tspace") ? arg.getUnsignedNumericArg<uint64_t>("tspace") : libmaus2::dazzler::align::AlignmentFile::getMinimumNonSmallTspace();
-	std::cerr << "[V] using tspace " << tspace << std::endl;
-	bool const small = libmaus2::dazzler::align::AlignmentFile::tspaceToSmall(tspace);
-	std::string const tmpfilebase = arg.uniqueArgPresent("T") ? arg["T"] : arginfo.getDefaultTmpFileName();
-
-	std::string const outfn = arg[0];
-	std::string const infasta = arg[1];
-
-	std::ostringstream namestr;
 	libmaus2::autoarray::AutoArray<char> D;
-	uint64_t od = 0;
-	uint64_t numreads = 0;
+	uint64_t numreads;
+	libmaus2::lf::ImpCompactHuffmanWaveletLF::unique_ptr_type PLF;
+	libmaus2::fm::FM<libmaus2::lf::ImpCompactHuffmanWaveletLF>::unique_ptr_type PFM;
 
-	std::cerr << "[V] loading reads...";
+	Index(std::string const & infasta) : D(), numreads(0)
 	{
+		std::ostringstream namestr;
+		uint64_t od = 0;
+
 		libmaus2::fastx::FastAReader FA(infasta);
 		libmaus2::fastx::FastAReader::pattern_type pattern;
 
@@ -196,49 +190,79 @@ int paftolas(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo cons
 			);
 
 			od += pattern.spattern.size();
-
-			// std::cerr << pattern.getShortStringId() << std::endl;
 		}
+
+		std::string const namedata = namestr.str();
+		libmaus2::aio::ArrayFile<std::string::const_iterator> AF(namedata.begin(),namedata.end());
+
+		uint64_t const numbwtthreads = 1; //libmaus2::suffixsort::bwtb3m::BwtMergeSortOptions::getDefaultNumThreads();
+		// uint64_t const numthreads = 1; // libmaus2::suffixsort::bwtb3m::BwtMergeSortOptions::getDefaultNumThreads();
+		libmaus2::suffixsort::bwtb3m::BwtMergeSortOptions options(
+			AF.getURL(),
+			1*1024ull*1024ull*1024ull, /* memory 16GB */
+			numbwtthreads,
+			"bytestream",
+			false /* bwtonly */,
+			std::string("mem:tmp_"),
+			std::string(), // sparse
+			std::string("mem:file.bwt"),
+			32 /* isa */,
+			32 /* sa */
+		);
+		options.verbose = 0;
+
+		// construct BWT, SA and ISA
+		std::ostringstream bwtostr;
+		libmaus2::suffixsort::bwtb3m::BwtMergeSortResult res = libmaus2::suffixsort::bwtb3m::BwtMergeSort::computeBwt(options,&bwtostr);
+
+		// load LF object
+		libmaus2::lf::ImpCompactHuffmanWaveletLF::unique_ptr_type TLF = res.loadLF("mem://tmp_",numbwtthreads);
+		PLF = UNIQUE_PTR_MOVE(TLF);
+		// uint64_t const n = PLF->W->size();
+
+		// construct FM object
+		libmaus2::fm::FM<libmaus2::lf::ImpCompactHuffmanWaveletLF>::unique_ptr_type TFM(res.loadFM("mem://tmp",numbwtthreads));
+		PFM = UNIQUE_PTR_MOVE(TFM);
+	}
+};
+
+int paftolas(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo const & arginfo)
+{
+	libmaus2::util::LineBuffer LB(std::cin);
+
+	//int64_t const tspace = 100;
+	uint64_t const numthreads = arg.uniqueArgPresent("t") ? arg.getUnsignedNumericArg<uint64_t>("t") : libmaus2::parallel::NumCpus::getNumLogicalProcessors();
+	uint64_t const tspace = arg.uniqueArgPresent("tspace") ? arg.getUnsignedNumericArg<uint64_t>("tspace") : libmaus2::dazzler::align::AlignmentFile::getMinimumNonSmallTspace();
+	std::cerr << "[V] using tspace " << tspace << std::endl;
+	bool const small = libmaus2::dazzler::align::AlignmentFile::tspaceToSmall(tspace);
+	std::string const tmpfilebase = arg.uniqueArgPresent("T") ? arg["T"] : arginfo.getDefaultTmpFileName();
+
+	std::string const outfn = arg[0];
+	std::string const infasta = arg[1];
+
+	Index::unique_ptr_type Pqindex(new Index(infasta));
+	Index::unique_ptr_type Ptindex;
+
+	Index const * p_qindex = Pqindex.get();
+	Index const * p_tindex = Pqindex.get();
+
+	if ( 2 < arg.size() )
+	{
+		std::string const infasta = arg[2];
+		Index::unique_ptr_type Tindex(new Index(infasta));
+		Ptindex = UNIQUE_PTR_MOVE(Tindex);
+		p_tindex = Ptindex.get();
 	}
 
-	std::string const namedata = namestr.str();
-	libmaus2::aio::ArrayFile<std::string::const_iterator> AF(namedata.begin(),namedata.end());
-
-	uint64_t const numbwtthreads = 1; //libmaus2::suffixsort::bwtb3m::BwtMergeSortOptions::getDefaultNumThreads();
-	// uint64_t const numthreads = 1; // libmaus2::suffixsort::bwtb3m::BwtMergeSortOptions::getDefaultNumThreads();
-	libmaus2::suffixsort::bwtb3m::BwtMergeSortOptions options(
-		AF.getURL(),
-		1*1024ull*1024ull*1024ull, /* memory 16GB */
-		numbwtthreads,
-		"bytestream",
-		false /* bwtonly */,
-		std::string("mem:tmp_"),
-		std::string(), // sparse
-		std::string("mem:file.bwt"),
-		32 /* isa */,
-		32 /* sa */
-	);
-	options.verbose = 0;
-
-	// construct BWT, SA and ISA
-	std::ostringstream bwtostr;
-	libmaus2::suffixsort::bwtb3m::BwtMergeSortResult res = libmaus2::suffixsort::bwtb3m::BwtMergeSort::computeBwt(options,&bwtostr);
-
-	// load LF object
-	libmaus2::lf::ImpCompactHuffmanWaveletLF::unique_ptr_type PLF = res.loadLF("mem://tmp_",numbwtthreads);
-	// uint64_t const n = PLF->W->size();
-
-	// construct FM object
-	libmaus2::fm::FM<libmaus2::lf::ImpCompactHuffmanWaveletLF>::unique_ptr_type PFM(res.loadFM("mem://tmp",numbwtthreads));
-
-	std::cerr << "done, number " << numreads << " bases " << od << std::endl;
+	Index const & qindex = *p_qindex;
+	Index const & tindex = *p_tindex;
 
 	static char const * cigprefix = "cg:Z:";
 	int64_t const cigprefixlen = strlen(cigprefix);
 
 	libmaus2::dazzler::align::AlignmentWriterArray AWA(tmpfilebase + "_AWA",numthreads,tspace);
 	#if 0
-	std::string prevasid;
+	std::string prevqsid;
 	#endif
 
 	libmaus2::autoarray::AutoArray < char > A;
@@ -309,15 +333,15 @@ int paftolas(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo cons
 				try
 				{
 					#if defined(_OPENMP)
-					uint64_t const tid = omp_get_thread_num();
+					uint64_t const threadid = omp_get_thread_num();
 					#else
-					uint64_t const tid = 0;
+					uint64_t const threadid = 0;
 					#endif
 
-					libmaus2::autoarray::AutoArray < std::pair<char const *, char const *> > & AP = A_AP[tid];
-					libmaus2::autoarray::AutoArray < char > & C = A_C[tid];
+					libmaus2::autoarray::AutoArray < std::pair<char const *, char const *> > & AP = A_AP[threadid];
+					libmaus2::autoarray::AutoArray < char > & C = A_C[threadid];
 
-					libmaus2::dazzler::align::AlignmentWriter & AW = AWA[tid];
+					libmaus2::dazzler::align::AlignmentWriter & AW = AWA[threadid];
 
 					char const * a = A.begin()+O[zzz];
 					char const * e = A.begin()+O[zzz+1];
@@ -346,59 +370,61 @@ int paftolas(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo cons
 
 					if ( oap >= 12 )
 					{
-						std::string const asid(AP[0].first,AP[0].second);
-						std::string const bsid(AP[5].first,AP[5].second);
+						// query id
+						std::string const qsid(AP[0].first,AP[0].second);
+						// target id
+						std::string const tsid(AP[5].first,AP[5].second);
 
 						#if 0
-						if ( asid != prevasid )
+						if ( qsid != prevqsid )
 						{
-							std::cerr << asid << std::endl;
-							prevasid = asid;
+							std::cerr << qsid << std::endl;
+							prevqsid = qsid;
 						}
 						#endif
 
-						std::ostringstream aidstr;
-						aidstr.put(0);
-						aidstr << asid;
-						aidstr.put(0);
-						std::string const aid = aidstr.str();
+						std::ostringstream qidstr;
+						qidstr.put(0);
+						qidstr << qsid;
+						qidstr.put(0);
+						std::string const qid = qidstr.str();
 
-						std::ostringstream bidstr;
-						bidstr.put(0);
-						bidstr << bsid;
-						bidstr.put(0);
-						std::string const bid = bidstr.str();
+						std::ostringstream tidstr;
+						tidstr.put(0);
+						tidstr << tsid;
+						tidstr.put(0);
+						std::string const tid = tidstr.str();
 
 						uint64_t asp, aep;
-						PFM->search(aid.begin(), aid.size(), asp, aep);
+						qindex.PFM->search(qid.begin(), qid.size(), asp, aep);
 
 						uint64_t bsp, bep;
-						PFM->search(bid.begin(), bid.size(), bsp, bep);
+						tindex.PFM->search(tid.begin(), tid.size(), bsp, bep);
 
 						if ( aep-asp == 1 && bep-bsp == 1 )
 						{
-							Meta MA(*PLF,asp);
-							Meta MB(*PLF,bsp);
+							Meta MQ(*(qindex.PLF),asp);
+							Meta MT(*(tindex.PLF),bsp);
 
 							int64_t cigid = -1;
 							for ( uint64_t j = 12; j < oap; ++j )
 								if ( AP[j].second-AP[j].first >= cigprefixlen && memcmp(cigprefix,AP[j].first,cigprefixlen) == 0 )
 									cigid = j;
 
-							uint64_t const alen = parse(AP[1].first,AP[1].second);
-							uint64_t const astart = parse(AP[2].first,AP[2].second);
-							uint64_t const aend = parse(AP[3].first,AP[3].second);
+							uint64_t const qlen = parse(AP[1].first,AP[1].second);
+							uint64_t const qstart = parse(AP[2].first,AP[2].second);
+							uint64_t const qend = parse(AP[3].first,AP[3].second);
 
-							uint64_t const blen = parse(AP[6].first,AP[6].second);
-							uint64_t const bstart = parse(AP[7].first,AP[7].second);
-							uint64_t const bend = parse(AP[8].first,AP[8].second);
+							uint64_t const tlen = parse(AP[6].first,AP[6].second);
+							uint64_t const tstart = parse(AP[7].first,AP[7].second);
+							uint64_t const tend = parse(AP[8].first,AP[8].second);
 
-							if ( alen != MA.size || blen != MB.size )
+							if ( qlen != MQ.size || tlen != MT.size )
 							{
 								libmaus2::exception::LibMausException lme;
 								lme.getStream() << "[E] read length is not consistent between PAF and FASTA file" << std::endl;
-								lme.getStream() << "[E] alen=" << alen << " MA.size=" << MA.size << std::endl;
-								lme.getStream() << "[E] blen=" << blen << " MB.size=" << MB.size << std::endl;
+								lme.getStream() << "[E] qlen=" << qlen << " MQ.size=" << MQ.size << std::endl;
+								lme.getStream() << "[E] tlen=" << tlen << " MT.size=" << MT.size << std::endl;
 								lme.finish();
 								throw lme;
 							}
@@ -414,18 +440,18 @@ int paftolas(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo cons
 
 							bool const rc = (AP[4].first[0] == '-');
 
-							char const * c_ab = D.begin() + MA.od;
-							char const * c_ae = c_ab + MA.size;
+							char const * c_ab = qindex.D.begin() + MQ.od;
+							char const * c_ae = c_ab + MQ.size;
 
-							char const * c_bb = D.begin() + MB.od;
-							char const * c_be = c_bb + MB.size;
+							char const * c_bb = tindex.D.begin() + MT.od;
+							char const * c_be = c_bb + MT.size;
 
 							char const * c_n_ab;
 							char const * c_n_ae;
 
 							if ( rc )
 							{
-								std::pair<char const *, char const *> const AP = arc(c_ab,c_ae,A_RC[tid]);
+								std::pair<char const *, char const *> const AP = arc(c_ab,c_ae,A_RC[threadid]);
 								c_n_ab = AP.first;
 								c_n_ae = AP.second;
 							}
@@ -443,12 +469,12 @@ int paftolas(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo cons
 
 							if ( cigid < 0 )
 							{
-								libmaus2::lcs::NNPCor & nnpcor = *(A_nnpcor[tid]);
-								libmaus2::lcs::NNPTraceContainer & nnptrace = A_nnptrace[tid];
+								libmaus2::lcs::NNPCor & nnpcor = *(A_nnpcor[threadid]);
+								libmaus2::lcs::NNPTraceContainer & nnptrace = A_nnptrace[threadid];
 
 								libmaus2::lcs::NNPAlignResult res = nnpcor.align(
-									c_n_ab,c_n_ae,rc ? (MA.size - aend) : astart,
-									c_bb,c_be,bstart,
+									c_bb,c_be,tstart,
+									c_n_ab,c_n_ae,rc ? (MQ.size - qend) : qstart,
 									nnptrace
 								);
 
@@ -461,22 +487,20 @@ int paftolas(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo cons
 							}
 							else
 							{
-								abpos = rc ? (MA.size - aend  ) : astart;
-								aepos = rc ? (MA.size - astart) : aend;
-								bbpos = bstart;
-								bepos = bend;
+								abpos = tstart;
+								aepos = tend;
+								bbpos = rc ? (MQ.size - qend  ) : qstart;
+								bepos = rc ? (MQ.size - qstart) : qend;
 
-								char const * ita = c_n_ab + abpos; // ita = an.begin() + abpos;
-								char const * itb = c_bb +   bbpos; // itb = b.begin()  + bbpos;
+								char const * ita = c_bb +   abpos;
+								char const * itb = c_n_ab + bbpos;
 
+								// cigar string
 								char const * cigptr = AP[cigid].first + cigprefixlen;
 								uint64_t const ciglen = AP[cigid].second - cigptr;
 
 								C.ensureSize(ciglen+1);
-
-								std::copy(
-									cigptr,cigptr+ciglen,C.begin()
-								);
+								std::copy(cigptr,cigptr+ciglen,C.begin());
 								C[ciglen] = 0;
 
 								libmaus2::autoarray::AutoArray<libmaus2::bambam::cigar_operation> Aop;
@@ -491,9 +515,6 @@ int paftolas(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo cons
 								ATC.reset();
 
 								// std::cerr << C.begin() << std::endl;
-
-								uint64_t calen = 0;
-								uint64_t cblen = 0;
 
 								for ( uint64_t i = 0; i < numcig; ++i )
 								{
@@ -515,31 +536,23 @@ int paftolas(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo cons
 												{
 													*(--ATC.ta) = libmaus2::lcs::BaseConstants::STEP_MISMATCH;
 												}
-												calen++;
-												cblen++;
 												break;
 											case libmaus2::bambam::BamFlagBase::LIBMAUS2_BAMBAM_CDEL:
-												cblen++;
-												itb++;
-												*(--ATC.ta) = libmaus2::lcs::BaseConstants::STEP_INS;
-												break;
-											case libmaus2::bambam::BamFlagBase::LIBMAUS2_BAMBAM_CINS:
-												calen++;
 												ita++;
 												*(--ATC.ta) = libmaus2::lcs::BaseConstants::STEP_DEL;
 												break;
+											case libmaus2::bambam::BamFlagBase::LIBMAUS2_BAMBAM_CINS:
+												itb++;
+												*(--ATC.ta) = libmaus2::lcs::BaseConstants::STEP_INS;
+												break;
 											case libmaus2::bambam::BamFlagBase::LIBMAUS2_BAMBAM_CEQUAL:
 												assert ( *ita == *itb );
-												calen++;
-												cblen++;
 												++ita;
 												++itb;
 												*(--ATC.ta) = libmaus2::lcs::BaseConstants::STEP_MATCH;
 												break;
 											case libmaus2::bambam::BamFlagBase::LIBMAUS2_BAMBAM_CDIFF:
 												assert ( *ita != *itb );
-												calen++;
-												cblen++;
 												++ita;
 												++itb;
 												*(--ATC.ta) = libmaus2::lcs::BaseConstants::STEP_MISMATCH;
@@ -558,38 +571,19 @@ int paftolas(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo cons
 
 								assert ( ATC.ta + gop == ATC.te );
 
-								#if 0
-								std::cerr << calen << " " << cblen << std::endl;
-								std::cerr << (ita - an.begin()+abpos) << " " << aepos-abpos << std::endl;
-								std::cerr << (itb -  b.begin()+bbpos) << " " << bepos-bbpos << std::endl;
-								#endif
-
-								assert ( ita == c_n_ab + aepos );
-								assert ( itb == c_bb   + bepos );
+								assert ( ita == c_bb   + aepos );
+								assert ( itb == c_n_ab + bepos );
 
 								ATC.reverse();
 
 								// std::cerr << "numcig = " << numcig << std::endl;
 							}
 
-							if ( rc )
-							{
-								std::swap(abpos,aepos);
-								abpos = MA.size - abpos;
-								aepos = MA.size - aepos;
-
-								std::swap(bbpos,bepos);
-								bbpos = MB.size - bbpos;
-								bepos = MB.size - bepos;
-
-								std::reverse(ATC.ta,ATC.te);
-							}
-
 							#if 0
 							libmaus2::lcs::AlignmentPrint::printAlignmentLines(
 								std::cerr,
-								a.begin() + abpos, aepos-abpos,
-								bn.begin() + bbpos, bepos-bbpos,
+								c_bb   + abpos, aepos-abpos,
+								c_n_ab + bbpos, bepos-bbpos,
 								80,
 								ATC.ta,
 								ATC.te,
@@ -600,8 +594,8 @@ int paftolas(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo cons
 
 							libmaus2::dazzler::align::Overlap const OVL = libmaus2::dazzler::align::Overlap::computeOverlap(
 								rc ? libmaus2::dazzler::align::Overlap::getInverseFlag() : 0,
-								MA.id,
-								MB.id,
+								MT.id,
+								MQ.id,
 								abpos,
 								aepos,
 								bbpos,
@@ -646,11 +640,11 @@ int paftolas(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo cons
 						else
 						{
 							if ( aep-asp != 1 )
-								std::cerr << "[W] ignoring line " << std::string(a,e) << " because " << asid << " is unknown" << std::endl;
+								std::cerr << "[W] ignoring line " << std::string(a,e) << " because " << qsid << " is unknown" << std::endl;
 							if ( bep-bsp != 1 )
-								std::cerr << "[W] ignoring line " << std::string(a,e) << " because " << bsid << " is unknown" << std::endl;
+								std::cerr << "[W] ignoring line " << std::string(a,e) << " because " << tsid << " is unknown" << std::endl;
 						}
-						// std::cerr << asid << "\t" << bsid << std::endl;
+						// std::cerr << qsid << "\t" << tsid << std::endl;
 					}
 					else
 					{
@@ -661,7 +655,7 @@ int paftolas(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo cons
 					uint64_t const lfinished = ++finished;
 					finishedlock.unlock();
 
-					if ( lfinished % 1000 == 0 )
+					if ( lfinished % 10000 == 0 )
 					{
 						libmaus2::parallel::ScopePosixSpinLock slock(libmaus2::aio::StreamLock::cerrlock);
 						std::cerr << "[V] " << lfinished << " " << rtc.formatTime(rtc.getElapsedSeconds()) << std::endl;
@@ -692,331 +686,6 @@ int paftolas(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo cons
 	std::cerr << "[V] merging thread las files" << std::endl;
 	AWA.merge(outfn,outfn+std::string("_tmp"));
 	std::cerr << "[V] merged thread las files" << std::endl;
-
-	#if 0
-	while ( LB.getline(&a,&e) )
-	{
-		char const * c = a;
-
-		// std::cerr << std::string(a,e) << std::endl;
-
-		uint64_t oap = 0;
-		while ( c != e )
-		{
-			char const * ce = c;
-			while ( ce != e && *ce != '\t' )
-				++ce;
-
-
-			AP.push(oap,std::pair<char const *,char const *>(c,ce));
-
-			if ( ce != e )
-			{
-				assert ( *ce == '\t' );
-				++ce;
-			}
-
-			c = ce;
-		}
-
-		if ( oap >= 12 )
-		{
-			std::string const asid(AP[0].first,AP[0].second);
-			std::string const bsid(AP[5].first,AP[5].second);
-
-			#if 0
-			if ( asid != prevasid )
-			{
-				std::cerr << asid << std::endl;
-				prevasid = asid;
-			}
-			#endif
-
-			std::ostringstream aidstr;
-			aidstr.put(0);
-			aidstr << asid;
-			aidstr.put(0);
-			std::string const aid = aidstr.str();
-
-			std::ostringstream bidstr;
-			bidstr.put(0);
-			bidstr << bsid;
-			bidstr.put(0);
-			std::string const bid = bidstr.str();
-
-			uint64_t asp, aep;
-			PFM->search(aid.begin(), aid.size(), asp, aep);
-
-			uint64_t bsp, bep;
-			PFM->search(bid.begin(), bid.size(), bsp, bep);
-
-			if ( aep-asp == 1 && bep-bsp == 1 )
-			{
-				Meta MA(*PLF,asp);
-				Meta MB(*PLF,bsp);
-
-				int64_t cigid = -1;
-				for ( uint64_t j = 12; j < oap; ++j )
-					if ( AP[j].second-AP[j].first >= cigprefixlen && memcmp(cigprefix,AP[j].first,cigprefixlen) == 0 )
-						cigid = j;
-
-				uint64_t const alen = parse(AP[1].first,AP[1].second);
-				uint64_t const astart = parse(AP[2].first,AP[2].second);
-				uint64_t const aend = parse(AP[3].first,AP[3].second);
-
-				uint64_t const blen = parse(AP[6].first,AP[6].second);
-				uint64_t const bstart = parse(AP[7].first,AP[7].second);
-				uint64_t const bend = parse(AP[8].first,AP[8].second);
-
-				if ( alen != MA.size || blen != MB.size )
-				{
-					libmaus2::exception::LibMausException lme;
-					lme.getStream() << "[E] read length is not consistent between PAF and FASTA file" << std::endl;
-					lme.finish();
-					throw lme;
-				}
-
-				bool const strandok = ( AP[4].second-AP[4].first == 1 ) && ( AP[4].first[0] == '+' || AP[4].first[0] == '-' );
-				if ( !strandok )
-				{
-					libmaus2::exception::LibMausException lme;
-					lme.getStream() << "[E] strand designator is invalid" << std::endl;
-					lme.finish();
-					throw lme;
-				}
-
-				bool const rc = (AP[4].first[0] == '-');
-
-				std::string const a(D.begin() + MA.od, D.begin() + MA.od + MA.size);
-				std::string const b(D.begin() + MB.od, D.begin() + MB.od + MB.size);
-				std::string const an = rc ? libmaus2::fastx::reverseComplementUnmapped(a) : a;
-				std::string const bn = rc ? libmaus2::fastx::reverseComplementUnmapped(b) : b;
-
-				libmaus2::lcs::AlignmentTraceContainer ATC;
-				int64_t abpos;
-				int64_t aepos;
-				int64_t bbpos;
-				int64_t bepos;
-
-				if ( cigid < 0 )
-				{
-					libmaus2::lcs::NNPCor nnpcor;
-					libmaus2::lcs::NNPTraceContainer nnptrace;
-
-					libmaus2::lcs::NNPAlignResult res = nnpcor.align(
-						an.begin(),an.end(),rc ? (MA.size - aend) : astart,
-						b.begin(),b.end(),bstart,
-						nnptrace
-					);
-
-					// std::cerr << res << std::endl;
-
-					abpos = res.abpos;
-					aepos = res.aepos;
-					bbpos = res.bbpos;
-					bepos = res.bepos;
-
-					nnptrace.computeTrace(ATC);
-				}
-				else
-				{
-					abpos = rc ? (MA.size - aend  ) : astart;
-					aepos = rc ? (MA.size - astart) : aend;
-					bbpos = bstart;
-					bepos = bend;
-
-					std::string::const_iterator ita = an.begin() + abpos;
-					std::string::const_iterator itb = b.begin()  + bbpos;
-
-					char const * cigptr = AP[cigid].first + cigprefixlen;
-					uint64_t const ciglen = AP[cigid].second - cigptr;
-
-					C.ensureSize(ciglen+1);
-
-					std::copy(
-						cigptr,cigptr+ciglen,C.begin()
-					);
-					C[ciglen] = 0;
-
-					libmaus2::autoarray::AutoArray<libmaus2::bambam::cigar_operation> Aop;
-					size_t const numcig = libmaus2::bambam::CigarStringParser::parseCigarString(C.begin(), Aop);
-
-					uint64_t gop = 0;
-					for ( uint64_t i = 0; i < numcig; ++i )
-						gop += Aop[i].second;
-
-					if ( ATC.capacity() < gop )
-						ATC.resize(gop);
-					ATC.reset();
-
-					// std::cerr << C.begin() << std::endl;
-
-					uint64_t calen = 0;
-					uint64_t cblen = 0;
-
-					for ( uint64_t i = 0; i < numcig; ++i )
-					{
-						libmaus2::bambam::BamFlagBase::bam_cigar_ops const op = static_cast<libmaus2::bambam::BamFlagBase::bam_cigar_ops>(Aop[i].first);
-						uint64_t const len = Aop[i].second;
-
-						// std::cerr << op << "," << len << std::endl;
-
-						for ( uint64_t j = 0; j < len; ++j )
-						{
-							switch ( op )
-							{
-								case libmaus2::bambam::BamFlagBase::LIBMAUS2_BAMBAM_CMATCH:
-									if ( *(ita++) == *(itb++) )
-									{
-										*(--ATC.ta) = libmaus2::lcs::BaseConstants::STEP_MATCH;
-									}
-									else
-									{
-										*(--ATC.ta) = libmaus2::lcs::BaseConstants::STEP_MISMATCH;
-									}
-									calen++;
-									cblen++;
-									break;
-								case libmaus2::bambam::BamFlagBase::LIBMAUS2_BAMBAM_CDEL:
-									cblen++;
-									itb++;
-									*(--ATC.ta) = libmaus2::lcs::BaseConstants::STEP_INS;
-									break;
-								case libmaus2::bambam::BamFlagBase::LIBMAUS2_BAMBAM_CINS:
-									calen++;
-									ita++;
-									*(--ATC.ta) = libmaus2::lcs::BaseConstants::STEP_DEL;
-									break;
-								case libmaus2::bambam::BamFlagBase::LIBMAUS2_BAMBAM_CEQUAL:
-									assert ( *ita == *itb );
-									calen++;
-									cblen++;
-									++ita;
-									++itb;
-									*(--ATC.ta) = libmaus2::lcs::BaseConstants::STEP_MATCH;
-									break;
-								case libmaus2::bambam::BamFlagBase::LIBMAUS2_BAMBAM_CDIFF:
-									assert ( *ita != *itb );
-									calen++;
-									cblen++;
-									++ita;
-									++itb;
-									*(--ATC.ta) = libmaus2::lcs::BaseConstants::STEP_MISMATCH;
-									break;
-								default:
-								{
-									libmaus2::exception::LibMausException lme;
-									lme.getStream() << "[W] unsupported cigar operation " << op << " encountered" << std::endl;
-									lme.finish();
-									throw lme;
-									break;
-								}
-							}
-						}
-					}
-
-					assert ( ATC.ta + gop == ATC.te );
-
-					#if 0
-					std::cerr << calen << " " << cblen << std::endl;
-					std::cerr << (ita - an.begin()+abpos) << " " << aepos-abpos << std::endl;
-					std::cerr << (itb -  b.begin()+bbpos) << " " << bepos-bbpos << std::endl;
-					#endif
-
-					assert ( ita == an.begin() + aepos );
-					assert ( itb == b.begin()  + bepos );
-
-					ATC.reverse();
-
-					// std::cerr << "numcig = " << numcig << std::endl;
-				}
-
-				if ( rc )
-				{
-					std::swap(abpos,aepos);
-					abpos = MA.size - abpos;
-					aepos = MA.size - aepos;
-
-					std::swap(bbpos,bepos);
-					bbpos = MB.size - bbpos;
-					bepos = MB.size - bepos;
-
-					std::reverse(ATC.ta,ATC.te);
-				}
-
-				#if 0
-				libmaus2::lcs::AlignmentPrint::printAlignmentLines(
-					std::cerr,
-					a.begin() + abpos, aepos-abpos,
-					bn.begin() + bbpos, bepos-bbpos,
-					80,
-					ATC.ta,
-					ATC.te,
-					static_cast<uint64_t>(abpos),
-					static_cast<uint64_t>(bbpos)
-				);
-				#endif
-
-				libmaus2::dazzler::align::Overlap const OVL = libmaus2::dazzler::align::Overlap::computeOverlap(
-					rc ? libmaus2::dazzler::align::Overlap::getInverseFlag() : 0,
-					MA.id,
-					MB.id,
-					abpos,
-					aepos,
-					bbpos,
-					bepos,
-					tspace,
-					ATC);
-
-				bool ok = true;
-				if ( small )
-				{
-					for ( uint64_t i = 0; i < OVL.path.path.size(); ++i )
-					{
-						bool const okfirst = OVL.path.path[i].first <= std::numeric_limits<int8_t>::max();
-						bool const oksecond = OVL.path.path[i].second <= std::numeric_limits<int8_t>::max();
-						ok = ok && okfirst && oksecond;
-
-						#if 0
-						if ( ! okfirst )
-						{
-							std::cerr << OVL.path.path[i].first << " > " << std::numeric_limits<int8_t>::max() << std::endl;
-						}
-						if ( ! oksecond )
-						{
-							std::cerr << OVL.path.path[i].second << " > " << std::numeric_limits<int8_t>::max() << std::endl;
-						}
-						#endif
-					}
-				}
-
-				// std::cerr << OVL << std::endl;
-
-				if ( ok )
-				{
-					AW.put(OVL);
-				}
-				else
-				{
-					std::cerr << "[W] cannot write alignment due to excessive block values" << std::endl;
-				}
-
-			}
-			else
-			{
-				if ( aep-asp != 1 )
-					std::cerr << "[W] ignoring line " << std::string(a,e) << " because " << asid << " is unknown" << std::endl;
-				if ( bep-bsp != 1 )
-					std::cerr << "[W] ignoring line " << std::string(a,e) << " because " << bsid << " is unknown" << std::endl;
-			}
-			// std::cerr << asid << "\t" << bsid << std::endl;
-		}
-		else
-		{
-			std::cerr << "[W] ignoring line (too few tokens) " << std::string(a,e) << std::endl;
-		}
-	}
-	#endif
 
 	return EXIT_SUCCESS;
 }
