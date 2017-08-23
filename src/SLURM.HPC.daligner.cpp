@@ -181,6 +181,10 @@ static std::string runProgram(std::vector<std::string> const & args, libmaus2::u
 		std::ostream & errstr = lme.getStream();
 
 		errstr << "[E] " << args[0] << " failed" << std::endl;
+		errstr << "[E] full args";
+		for ( uint64_t i = 0; i < args.size(); ++i )
+			errstr << " " << args[i];
+		errstr << std::endl;
 
 		if ( WIFEXITED(status) )
 		{
