@@ -233,7 +233,19 @@ int commandfollowup(libmaus2::util::ArgParser const & arg)
 	libmaus2::util::CommandContainer CC(*ISI);
 	ISI.reset();
 
-	libmaus2::util::CommandContainer CCU = CC.check(true,&std::cerr);
+	std::vector<uint64_t> failids;
+	libmaus2::util::CommandContainer CCU = CC.check(true,&std::cerr,&failids);
+	std::set<uint64_t> failset(failids.begin(),failids.end());
+
+	// remove slurm log files for succesful jobs
+	for ( uint64_t i = 0; i < depjobnum; ++i )
+		if ( failset.find(i) == failset.end() )
+		{
+			std::ostringstream logfnostr;
+			logfnostr << "command_" << depjobid << "_" << i << ".out";
+			std::string const logfn = logfnostr.str();
+			libmaus2::aio::FileRemoval::removeFile(logfn);
+		}
 
 	bool failed = false;
 
@@ -267,6 +279,7 @@ int commandfollowup(libmaus2::util::ArgParser const & arg)
 			std::cerr << "[V] reduced missingdep for id " << rid << " to " << CDL.V[rid].missingdep << std::endl;
 		}
 
+		#if 0
 		for ( uint64_t i = 0; i < depjobnum; ++i )
 		{
 			std::ostringstream logfnostr;
@@ -274,6 +287,7 @@ int commandfollowup(libmaus2::util::ArgParser const & arg)
 			std::string const logfn = logfnostr.str();
 			libmaus2::aio::FileRemoval::removeFile(logfn);
 		}
+		#endif
 	}
 
 	std::ostringstream OPIS;
