@@ -219,6 +219,10 @@ static int64_t startSLURMJob(std::map<std::string,std::string> const & params, s
 	for ( std::map<std::string,std::string>::const_iterator it = params.begin(); it != params.end(); ++it )
 		ostr << "#SBATCH --" << it->first << "=" << it->second << "\n";
 
+	char const * envpart = getenv("COMMAND_PARTITION");
+	if ( envpart )
+		ostr << "#SBATCH --" << "partition" << "=" << envpart << "\n";
+
 	ostr << "srun " << command << "\n";
 
 	{
