@@ -230,6 +230,33 @@ int commandprime(libmaus2::util::ArgParser const & arg)
 		data = std::string(C.begin(),C.end());
 	}
 
+	uint64_t numunfinished = 0;
+
+	// reset started but unfinished jobs
+	// count unfinished jobs
+	{
+		std::istringstream istr(data);
+		libmaus2::util::ContainerDescriptionList CDL(istr);
+
+		// reset started but unfinished containers
+		for ( uint64_t i = 0; i < CDL.V.size(); ++i )
+			if ( CDL.V[i].started && (!CDL.V[i].finished) )
+				CDL.V[i].started = false;
+
+		for ( uint64_t i = 0; i < CDL.V.size(); ++i )
+			if ( !CDL.V[i].finished )
+				++numunfinished;
+
+		std::ostringstream ostr;
+		CDL.serialise(ostr);
+
+		data = ostr.str();
+	}
+
+	// nothing to do?
+	if ( ! numunfinished )
+		return EXIT_SUCCESS;
+
 	std::string const hostname = libmaus2::network::GetHostName::getHostName();
 
 	unsigned short port = 1024;
