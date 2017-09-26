@@ -1,3 +1,9 @@
+lastools (0.0.70-1) unstable; urgency=medium
+
+  * add laschecksymmetry and extractreads programs
+
+ -- German Tischler <tischler@mpi-cbg.de>  Tue, 26 Sep 2017 09:44:31 +0200
+
 lastools (0.0.69-1) unstable; urgency=medium
 
   * count unfinished jobs and quit if none
