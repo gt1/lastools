@@ -15,7 +15,7 @@ EXTRA_DIST = ${MANPAGES} derive.rc
 
 bin_PROGRAMS = lassort lasindex lastobam reformatfasta fasta2fastq lasroleswap bamtolas blasrtobam lascat lasmarkprimary call.damapper lasaligntotracepoints lasfilterquality \
 	laschainsort lasmerge lascomputetandem lasextracttandemrecompute tandemaligner lasdedup lassubsample lassuffixprefix cocommand lasreduce \
-	lasfilterlength paftolas commandpack commandstart commandfollowup commandprime SLURM.HPC.daligner commandderive
+	lasfilterlength paftolas commandpack commandstart commandfollowup commandprime SLURM.HPC.daligner commandderive laschecksymmetry extractreads
 dist_bin_SCRIPTS = swappedLasToBAM.sh
 
 lasindex_SOURCES = lasindex.cpp
@@ -172,3 +172,13 @@ commandderive_SOURCES = commandderive.cpp
 commandderive_LDADD = ${LIBMAUS2LIBS}
 commandderive_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
 commandderive_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
+
+laschecksymmetry_SOURCES = laschecksymmetry.cpp
+laschecksymmetry_LDADD = ${LIBMAUS2LIBS}
+laschecksymmetry_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
+laschecksymmetry_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
+
+extractreads_SOURCES = extractreads.cpp
+extractreads_LDADD = ${LIBMAUS2LIBS}
+extractreads_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
+extractreads_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
