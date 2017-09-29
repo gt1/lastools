@@ -1,3 +1,9 @@
+lastools (0.0.71-1) unstable; urgency=medium
+
+  * refactor symmetry check
+
+ -- German Tischler <tischler@mpi-cbg.de>  Fri, 29 Sep 2017 09:22:05 +0200
+
 lastools (0.0.70-1) unstable; urgency=medium
 
   * add laschecksymmetry and extractreads programs
