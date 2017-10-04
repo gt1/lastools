@@ -55,6 +55,7 @@ int viewmasks(libmaus2::util::ArgParser const & arg)
 			uint64_t const low = anno[i];
 			uint64_t const high = anno[i+1];
 			uint64_t const size = high-low;
+			uint64_t const s = DB[i].size();
 			
 			unsigned char const * p = ptrack->Adata->begin() + low;
 			
@@ -71,7 +72,7 @@ int viewmasks(libmaus2::util::ArgParser const & arg)
 					p + (j * 2 + 1) * sizeof(uint32_t), sizeof(uint32_t)
 				);
 
-				std::cout << i << "\t" << numintv << "\t" << from << "\t" << to << "\t" << DB[i].size() << "\n";
+				std::cout << i << "\t" << j << "\t" << from << "\t" << to << "\t" << s << "\n";
 			}
 			
 			// std::cerr << i << "\t" << anno[i] << std::endl;
