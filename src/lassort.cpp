@@ -56,6 +56,8 @@ int lassort(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo const
 		libmaus2::dazzler::align::SortingOverlapOutputBuffer<libmaus2::dazzler::align::OverlapComparatorAIdBId>::sortAndMerge(infilenames,outfilename,tmpfilebase,mergefanin,1 /* numthreads */);
 	else if ( sortorder == "bidaid" )
 		libmaus2::dazzler::align::SortingOverlapOutputBuffer<libmaus2::dazzler::align::OverlapComparatorBIdAId>::sortAndMerge(infilenames,outfilename,tmpfilebase,mergefanin,1 /* numthreads */);
+	else if ( sortorder == "full" )
+		libmaus2::dazzler::align::SortingOverlapOutputBuffer<libmaus2::dazzler::align::OverlapFullComparator>::sortAndMerge(infilenames,outfilename,tmpfilebase,mergefanin,1 /* numthreads */);
 	else
 		libmaus2::dazzler::align::SortingOverlapOutputBuffer<>::sortAndMerge(infilenames,outfilename,tmpfilebase,mergefanin,numthreads);
 
