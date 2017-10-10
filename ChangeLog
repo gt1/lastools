@@ -1,3 +1,9 @@
+lastools (0.0.73-1) unstable; urgency=medium
+
+  * fix empty blocks in commandpack
+
+ -- German Tischler <tischler@mpi-cbg.de>  Tue, 10 Oct 2017 10:34:34 +0200
+
 lastools (0.0.72-1) unstable; urgency=medium
 
   * add full comparator sort mode for lassort
