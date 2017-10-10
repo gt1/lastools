@@ -408,7 +408,7 @@ int commandpack(libmaus2::util::ArgParser const & arg)
 
 		if ( ! V.size() )
 		{
-			std::string const com = "echo OK";
+			std::string const com = "1\t1000\techo OK";
 			V.push_back(com);
 		}
 
