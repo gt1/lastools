@@ -37,7 +37,7 @@ int viewmasks(libmaus2::util::ArgParser const & arg)
 	{
 		std::string const arg = args[a];
 		libmaus2::dazzler::db::Track::unique_ptr_type ptrack(DB.readTrack(arg));
-		
+
 		if ( ptrack->trackannosize )
 		{
 			libmaus2::exception::LibMausException lme;
@@ -45,24 +45,24 @@ int viewmasks(libmaus2::util::ArgParser const & arg)
 			lme.finish();
 			throw lme;
 		}
-		
+
 		libmaus2::dazzler::db::TrackAnnoInterface const & anno = ptrack->getAnno();
-		
+
 		assert ( anno.size() == DB.size()+1 );
-		
+
 		for ( uint64_t i = 0; i < DB.size(); ++i )
 		{
 			uint64_t const low = anno[i];
 			uint64_t const high = anno[i+1];
 			uint64_t const size = high-low;
 			uint64_t const s = DB[i].size();
-			
+
 			unsigned char const * p = ptrack->Adata->begin() + low;
-			
+
 			assert ( size % (2*sizeof(int32_t)) == 0 );
-			
+
 			uint64_t const numintv = size / (2*sizeof(int32_t));
-			
+
 			for ( uint64_t j = 0; j < numintv; ++j )
 			{
 				uint64_t const from = libmaus2::bambam::DecoderBase::getLEInteger(
@@ -74,7 +74,7 @@ int viewmasks(libmaus2::util::ArgParser const & arg)
 
 				std::cout << i << "\t" << j << "\t" << from << "\t" << to << "\t" << s << "\n";
 			}
-			
+
 			// std::cerr << i << "\t" << anno[i] << std::endl;
 		}
 	}
