@@ -36,6 +36,7 @@ The contained programs are:
  * reformatfasta: Reformats a FastA file so it follows the naming and formatting (limited column width) of the FastA expected by fasta2DB in the DAZZ_DB suite.
  * call.damapper: A wrapper program for damapper and lastobam. It takes a reference and a read FastA file and produces a BAM file containing the reads as mapped by damapper.
  * lassubsample: Subsample an LAS file to retain only a given fraction of reads.
+ * viewmasks: View repeat and tandem masks produced by damasker package
 
 Using lastobam with damapper
 ----------------------------
