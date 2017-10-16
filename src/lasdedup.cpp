@@ -258,8 +258,10 @@ void handle(
 		changed = (killset.size() != 0);
 	}
 
+	#if 0
 	if ( VOVL.size() )
 		std::cerr << "[V] left " << VOVL[0].aread << "," << VOVL[0].bread << "," << VOVL[0].isInverse() << std::endl;
+	#endif
 
 	for ( uint64_t i = 0; i < VOVL.size(); ++i )
 		AW.put(VOVL[i]);
