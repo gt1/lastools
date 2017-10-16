@@ -34,7 +34,7 @@ int lassimplededup(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInf
 		std::string const infn = arg[i];
 
 		std::cerr << "[V] sorting " << infn << "...";
-		// libmaus2::dazzler::align::SortingOverlapOutputBuffer<libmaus2::dazzler::align::OverlapFullComparator>::sort(infn,tmpfilebase+".tmp");
+		libmaus2::dazzler::align::SortingOverlapOutputBuffer<libmaus2::dazzler::align::OverlapFullComparator>::sort(infn,tmpfilebase+".tmp");
 		std::cerr << "done." << std::endl;
 
 		int64_t const tspace = libmaus2::dazzler::align::AlignmentFile::getTSpace(infn);
