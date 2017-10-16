@@ -30,7 +30,7 @@ std::string getUsage(libmaus2::util::ArgParser const & arg)
 {
 	std::ostringstream ostr;
 
-	ostr << "usage: " << arg.progname << " -l<len=1000> <out.las> <in.las> ..." << std::endl;
+	ostr << "usage: " << arg.progname << " -l<len=1000> -e<eratemax> <out.las> <in.las> ..." << std::endl;
 	ostr << "\n";
 	ostr << "parameters:\n";
 
@@ -42,11 +42,17 @@ static int getDefaultMinLen()
 	return 1000;
 }
 
+static double getDefaultMaxError()
+{
+	return std::numeric_limits<double>::infinity();
+}
+
 int lasfilterlength(libmaus2::util::ArgParser const & arg)
 {
 	std::string const outfilename = arg[0];
 
 	int64_t const minlen = arg.uniqueArgPresent("l") ? arg.getUnsignedNumericArg<uint64_t>("l") : getDefaultMinLen();
+	double const emax = arg.uniqueArgPresent("e") ? arg.getParsedArg<double>("e") : getDefaultMaxError();
 
 	std::vector<std::string> VI;
 	for ( uint64_t i = 1 ; i < arg.size(); ++i )
@@ -63,7 +69,7 @@ int lasfilterlength(libmaus2::util::ArgParser const & arg)
 		libmaus2::dazzler::align::AlignmentFileRegion::unique_ptr_type PIN(libmaus2::dazzler::align::OverlapIndexer::openAlignmentFileWithoutIndex(VI[i]));
 
 		while ( PIN->getNextOverlap(OVL) )
-			if ( OVL.path.aepos-OVL.path.abpos >= minlen )
+			if ( OVL.path.aepos-OVL.path.abpos >= minlen && OVL.getErrorRate() <= emax )
 				AW->put(OVL);
 	}
 
