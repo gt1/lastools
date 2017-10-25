@@ -1934,8 +1934,18 @@ int lastobam(libmaus2::util::ArgParser const & arg)
 
 		// load and trim dazzler databases
 		libmaus2::dazzler::db::DatabaseFile DB_ref(db_ref_fn);
+		if ( DB_ref.cutoff < 0 )
+		{
+			std::cerr << "[E] database " << db_ref_fn << " is not split, please run DBsplit" << std::endl;
+			return EXIT_FAILURE;
+		}
 		DB_ref.computeTrimVector();
 		libmaus2::dazzler::db::DatabaseFile DB_reads(db_reads_fn);
+		if ( DB_reads.cutoff < 0 )
+		{
+			std::cerr << "[E] database " << db_reads_fn << " is not split, please run DBsplit" << std::endl;
+			return EXIT_FAILURE;
+		}
 		DB_reads.computeTrimVector();
 
 		// compute dazzler db id to reference id map
