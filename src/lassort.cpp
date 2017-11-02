@@ -16,6 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include <libmaus2/dazzler/align/SortingOverlapOutputBuffer.hpp>
+#include <libmaus2/dazzler/db/DatabaseFile.hpp>
 #include <libmaus2/parallel/NumCpus.hpp>
 #include <libmaus2/util/ArgInfo.hpp>
 #include <libmaus2/util/ArgParser.hpp>
@@ -32,10 +33,12 @@ std::string getUsage(libmaus2::util::ArgParser const & arg)
 	ostr << " -t : number of threads (defaults to number of cores on machine)\n";
 	ostr << " -T : prefix for temporary files (default: create files in current working directory)\n";
 	ostr << " -f : merge fan in (default: 64)\n";
-	ostr << " -s : sort order (canonical or ba, default: canonical)\n";
+	ostr << " -s : sort order (canonical, ba, full, aidapos, default: canonical)\n";
+	ostr << " -d : database file name (for indexing when sort order is aidapos)\n";
 
 	return ostr.str();
 }
+
 
 int lassort(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo const & arginfo)
 {
@@ -58,6 +61,28 @@ int lassort(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo const
 		libmaus2::dazzler::align::SortingOverlapOutputBuffer<libmaus2::dazzler::align::OverlapComparatorBIdAId>::sortAndMerge(infilenames,outfilename,tmpfilebase,mergefanin,1 /* numthreads */);
 	else if ( sortorder == "full" )
 		libmaus2::dazzler::align::SortingOverlapOutputBuffer<libmaus2::dazzler::align::OverlapFullComparator>::sortAndMerge(infilenames,outfilename,tmpfilebase,mergefanin,1 /* numthreads */);
+	else if ( sortorder == "aidapos" )
+	{
+		libmaus2::dazzler::align::SortingOverlapOutputBuffer<libmaus2::dazzler::align::OverlapComparatorAIdAPos>::sortAndMerge(infilenames,outfilename,tmpfilebase,mergefanin,1 /* numthreads */);
+
+		if ( arg.uniqueArgPresent("d") )
+		{
+			std::string const dbfn = arg["d"];
+			libmaus2::dazzler::db::DatabaseFile DB(dbfn);
+
+			if ( DB.cutoff < 0 )
+			{
+				std::cerr << "[E] database " << dbfn << " is not split, please run DBsplit" << std::endl;
+				return EXIT_FAILURE;
+			}
+			DB.computeTrimVector();
+
+			std::vector<uint64_t> RL;
+			DB.getAllReadLengths(RL);
+
+			libmaus2::dazzler::align::OverlapIndexer::constructBinIndex(outfilename,RL,&std::cerr);
+		}
+	}
 	else
 		libmaus2::dazzler::align::SortingOverlapOutputBuffer<>::sortAndMerge(infilenames,outfilename,tmpfilebase,mergefanin,numthreads);
 
