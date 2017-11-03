@@ -16,7 +16,7 @@ EXTRA_DIST = ${MANPAGES} derive.rc
 bin_PROGRAMS = lassort lasindex lastobam reformatfasta fasta2fastq lasroleswap bamtolas blasrtobam lascat lasmarkprimary call.damapper lasaligntotracepoints lasfilterquality \
 	laschainsort lasmerge lascomputetandem lasextracttandemrecompute tandemaligner lasdedup lassubsample lassuffixprefix cocommand lasreduce \
 	lasfilterlength paftolas commandpack commandstart commandfollowup commandprime SLURM.HPC.daligner commandderive laschecksymmetry extractreads viewmasks \
-	lassimplededup
+	lassimplededup lascheck laschangetspace
 dist_bin_SCRIPTS = swappedLasToBAM.sh
 
 lasindex_SOURCES = lasindex.cpp
@@ -193,3 +193,13 @@ viewmasks_SOURCES = viewmasks.cpp
 viewmasks_LDADD = ${LIBMAUS2LIBS}
 viewmasks_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
 viewmasks_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
+
+lascheck_SOURCES = lascheck.cpp
+lascheck_LDADD = ${LIBMAUS2LIBS}
+lascheck_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
+lascheck_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
+
+laschangetspace_SOURCES = laschangetspace.cpp
+laschangetspace_LDADD = ${LIBMAUS2LIBS}
+laschangetspace_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
+laschangetspace_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
