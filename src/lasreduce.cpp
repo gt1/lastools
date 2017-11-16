@@ -62,8 +62,11 @@ int lasreduce(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo con
 	std::vector<uint64_t> RL;
 	DB.getAllReadLengths(RL);
 	uint64_t const accrl = std::accumulate(RL.begin(),RL.end(),0ull);
-	uint64_t const paccrl = static_cast<uint64_t>(std::floor(p * accrl + 0.5));
-	assert ( paccrl < accrl );
+	uint64_t const paccrl = std::min(
+		static_cast<uint64_t>(std::floor(p * accrl + 0.5)),
+		accrl
+	);
+	assert ( paccrl <= accrl );
 
 	std::pair<int64_t,int64_t> P = DB.getTrimmedBlockInterval(0);
 	uint64_t const num = P.second-P.first;
