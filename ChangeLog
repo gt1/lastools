@@ -1,3 +1,9 @@
+lastools (0.0.79-1) unstable; urgency=medium
+
+  * fix case for p=1 in lasreduce
+
+ -- German Tischler <tischler@mpi-cbg.de>  Thu, 16 Nov 2017 10:21:53 +0100
+
 lastools (0.0.78-1) unstable; urgency=medium
 
   * add lasproject and lasshow
