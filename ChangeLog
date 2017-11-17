@@ -1,3 +1,10 @@
+lastools (0.0.80-1) unstable; urgency=medium
+
+  * add verbose output in laschecksymmetry
+  * fix help message in lasshow
+
+ -- German Tischler <tischler@mpi-cbg.de>  Fri, 17 Nov 2017 15:27:06 +0100
+
 lastools (0.0.79-1) unstable; urgency=medium
 
   * fix case for p=1 in lasreduce
