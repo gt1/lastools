@@ -42,7 +42,7 @@ int laschecksymmetry(libmaus2::util::ArgParser & arg)
 	for ( uint64_t i = 1; i < arg.size(); ++i )
 		Vin.push_back(arg[i]);
 
-	int const r = libmaus2::dazzler::align::AlignmentFileSymmetryCheck::checkSymmetry(dbfn,Vin,tmpfilebase);
+	int const r = libmaus2::dazzler::align::AlignmentFileSymmetryCheck::checkSymmetry(dbfn,Vin,tmpfilebase,&std::cerr);
 
 	if ( r == EXIT_SUCCESS )
 		std::cout << "ok" << std::endl;
