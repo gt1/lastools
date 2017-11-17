@@ -29,7 +29,7 @@ std::string getUsage(libmaus2::util::ArgParser const & arg)
 {
 	std::ostringstream ostr;
 
-	ostr << "usage: " << arg.progname << " [-t<numthreads>] [--tspace<value>] <out.las> <in_a.db> <in_b.db> <in.las>" << std::endl;
+	ostr << "usage: " << arg.progname << " [-a] <in_a.db> <in_b.db> <in.las>" << std::endl;
 	ostr << "\n";
 	ostr << "parameters:\n";
 
