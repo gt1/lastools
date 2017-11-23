@@ -103,7 +103,7 @@ int lasreduce(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo con
 		{
 			std::string const data = DB[i];
 
-			std::cout << ">L0/" << ICLR.rankm1(i) << "/0_" << data.size() << " RQ=0.851\n";
+			std::cout << ">L0/" << ICLR.rankm1(i) << "/0_" << data.size() << " " << i << "[" << 0 << "," << data.size() << ")" << "\n";
 
 			uint64_t p = 0;
 			while ( p < data.size() )
