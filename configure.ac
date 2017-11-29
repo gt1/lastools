@@ -164,11 +164,36 @@ if test "${have_libmaus2}" = "no" ; then
 	AC_MSG_ERROR([Required libmaus2 is not available.])
 fi
 
-AC_CHECK_LIB([slurm],[slurm_api_version],[SLURMLIB=YES],[SLURMLIB=NO])
+AC_ARG_WITH([slurm],
+            [AS_HELP_STRING([--with-slurm@<:@=PATH@:>@], [path to installed slurm library @<:@default=@:>@])],
+            [with_slurm=${withval}],
+            [with_slurm=])
 
-dnl if test "${SLURMLIB}" = "YES" ; then
-dnl	SLURM_HPC_daligner=SLURM.HPC.daligner
-dnl fi
+SLURMCPPFLAGS=
+SLURMLDFLAGS=
+
+if test ${with_slurm} != no ; then
+	CPPFLAGS_SAVE=${CPPFLAGS}
+	LDFLAGS_SAVE=${LDFLAGS}
+	
+
+	if test ${with_slurm} != yes ; then
+		SLURMCPPFLAGS="${CPPFLAGS} -I${with_slurm}/include"
+		SLURMLDFLAGS="${LDFLAGS} -L${with_slurm}/lib -Wl,-rpath=${with_slurm}/lib"
+	fi
+
+	CPPFLAGS="${CPPFLAGS} ${SLURMCPPFLAGS}"
+	LDFLAGS="${LDFLAGS} ${SLURMLDFLAGS}"
+
+	AC_CHECK_LIB([slurm],[slurm_api_version],[SLURMLIB=YES],[SLURMLIB=NO])
+
+	if test "${SLURMLIB}" = "YES" ; then
+		SLURMTEST="slurmcontrol slurmworker"
+	fi
+	
+	CPPFLAGS=${CPPFLAGS_SAVE}
+	LDFLAGS=${LDFLAGS_SAVE}
+fi
 
 AC_MSG_NOTICE([Using flags ${CFLAGS} for C compiler ${CC}])
 AC_MSG_NOTICE([Using flags ${CXXFLAGS} for C++ compiler ${CXX}])
@@ -181,6 +206,8 @@ AC_SUBST([PACKAGE_VERSION])
 # libmaus2
 AC_SUBST([LIBMAUS2CPPFLAGS])
 AC_SUBST([LIBMAUS2LIBS])
-dnl AC_SUBST([SLURM_HPC_daligner])
+AC_SUBST([SLURMTEST])
+AC_SUBST([SLURMCPPFLAGS])
+AC_SUBST([SLURMLDFLAGS])
 # 
 AC_OUTPUT(Makefile src/Makefile)
