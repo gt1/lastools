@@ -172,12 +172,12 @@ AC_ARG_WITH([slurm],
 SLURMCPPFLAGS=
 SLURMLDFLAGS=
 
-if test ${with_slurm} != no ; then
+if test "${with_slurm}" != "no" ; then
 	CPPFLAGS_SAVE=${CPPFLAGS}
 	LDFLAGS_SAVE=${LDFLAGS}
 	
 
-	if test ${with_slurm} != yes ; then
+	if test "${with_slurm}" != "yes" ; then
 		SLURMCPPFLAGS="${CPPFLAGS} -I${with_slurm}/include"
 		SLURMLDFLAGS="${LDFLAGS} -L${with_slurm}/lib -Wl,-rpath=${with_slurm}/lib"
 	fi
