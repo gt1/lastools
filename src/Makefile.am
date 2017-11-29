@@ -2,7 +2,7 @@ ACLOCAL_AMFLAGS=-I m4
 
 AM_CPPFLAGS = -DDATA_PATH=\"$(datadir)\"
 
-noinst_HEADERS =
+noinst_HEADERS = which.hpp runProgram.hpp
 
 MANPAGES = 
 
@@ -11,12 +11,12 @@ man_MANS = ${MANPAGES}
 data_DATA = derive.rc
 
 EXTRA_DIST = ${MANPAGES} derive.rc
-# EXTRA_PROGRAMS = 
+EXTRA_PROGRAMS = slurmcontrol slurmworker
 
 bin_PROGRAMS = lassort lasindex lastobam reformatfasta fasta2fastq lasroleswap bamtolas blasrtobam lascat lasmarkprimary call.damapper lasaligntotracepoints lasfilterquality \
 	laschainsort lasmerge lascomputetandem lasextracttandemrecompute tandemaligner lasdedup lassubsample lassuffixprefix cocommand lasreduce \
 	lasfilterlength paftolas commandpack commandstart commandfollowup commandprime SLURM.HPC.daligner commandderive laschecksymmetry extractreads viewmasks \
-	lassimplededup lascheck laschangetspace lasproject lasshow
+	lassimplededup lascheck laschangetspace lasproject lasshow @SLURMTEST@
 dist_bin_SCRIPTS = swappedLasToBAM.sh
 
 lasindex_SOURCES = lasindex.cpp
@@ -213,3 +213,13 @@ lasshow_SOURCES = lasshow.cpp
 lasshow_LDADD = ${LIBMAUS2LIBS}
 lasshow_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
 lasshow_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
+
+slurmcontrol_SOURCES = slurmcontrol.cpp which.cpp runProgram.cpp
+slurmcontrol_LDADD = ${LIBMAUS2LIBS} -lslurm
+slurmcontrol_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS} ${SLURMLDFLAGS}
+slurmcontrol_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${SLURMCPPFLAGS}
+
+slurmworker_SOURCES = slurmworker.cpp which.cpp runProgram.cpp
+slurmworker_LDADD = ${LIBMAUS2LIBS} -lslurm
+slurmworker_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS} ${SLURMLDFLAGS}
+slurmworker_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${SLURMCPPFLAGS}
