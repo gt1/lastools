@@ -351,6 +351,174 @@ void startWorker(
 	std::cerr << "[V] started job " << (i+1) << " out of " << workers << " with id " << AW[i].id << std::endl;
 }
 
+#include <sys/epoll.h>
+
+struct EPoll
+{
+	int fd;
+
+	EPoll() : fd(-1)
+	{
+		fd = epoll_create1(0);
+		
+		if ( fd < 0 )
+		{
+			int const error = errno;
+
+			libmaus2::exception::LibMausException lme;
+			lme.getStream() << "[E] epoll_create1() failed: " << strerror(error) << std::endl;
+			lme.finish();
+			throw lme;		
+		}
+	}
+
+	~EPoll()
+	{
+		if ( fd >= 0 )
+		{
+			::close(fd);
+			fd = -1;
+		}
+	}
+
+	void add(int const addfd)
+	{
+		struct epoll_event ev;
+		ev.events = EPOLLIN | EPOLLRDHUP;
+		ev.data.fd = addfd;
+
+		while ( true )
+		{
+			int const r = epoll_ctl(
+				fd,
+				EPOLL_CTL_ADD,
+				addfd,
+				&ev
+			);
+			
+			if ( r == 0 )
+				break;
+			
+			int const error = errno;
+			
+			switch ( error )
+			{
+				case EINTR:
+				case EAGAIN:
+					break;
+				default:
+				{
+				
+					libmaus2::exception::LibMausException lme;
+					lme.getStream() << "[E] EPoll:add: epoll_ctl() failed: " << strerror(error) << std::endl;
+					lme.finish();
+					throw lme;		
+				}
+			}
+		}
+	}
+
+	void remove(int const remfd)
+	{
+		while ( true )
+		{
+			int const r = epoll_ctl(
+				fd,
+				EPOLL_CTL_DEL,
+				remfd,
+				NULL
+			);
+			
+			if ( r == 0 )
+				break;
+			else
+			{
+				int const error = errno;
+
+				switch ( error )
+				{
+					case EINTR:
+					case EAGAIN:
+						break;
+					default:
+					{
+						libmaus2::exception::LibMausException lme;
+						lme.getStream() << "[E] EPoll:remove: epoll_ctl() failed: " << strerror(error) << std::endl;
+						lme.finish();
+						throw lme;
+					}
+				}
+			}
+		}
+	}
+	
+	bool wait(int & rfd, int const timeout = 1000 /* milli seconds */)
+	{
+		rfd = -1;
+		
+		struct epoll_event events[1];
+		
+		while ( true )
+		{
+			int const nfds = epoll_wait(fd, &events[0], sizeof(events)/sizeof(events[0]), timeout);
+			
+			if ( nfds < 0 )
+			{
+				int const error = errno;
+				
+				switch ( error )
+				{
+					case EINTR:
+					case EAGAIN:
+						break;
+					default:
+					{
+						libmaus2::exception::LibMausException lme;
+						lme.getStream() << "[E] EPoll:wait: epoll_wait() failed: " << strerror(error) << std::endl;
+						lme.finish();
+						throw lme;		
+					}
+				}
+			}
+			
+			if ( nfds == 0 )
+			{
+				return false;
+			}
+			else
+			{
+				rfd = events[0].data.fd;
+				return true;
+			}
+		}
+	}
+};
+
+struct ProgState
+{
+	uint64_t numunfinished;
+	uint64_t numpending;
+	
+	ProgState() : numunfinished(0), numpending(0) {}
+	ProgState(
+		uint64_t const rnumunfinished,
+		uint64_t const rnumpending
+	) : numunfinished(rnumunfinished), numpending(rnumpending)
+	{
+	
+	}
+	
+	bool operator==(ProgState const & o) const
+	{
+		return numunfinished == o.numunfinished && numpending == o.numpending;
+	}
+	
+	bool operator!=(ProgState const & o) const
+	{
+		return !operator==(o);
+	}
+};
+
 int slurmcontrol(libmaus2::util::ArgParser const & arg)
 {
 	std::string const tmpfilebase = arg.uniqueArgPresent("T") ? arg["T"] : libmaus2::util::ArgInfo::getDefaultTmpFileName(arg.progname);
@@ -364,11 +532,12 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 
 	uint64_t const workertime = arg.uniqueArgPresent("workertime") ? arg.getParsedArg<uint64_t>("workertime") : 1440;
 	uint64_t const workermem = arg.uniqueArgPresent("workermem") ? arg.getParsedArg<uint64_t>("workermem") : 40000;
-	std::string const partition = arg.uniqueArgPresent("partition") ? arg["partition"] : "haswell";
+	std::string const partition = arg.uniqueArgPresent("p") ? arg["p"] : "haswell";
 	uint64_t const workers = arg.uniqueArgPresent("workers") ? arg.getParsedArg<uint64_t>("workers") : 16;
 
 	libmaus2::autoarray::AutoArray<WorkerInfo> AW(workers);
 	std::map<uint64_t,uint64_t> idToSlot;
+	std::map<int,uint64_t> fdToSlot;
 	// std::vector < int64_t > Vworkerid(workers,-1);
 	
 	libmaus2::util::ContainerDescriptionList CDL;
@@ -404,6 +573,8 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 
 	uint64_t const workerthreads = maxthreads;
 	
+	EPoll EP;
+	
 	libmaus2::network::ServerSocket::unique_ptr_type Pservsock(
 		libmaus2::network::ServerSocket::allocateServerSocket(
 			serverport,
@@ -412,6 +583,9 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 			tries
 		)
 	);
+	
+	EP.add(Pservsock->getFD());
+	fdToSlot[Pservsock->getFD()] = std::numeric_limits<uint64_t>::max();
 
 	std::cerr << "[V] hostname=" << hostname << " serverport=" << serverport << " number of container " << CDLV.size() << std::endl;
 
@@ -432,6 +606,8 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 	std::set<uint64_t> restartSet;
 	uint64_t pending = 0;
 	
+	ProgState pstate;
+	
 	while ( Sunfinished.size() || pending )
 	{
 		for ( std::set<uint64_t>::const_iterator it = restartSet.begin(); it != restartSet.end(); ++it )
@@ -445,18 +621,33 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 		}
 		restartSet.clear();
 	
-		std::cerr << "[V] Sunfinished.size()=" << Sunfinished.size() << " pending=" << pending << std::endl;
-	
-		std::vector<int> Vfd;
-		Vfd.push_back(Pservsock->getFD());
-
-		int pfd = -1;
-		int const r = libmaus2::network::SocketBase::multiPoll(Vfd,pfd);
-
-		if ( r > 0 )
+		ProgState npstate(
+			Sunfinished.size(),
+			pending
+		);
+		
+		if ( npstate != pstate )
 		{
-			if ( pfd == Pservsock->getFD() )
+			pstate = npstate;
+			std::cerr << "[V] Sunfinished.size()=" << pstate.numunfinished << " pending=" << pstate.numpending << std::endl;
+		}
+
+		int rfd = -1;
+		if ( EP.wait(rfd) )
+		{
+			std::map<int,uint64_t>::const_iterator itslot = fdToSlot.find(rfd);
+			
+			if ( itslot == fdToSlot.end() )
 			{
+				libmaus2::exception::LibMausException lme;
+				lme.getStream() << "[E] EPoll::wait returned unknown file descriptor" << std::endl;
+				lme.finish();
+				throw lme;
+			}
+			else if ( itslot->second == std::numeric_limits<uint64_t>::max() )
+			{
+				assert ( rfd == Pservsock->getFD() );
+			
 				libmaus2::network::SocketBase::unique_ptr_type nptr = Pservsock->accept();
 				uint64_t const jobid = nptr->readSingle<uint64_t>();
 				
@@ -470,12 +661,14 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 					if ( ! AW[slot].Asocket )
 					{
 						AW[slot].Asocket = UNIQUE_PTR_MOVE(nptr);
+						EP.add(AW[slot].Asocket->getFD());
+						fdToSlot[AW[slot].Asocket->getFD()] = slot;
 						AW[slot].active = true;
 					}
 					else
 					{
 						libmaus2::exception::LibMausException lme;
-						lme.getStream() << "[E] erratic worker trying to open third connection" << std::endl;
+						lme.getStream() << "[E] erratic worker trying to open second connection" << std::endl;
 						lme.finish();
 						throw lme;	
 					}
@@ -485,19 +678,10 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 					std::cerr << "[V] job id unknown" << std::endl;
 				}
 			}
-		}
-		else if ( r < 0 )
-		{
-			int const error = errno;
-			libmaus2::exception::LibMausException lme;
-			lme.getStream() << "[E] poll failed: " << strerror(error) << std::endl;
-			lme.finish();
-			throw lme;		
-		}
-		else
-		{
-			for ( uint64_t i = 0; i < AW.size(); ++i )
+			else
 			{
+				uint64_t const i = itslot->second;
+
 				try
 				{
 					if ( AW[i].active )
@@ -588,6 +772,8 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 						else
 						{
 							uint64_t const id = AW[i].id;
+							EP.remove(AW[i].Asocket->getFD());
+							fdToSlot.erase(AW[i].Asocket->getFD());
 							AW[i].reset();
 							idToSlot.erase(id);
 							restartSet.insert(i);
@@ -599,6 +785,8 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 				catch(...)
 				{
 					uint64_t const id = AW[i].id;
+					EP.remove(AW[i].Asocket->getFD());
+					fdToSlot.erase(AW[i].Asocket->getFD());
 					AW[i].reset();
 					idToSlot.erase(id);
 					restartSet.insert(i);
@@ -606,9 +794,7 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 					std::cerr << "[V] exception for slot " << i << " jobid " << id << std::endl;				
 				}
 			}
-			
-			sleep(1);
-		}
+		}	
 	}
 	
 	std::set<uint64_t> Sactive;
@@ -633,6 +819,8 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 				{
 					// request terminate
 					AW[i].Asocket->writeSingle<uint64_t>(2);
+					EP.remove(AW[i].Asocket->getFD());
+					fdToSlot.erase(AW[i].Asocket->getFD());
 					AW[i].reset();
 					Vterm.push_back(i);
 				}
@@ -648,6 +836,8 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 				else
 				{
 					uint64_t const id = AW[i].id;
+					EP.remove(AW[i].Asocket->getFD());
+					fdToSlot.erase(AW[i].Asocket->getFD());
 					AW[i].reset();
 					idToSlot.erase(id);
 					restartSet.insert(i);
@@ -658,6 +848,8 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 			catch(...)
 			{
 				uint64_t const id = AW[i].id;
+				EP.remove(AW[i].Asocket->getFD());
+				fdToSlot.erase(AW[i].Asocket->getFD());
 				AW[i].reset();
 				idToSlot.erase(id);
 				restartSet.insert(i);
