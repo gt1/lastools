@@ -5,3 +5,5 @@ naligner	thread	optional	T	1	0	4
 naligner	mem	mandatory	M	1000	1000
 datander	thread	optional	T	1	0	4
 datander	mem	optional	M	1000	1000	1
+laligner	thread	optional	t	1	0	4
+laligner	mem	mandatory	M	1000	1000
