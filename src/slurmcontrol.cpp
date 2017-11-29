@@ -111,13 +111,13 @@ struct SlurmPartitions
 		assert ( i < size() );
 		return partitions->partition_array[i].name;
 	}
-	
+
 	uint64_t getIdForName(std::string const & name) const
 	{
 		for ( uint64_t i = 0; i < size(); ++i )
 			if ( getName(i) == name )
 				return i;
-		
+
 		libmaus2::exception::LibMausException lme;
 		lme.getStream() << "[E] partition named " << name << " not found" << std::endl;
 		lme.finish();
@@ -169,7 +169,7 @@ struct SlurmJobs
 	: jobs(0)
 	{
 		int const r = slurm_load_jobs(0,&jobs,0 /* showflags */);
-		
+
 		if ( r != 0 )
 		{
 			int const error = slurm_get_errno();
@@ -179,21 +179,21 @@ struct SlurmJobs
 			throw lme;
 		}
 	}
-	
+
 	~SlurmJobs()
 	{
 		slurm_free_job_info_msg(jobs);
 	}
-	
+
 	uint64_t size() const
 	{
 		return jobs->record_count;
 	}
-	
+
 	uint64_t getUserId(uint64_t const i) const
 	{
 		return jobs->job_array[i].user_id;
-	} 
+	}
 
 	std::string getUserName(uint64_t const i) const
 	{
@@ -211,13 +211,13 @@ struct SlurmJobs
 			lme.finish();
 			throw lme;
 		}
-	} 
+	}
 
 	char const * getName(uint64_t const i) const
 	{
 		return jobs->job_array[i].name;
-	} 
-	
+	}
+
 	uint64_t getJobId(uint64_t const i) const
 	{
 		return jobs->job_array[i].job_id;
@@ -236,7 +236,7 @@ static void writeJobDescription(
 )
 {
 	libmaus2::aio::OutputStreamInstance OSI(fn);
-	
+
 	OSI << "#!/bin/bash\n";
 	OSI << "#SBATCH --job-name=" << jobname << "\n";
 	OSI << "#SBATCH --output=" << outfn << "\n";
@@ -256,9 +256,9 @@ struct WorkerInfo
 	bool active;
 	std::pair<int64_t,int64_t> packageid;
 	uint64_t workerid;
-	
+
 	WorkerInfo() { reset(); }
-	
+
 	void reset()
 	{
 		id = -1;
@@ -290,13 +290,13 @@ void startWorker(
 	std::ostringstream outfnstr;
 	outfnstr << tmpfilebase << "_" << workerid << ".out";
 	std::string const outfn = outfnstr.str();
-	
+
 	std::string const descname = tmpfilebase + "_worker.sbatch";
-	
+
 	std::ostringstream commandstr;
 	commandstr << "slurmworker " << hostname << " " << serverport;
 	std::string command = commandstr.str();
-	
+
 	writeJobDescription(
 		descname,
 		workername,
@@ -307,25 +307,25 @@ void startWorker(
 		partition,
 		command
 	);
-	
+
 	std::vector<std::string> Varg;
 	Varg.push_back("sbatch");
 	Varg.push_back(descname);
-	
+
 	std::string const jobid_s = runProgram(Varg,arg);
-	
+
 	std::deque<std::string> Vtoken = libmaus2::util::stringFunctions::tokenize(jobid_s,std::string(" "));
-	
+
 	if ( Vtoken.size() >= 4 )
 	{
 		std::istringstream istr(Vtoken[3]);
 		uint64_t id;
 		istr >> id;
-		
+
 		if ( istr && istr.peek() == '\n' )
 		{
 			// std::cerr << "got job id " << id << std::endl;
-			
+
 			AW [ i ].id = id;
 			AW [ i ].workerid = workerid;
 			idToSlot[id] = i;
@@ -343,9 +343,9 @@ void startWorker(
 		libmaus2::exception::LibMausException lme;
 		lme.getStream() << "[E] unable to find job id in " << jobid_s << std::endl;
 		lme.finish();
-		throw lme;		
+		throw lme;
 	}
-					
+
 	libmaus2::aio::FileRemoval::removeFile(descname);
 
 	std::cerr << "[V] started job " << (i+1) << " out of " << workers << " with id " << AW[i].id << std::endl;
@@ -360,7 +360,7 @@ struct EPoll
 	EPoll() : fd(-1)
 	{
 		fd = epoll_create1(0);
-		
+
 		if ( fd < 0 )
 		{
 			int const error = errno;
@@ -368,7 +368,7 @@ struct EPoll
 			libmaus2::exception::LibMausException lme;
 			lme.getStream() << "[E] epoll_create1() failed: " << strerror(error) << std::endl;
 			lme.finish();
-			throw lme;		
+			throw lme;
 		}
 	}
 
@@ -395,12 +395,12 @@ struct EPoll
 				addfd,
 				&ev
 			);
-			
+
 			if ( r == 0 )
 				break;
-			
+
 			int const error = errno;
-			
+
 			switch ( error )
 			{
 				case EINTR:
@@ -408,11 +408,11 @@ struct EPoll
 					break;
 				default:
 				{
-				
+
 					libmaus2::exception::LibMausException lme;
 					lme.getStream() << "[E] EPoll:add: epoll_ctl() failed: " << strerror(error) << std::endl;
 					lme.finish();
-					throw lme;		
+					throw lme;
 				}
 			}
 		}
@@ -428,7 +428,7 @@ struct EPoll
 				remfd,
 				NULL
 			);
-			
+
 			if ( r == 0 )
 				break;
 			else
@@ -451,21 +451,21 @@ struct EPoll
 			}
 		}
 	}
-	
+
 	bool wait(int & rfd, int const timeout = 1000 /* milli seconds */)
 	{
 		rfd = -1;
-		
+
 		struct epoll_event events[1];
-		
+
 		while ( true )
 		{
 			int const nfds = epoll_wait(fd, &events[0], sizeof(events)/sizeof(events[0]), timeout);
-			
+
 			if ( nfds < 0 )
 			{
 				int const error = errno;
-				
+
 				switch ( error )
 				{
 					case EINTR:
@@ -476,11 +476,11 @@ struct EPoll
 						libmaus2::exception::LibMausException lme;
 						lme.getStream() << "[E] EPoll:wait: epoll_wait() failed: " << strerror(error) << std::endl;
 						lme.finish();
-						throw lme;		
+						throw lme;
 					}
 				}
 			}
-			
+
 			if ( nfds == 0 )
 			{
 				return false;
@@ -498,21 +498,21 @@ struct ProgState
 {
 	uint64_t numunfinished;
 	uint64_t numpending;
-	
+
 	ProgState() : numunfinished(0), numpending(0) {}
 	ProgState(
 		uint64_t const rnumunfinished,
 		uint64_t const rnumpending
 	) : numunfinished(rnumunfinished), numpending(rnumpending)
 	{
-	
+
 	}
-	
+
 	bool operator==(ProgState const & o) const
 	{
 		return numunfinished == o.numunfinished && numpending == o.numpending;
 	}
-	
+
 	bool operator!=(ProgState const & o) const
 	{
 		return !operator==(o);
@@ -524,7 +524,7 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 	std::string const tmpfilebase = arg.uniqueArgPresent("T") ? arg["T"] : libmaus2::util::ArgInfo::getDefaultTmpFileName(arg.progname);
 	std::string const hostname = libmaus2::network::GetHostName::getHostName();
 	std::string const cdl = arg[0];
-	
+
 	unsigned short serverport = 50000;
 	uint64_t const backlog = 1024;
 	uint64_t const tries = 1000;
@@ -539,16 +539,16 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 	std::map<uint64_t,uint64_t> idToSlot;
 	std::map<int,uint64_t> fdToSlot;
 	// std::vector < int64_t > Vworkerid(workers,-1);
-	
+
 	libmaus2::util::ContainerDescriptionList CDL;
 	{
 		libmaus2::aio::InputStreamInstance ISI(cdl);
 		CDL.deserialise(ISI);
 	}
 
-	
+
 	std::vector < libmaus2::util::ContainerDescription > & CDLV = CDL.V;
-	
+
 	std::vector < libmaus2::util::CommandContainer > VCC(CDLV.size());
 	std::set < std::pair<uint64_t,uint64_t> > Sunfinished;
 	std::map < uint64_t, uint64_t > Munfinished;
@@ -556,7 +556,7 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 	{
 		libmaus2::aio::InputStreamInstance ISI(CDLV[i].fn);
 		VCC[i].deserialise(ISI);
-		
+
 		if ( CDLV[i].missingdep == 0 )
 		{
 			for ( uint64_t j = 0; j < VCC[i].V.size(); ++j )
@@ -566,15 +566,15 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 			}
 		}
 	}
-	
+
 	uint64_t maxthreads = 1;
 	for ( uint64_t i = 0; i < VCC.size(); ++i )
 		maxthreads = std::max(maxthreads,VCC[i].threads);
 
 	uint64_t const workerthreads = maxthreads;
-	
+
 	EPoll EP;
-	
+
 	libmaus2::network::ServerSocket::unique_ptr_type Pservsock(
 		libmaus2::network::ServerSocket::allocateServerSocket(
 			serverport,
@@ -583,7 +583,7 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 			tries
 		)
 	);
-	
+
 	EP.add(Pservsock->getFD());
 	fdToSlot[Pservsock->getFD()] = std::numeric_limits<uint64_t>::max();
 
@@ -591,23 +591,23 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 
 	SlurmControlConfig SCC;
 	SlurmPartitions SP;
-	
+
 	uint64_t const partid = SP.getIdForName(partition);
 	uint64_t const maxcores = SP.getMaxCpusPerNode(partid);
 
-	
+
 	for ( uint64_t i = 0; i < workers; ++i )
 		startWorker(
 			nextworkerid,tmpfilebase,hostname,serverport,
 			workertime,workermem,workerthreads,partition,arg,AW.begin(),i,
 			idToSlot,workers
 		);
-	
+
 	std::set<uint64_t> restartSet;
 	uint64_t pending = 0;
-	
+
 	ProgState pstate;
-	
+
 	while ( Sunfinished.size() || pending )
 	{
 		for ( std::set<uint64_t>::const_iterator it = restartSet.begin(); it != restartSet.end(); ++it )
@@ -620,12 +620,12 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 			);
 		}
 		restartSet.clear();
-	
+
 		ProgState npstate(
 			Sunfinished.size(),
 			pending
 		);
-		
+
 		if ( npstate != pstate )
 		{
 			pstate = npstate;
@@ -636,7 +636,7 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 		if ( EP.wait(rfd) )
 		{
 			std::map<int,uint64_t>::const_iterator itslot = fdToSlot.find(rfd);
-			
+
 			if ( itslot == fdToSlot.end() )
 			{
 				libmaus2::exception::LibMausException lme;
@@ -647,17 +647,17 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 			else if ( itslot->second == std::numeric_limits<uint64_t>::max() )
 			{
 				assert ( rfd == Pservsock->getFD() );
-			
+
 				libmaus2::network::SocketBase::unique_ptr_type nptr = Pservsock->accept();
 				uint64_t const jobid = nptr->readSingle<uint64_t>();
-				
+
 				std::cerr << "[V] accepted connection for jobid=" << jobid << std::endl;
-				
+
 				if ( idToSlot.find(jobid) != idToSlot.end() )
 				{
 					uint64_t const slot = idToSlot.find(jobid)->second;
 					nptr->writeSingle<uint64_t>(AW[slot].workerid);
-					
+
 					if ( ! AW[slot].Asocket )
 					{
 						AW[slot].Asocket = UNIQUE_PTR_MOVE(nptr);
@@ -670,7 +670,7 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 						libmaus2::exception::LibMausException lme;
 						lme.getStream() << "[E] erratic worker trying to open second connection" << std::endl;
 						lme.finish();
-						throw lme;	
+						throw lme;
 					}
 				}
 				else
@@ -688,7 +688,7 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 					{
 						// worker asking for work
 						uint64_t const rd = AW[i].Asocket->readSingle<uint64_t>();
-						
+
 						if ( rd == 0 )
 						{
 							if ( Sunfinished.size() )
@@ -703,46 +703,46 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 								AW[i].Asocket->writeSingle<uint64_t>(0);
 								AW[i].Asocket->writeString(ostr.str());
 								pending += 1;
-								
+
 								std::cerr << "[V] started " << com << " for " << currentid.first << "," << currentid.second << " on slot " << i << std::endl;
 							}
 							else
 							{
 								// stay idle
-								AW[i].Asocket->writeSingle<uint64_t>(1);								
+								AW[i].Asocket->writeSingle<uint64_t>(1);
 							}
 						}
 						else if ( rd == 1 )
 						{
 							pending -= 1;
-						
+
 							uint64_t const status = AW[i].Asocket->readSingle<uint64_t>();
 							int const istatus = static_cast<int>(status);
-							
+
 							std::cerr << "[V] slot " << i << " reports job ended with istatus=" << istatus << std::endl;
-							
+
 							if ( WIFEXITED(istatus) && (WEXITSTATUS(istatus) == 0) )
 							{
 								std::cerr << "[V] updating command container " << AW[i].packageid.first << std::endl;
-								
+
 								Munfinished [ AW[i].packageid.first ] --;
-								
+
 								if ( ! Munfinished [AW[i].packageid.first] )
 								{
 									std::cerr << "[V] finished command container " << AW[i].packageid.first << std::endl;
-									
+
 									libmaus2::util::CommandContainer & CC = VCC[
 										AW[i].packageid.first
 									];
-																	
+
 									for ( uint64_t j = 0; j < CC.rdepid.size(); ++j )
 									{
 										uint64_t const k = CC.rdepid[j];
-										
+
 										assert ( CDLV[k].missingdep );
-										
+
 										CDLV[k].missingdep -= 1;
-										
+
 										if ( ! CDLV[k].missingdep )
 										{
 											std::cerr << "[V] activating container " << k << std::endl;
@@ -754,7 +754,7 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 										}
 									}
 								}
-								
+
 								AW[i].packageid.first = -1;
 								AW[i].packageid.second = -1;
 							}
@@ -777,7 +777,7 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 							AW[i].reset();
 							idToSlot.erase(id);
 							restartSet.insert(i);
-							
+
 							std::cerr << "[V] process for slot " << i << " jobid " << id << " is erratic" << std::endl;
 						}
 					}
@@ -790,13 +790,13 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 					AW[i].reset();
 					idToSlot.erase(id);
 					restartSet.insert(i);
-					
-					std::cerr << "[V] exception for slot " << i << " jobid " << id << std::endl;				
+
+					std::cerr << "[V] exception for slot " << i << " jobid " << id << std::endl;
 				}
 			}
-		}	
+		}
 	}
-	
+
 	std::set<uint64_t> Sactive;
 	for ( uint64_t i = 0; i < AW.size(); ++i )
 		if ( AW[i].active )
@@ -805,16 +805,16 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 	while ( Sactive.size() )
 	{
 		std::vector < uint64_t > Vterm;
-		
+
 		for ( std::set<uint64_t>::const_iterator it = Sactive.begin(); it != Sactive.end(); ++it )
 		{
 			uint64_t const i = *it;
-		
+
 			try
 			{
 				// worker asking for work
 				uint64_t const rd = AW[i].Asocket->readSingle<uint64_t>();
-				
+
 				if ( rd == 0 )
 				{
 					// request terminate
@@ -841,7 +841,7 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 					AW[i].reset();
 					idToSlot.erase(id);
 					restartSet.insert(i);
-					
+
 					std::cerr << "[V] process for slot " << i << " jobid " << id << " is erratic" << std::endl;
 				}
 			}
@@ -853,8 +853,8 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 				AW[i].reset();
 				idToSlot.erase(id);
 				restartSet.insert(i);
-				
-				std::cerr << "[V] exception for slot " << i << " jobid " << id << std::endl;				
+
+				std::cerr << "[V] exception for slot " << i << " jobid " << id << std::endl;
 			}
 		}
 
@@ -862,21 +862,21 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 			Sactive.erase(Vterm[i]);
 	}
 
-	
+
 	#if 0
 	for ( uint64_t i = 0; i < SP.size(); ++i )
 	{
 		std::cerr << "[V]\t" << i << "\t" << SP.getName(i) << "\t" << SP.getNodes(i) << "\t" << SP.getTotalCpus(i) << "\t"<< SP.getMaxTime(i) << "\t" << SP.getMaxMemPerCpu(i) << "\t" << SP.getMaxCpusPerNode(i) << std::endl;
 	}
 	#endif
-	
+
 	std::cerr << "[V] partition " << partition << " max cores per node " << maxcores << std::endl;
 
-	#if 0	
+	#if 0
 	SlurmJobs jobs;
-	
+
 	std::cerr << "number of jobs: " << jobs.size() << std::endl;
-	
+
 	for ( uint64_t i = 0; i < jobs.size(); ++i )
 	{
 		std::cerr << "[V]\t" << i << "\t" << jobs.getUserName(i) << "\t" << jobs.getName(i) << "\t" << jobs.getJobId(i) << std::endl;
@@ -891,9 +891,9 @@ int main(int argc, char * argv[])
 	try
 	{
 		libmaus2::util::ArgParser const arg(argc,argv);
-		
+
 		int const r = slurmcontrol(arg);
-		
+
 		return r;
 	}
 	catch(std::exception const & ex)

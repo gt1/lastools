@@ -40,7 +40,7 @@
 pid_t startCommand(libmaus2::util::Command const & C)
 {
 	pid_t const pid = fork();
-	
+
 	if ( pid == 0 )
 	{
 		try
@@ -70,18 +70,18 @@ pid_t startCommand(libmaus2::util::Command const & C)
 int slurmworker(libmaus2::util::ArgParser const & arg)
 {
 	std::string const tmpfilebase = arg.uniqueArgPresent("T") ? arg["T"] : libmaus2::util::ArgInfo::getDefaultTmpFileName(arg.progname);
-	
+
 	std::string const hostname = arg[0];
 	uint64_t const port = arg.getParsedRestArg<uint64_t>(1);
-	
+
 	char const * jobid_s = getenv("SLURM_JOB_ID");
-	
+
 	if ( ! jobid_s )
 	{
 		std::cerr << "[E] job id not found in SLURM_JOB_ID" << std::endl;
 		return EXIT_FAILURE;
 	}
-	
+
 	std::istringstream jobidistr(jobid_s);
 	uint64_t jobid;
 	jobidistr >> jobid;
@@ -90,46 +90,46 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 		std::cerr << "[E] job id " << jobid_s << " found in SLURM_JOB_ID not parseable" << std::endl;
 		return EXIT_FAILURE;
 	}
-	
+
 	libmaus2::network::ClientSocket sockA(port,hostname.c_str());
 	sockA.writeSingle<uint64_t>(jobid);
-	
+
 	uint64_t const workerid = sockA.readSingle<uint64_t>();
-	
+
 	bool running = true;
-	
+
 	enum state_type
 	{
 		state_idle,
 		state_running
 	};
-	
+
 	state_type state = state_idle;
 	pid_t workpid = static_cast<pid_t>(-1);
-	
+
 	while ( running )
 	{
 		sockA.writeSingle<uint64_t>(2);
 		sockA.readSingle<uint64_t>();
-		
+
 		switch ( state )
 		{
 			case state_idle:
 			{
 				// tell control we are idle
 				sockA.writeSingle<uint64_t>(0);
-				
+
 				uint64_t const rep = sockA.readSingle<uint64_t>();
-				
+
 				// execute command
 				if ( rep == 0 )
 				{
 					std::string const jobdesc = sockA.readString();
 					std::istringstream jobdescistr(jobdesc);
 					libmaus2::util::Command const com(jobdescistr);
-					
+
 					std::cerr << "[V] starting command " << com << std::endl;
-					
+
 					workpid = startCommand(com);
 					state = state_running;
 				}
@@ -143,14 +143,14 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 				{
 					running = false;
 				}
-				
+
 				break;
 			}
 			case state_running:
 			{
 				int status = 0;
 				pid_t const wpid = waitpid(workpid, &status, WNOHANG);
-				
+
 				if ( wpid == 0 )
 				{
 					// still running
@@ -159,7 +159,7 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 				else if ( wpid < 0 )
 				{
 					int const error = errno;
-					
+
 					switch ( error )
 					{
 						case EINTR:
@@ -175,18 +175,18 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 				else
 				{
 					assert ( wpid == workpid );
-					
+
 					workpid = static_cast<pid_t>(-1);
 
 					// tell control we finished a job
 					sockA.writeSingle<uint64_t>(1);
 					sockA.writeSingle<uint64_t>(status);
-					
+
 					std::cerr << "[V] finished with status " << status << std::endl;
-					
+
 					state = state_idle;
 				}
-			
+
 				break;
 			}
 		}
@@ -200,9 +200,9 @@ int main(int argc, char * argv[])
 	try
 	{
 		libmaus2::util::ArgParser const arg(argc,argv);
-		
+
 		int const r = slurmworker(arg);
-		
+
 		return r;
 	}
 	catch(std::exception const & ex)
