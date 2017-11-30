@@ -1,6 +1,6 @@
 /*
     lastools
-    Copyright (C) 2015 German Tischler
+    Copyright (C) 2017 German Tischler
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -32,6 +32,7 @@
 #include <libmaus2/util/ContainerDescriptionList.hpp>
 #include <libmaus2/util/CommandContainer.hpp>
 #include <sys/wait.h>
+#include <sys/epoll.h>
 
 #include <sys/types.h>
 #include <pwd.h>
@@ -351,7 +352,6 @@ void startWorker(
 	std::cerr << "[V] started job " << (i+1) << " out of " << workers << " with id " << AW[i].id << std::endl;
 }
 
-#include <sys/epoll.h>
 
 struct EPoll
 {
