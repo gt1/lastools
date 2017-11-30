@@ -539,6 +539,7 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 	std::map<uint64_t,uint64_t> idToSlot;
 	std::map<int,uint64_t> fdToSlot;
 	// std::vector < int64_t > Vworkerid(workers,-1);
+	std::map < std::pair<int64_t,int64_t>, uint64_t > Mfail;
 
 	libmaus2::util::ContainerDescriptionList CDL;
 	{
@@ -607,6 +608,7 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 	uint64_t pending = 0;
 
 	ProgState pstate;
+	bool failed = false;
 
 	while ( Sunfinished.size() || pending )
 	{
@@ -686,9 +688,10 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 				{
 					if ( AW[i].active )
 					{
-						// worker asking for work
+						// read worker state
 						uint64_t const rd = AW[i].Asocket->readSingle<uint64_t>();
 
+						// worker is idle
 						if ( rd == 0 )
 						{
 							if ( Sunfinished.size() )
@@ -712,12 +715,15 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 								AW[i].Asocket->writeSingle<uint64_t>(1);
 							}
 						}
+						// worker has finished a job (may or may not be succesful)
 						else if ( rd == 1 )
 						{
 							pending -= 1;
 
 							uint64_t const status = AW[i].Asocket->readSingle<uint64_t>();
 							int const istatus = static_cast<int>(status);
+							// acknowledge
+							AW[i].Asocket->writeSingle<uint64_t>(0);
 
 							std::cerr << "[V] slot " << i << " reports job ended with istatus=" << istatus << std::endl;
 
@@ -760,13 +766,28 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 							}
 							else
 							{
-								// todo: check how often job failed
-								Sunfinished.insert(AW[i].packageid);
+								Mfail [ AW[i].packageid ] += 1;
+
+								libmaus2::util::CommandContainer & CC = VCC[
+									AW[i].packageid.first
+								];
+								
+								// mark pipeline as failed
+								if ( Mfail [ AW[i].packageid ] >= CC.maxattempt )
+								{
+									failed = true;
+								}
+								// requeue
+								else
+								{
+									Sunfinished.insert(AW[i].packageid);
+								}
 							}
 						}
+						// worker is still running a job
 						else if ( rd == 2 )
 						{
-							// std::cerr << "[V] got ping signal from " << i << std::endl;
+							// acknowledge
 							AW[i].Asocket->writeSingle<uint64_t>(0);
 						}
 						else
@@ -812,9 +833,10 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 
 			try
 			{
-				// worker asking for work
+				// read worker state
 				uint64_t const rd = AW[i].Asocket->readSingle<uint64_t>();
 
+				// worker is idle
 				if ( rd == 0 )
 				{
 					// request terminate
@@ -828,9 +850,10 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 				{
 					std::cerr << "[V] slot " << i << " reports finished job with no jobs active" << std::endl;
 				}
+				// worker is still running a job
 				else if ( rd == 2 )
 				{
-					// std::cerr << "[V] got ping signal from " << i << std::endl;
+					std::cerr << "[V] slot " << i << " reports job running, but we know of no such job" << std::endl;
 					AW[i].Asocket->writeSingle<uint64_t>(0);
 				}
 				else
@@ -862,17 +885,25 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 			Sactive.erase(Vterm[i]);
 	}
 
+	if ( failed )
+	{
+		std::cerr << "[E] pipeline failed" << std::endl;
+		return EXIT_FAILURE;
+	}
+	else
+	{
+		std::cerr << "[V] pipeline finished ok" << std::endl;
+		return EXIT_SUCCESS;
+	}
 
 	#if 0
 	for ( uint64_t i = 0; i < SP.size(); ++i )
 	{
 		std::cerr << "[V]\t" << i << "\t" << SP.getName(i) << "\t" << SP.getNodes(i) << "\t" << SP.getTotalCpus(i) << "\t"<< SP.getMaxTime(i) << "\t" << SP.getMaxMemPerCpu(i) << "\t" << SP.getMaxCpusPerNode(i) << std::endl;
 	}
-	#endif
 
 	std::cerr << "[V] partition " << partition << " max cores per node " << maxcores << std::endl;
 
-	#if 0
 	SlurmJobs jobs;
 
 	std::cerr << "number of jobs: " << jobs.size() << std::endl;

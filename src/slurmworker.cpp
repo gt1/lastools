@@ -67,6 +67,69 @@ pid_t startCommand(libmaus2::util::Command const & C)
 	}
 }
 
+pid_t startSleep(int const len)
+{
+	pid_t const pid = fork();
+
+	if ( pid == 0 )
+	{
+		sleep(len);
+		_exit(0);
+	}
+	else if ( pid == static_cast<pid_t>(-1) )
+	{
+		int const error = errno;
+		libmaus2::exception::LibMausException lme;
+		lme.getStream() << "[V] fork failed: " << strerror(error) << std::endl;
+		lme.finish();
+		throw lme;
+	}
+	else
+	{
+		return pid;
+	}
+}
+
+std::pair<pid_t,int> waitWithTimeout(int const timeout)
+{
+	pid_t const sleeppid = startSleep(timeout);
+	
+	while ( true )
+	{
+		int status = 0;
+		pid_t const wpid = waitpid(-1, &status, 0);
+		
+		if ( wpid == static_cast<pid_t>(-1) )
+		{
+			int const error = errno;
+			
+			switch ( error )
+			{
+				case EAGAIN:
+				case EINTR:
+					break;
+				default:
+				{
+					int const error = errno;
+					libmaus2::exception::LibMausException lme;
+					lme.getStream() << "[V] waitpid failed in waitWithTimeout: " << strerror(error) << std::endl;
+					lme.finish();
+					throw lme;
+				}
+			}
+		}
+		else if ( wpid == sleeppid )
+		{
+			return std::pair<pid_t,int>(static_cast<pid_t>(0),0);
+		}
+		else
+		{
+			kill(sleeppid,SIGTERM);
+			return std::pair<pid_t,int>(wpid,status);
+		}
+	}
+}
+
 int slurmworker(libmaus2::util::ArgParser const & arg)
 {
 	std::string const tmpfilebase = arg.uniqueArgPresent("T") ? arg["T"] : libmaus2::util::ArgInfo::getDefaultTmpFileName(arg.progname);
@@ -100,8 +163,8 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 
 	enum state_type
 	{
-		state_idle,
-		state_running
+		state_idle = 0,
+		state_running = 1
 	};
 
 	state_type state = state_idle;
@@ -109,16 +172,13 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 
 	while ( running )
 	{
-		sockA.writeSingle<uint64_t>(2);
-		sockA.readSingle<uint64_t>();
-
 		switch ( state )
 		{
 			case state_idle:
 			{
 				// tell control we are idle
 				sockA.writeSingle<uint64_t>(0);
-
+				// get reply
 				uint64_t const rep = sockA.readSingle<uint64_t>();
 
 				// execute command
@@ -133,11 +193,6 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 					workpid = startCommand(com);
 					state = state_running;
 				}
-				// stay idle
-				else if ( rep == 1 )
-				{
-					sleep(1);
-				}
 				// terminate
 				else if ( rep == 2 )
 				{
@@ -148,45 +203,32 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 			}
 			case state_running:
 			{
-				int status = 0;
-				pid_t const wpid = waitpid(workpid, &status, WNOHANG);
+				std::pair<pid_t,int> const P = waitWithTimeout(1 /* timeout */);
 
-				if ( wpid == 0 )
-				{
-					// still running
-					::sleep(1);
-				}
-				else if ( wpid < 0 )
-				{
-					int const error = errno;
+				pid_t const wpid = P.first;
+				int const status = P.second;
 
-					switch ( error )
-					{
-						case EINTR:
-						case EAGAIN:
-							break;
-						default:
-						{
-							std::cerr << "[E] waitpid failed: " << strerror(errno);
-							return EXIT_FAILURE;
-						}
-					}
-				}
-				else
+				if ( wpid == workpid )
 				{
-					assert ( wpid == workpid );
-
 					workpid = static_cast<pid_t>(-1);
 
 					// tell control we finished a job
 					sockA.writeSingle<uint64_t>(1);
 					sockA.writeSingle<uint64_t>(status);
+					// wait for acknowledgement
+					sockA.readSingle<uint64_t>();
 
 					std::cerr << "[V] finished with status " << status << std::endl;
 
 					state = state_idle;
 				}
-
+				else
+				{				
+					// tell control we are still running our job
+					sockA.writeSingle<uint64_t>(2);
+					// wait for acknowledgement
+					sockA.readSingle<uint64_t>();
+				}
 				break;
 			}
 		}
