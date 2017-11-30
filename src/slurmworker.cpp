@@ -93,16 +93,16 @@ pid_t startSleep(int const len)
 std::pair<pid_t,int> waitWithTimeout(int const timeout)
 {
 	pid_t const sleeppid = startSleep(timeout);
-	
+
 	while ( true )
 	{
 		int status = 0;
 		pid_t const wpid = waitpid(-1, &status, 0);
-		
+
 		if ( wpid == static_cast<pid_t>(-1) )
 		{
 			int const error = errno;
-			
+
 			switch ( error )
 			{
 				case EAGAIN:
@@ -223,7 +223,7 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 					state = state_idle;
 				}
 				else
-				{				
+				{
 					// tell control we are still running our job
 					sockA.writeSingle<uint64_t>(2);
 					// wait for acknowledgement

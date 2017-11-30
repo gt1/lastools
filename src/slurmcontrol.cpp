@@ -771,7 +771,7 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 								libmaus2::util::CommandContainer & CC = VCC[
 									AW[i].packageid.first
 								];
-								
+
 								// mark pipeline as failed
 								if ( Mfail [ AW[i].packageid ] >= CC.maxattempt )
 								{
