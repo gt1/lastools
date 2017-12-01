@@ -124,6 +124,33 @@ std::pair<pid_t,int> waitWithTimeout(int const timeout)
 		else
 		{
 			kill(sleeppid,SIGTERM);
+			int sleepstatus = 0;
+			
+			while ( true )
+			{
+				pid_t const wpid = waitpid(sleeppid,&sleepstatus,0);
+				
+				if ( wpid == sleeppid )
+					break;
+				
+				int const error = errno;
+				
+				switch ( error )
+				{
+					case EAGAIN:
+					case EINTR:
+						break;
+					default:
+					{
+						int const error = errno;
+						libmaus2::exception::LibMausException lme;
+						lme.getStream() << "[V] waitpid(sleeppid) failed in waitWithTimeout: " << strerror(error) << std::endl;
+						lme.finish();
+						throw lme;
+					}
+				}
+			}
+			
 			return std::pair<pid_t,int>(wpid,status);
 		}
 	}
