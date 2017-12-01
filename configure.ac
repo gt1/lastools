@@ -188,7 +188,7 @@ if test "${with_slurm}" != "no" ; then
 	AC_CHECK_LIB([slurm],[slurm_api_version],[SLURMLIB=YES],[SLURMLIB=NO])
 
 	if test "${SLURMLIB}" = "YES" ; then
-		SLURMTEST="slurmcontrol slurmworker"
+		SLURMTEST=""
 	fi
 	
 	CPPFLAGS=${CPPFLAGS_SAVE}

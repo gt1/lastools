@@ -37,7 +37,9 @@
 #include <sys/types.h>
 #include <pwd.h>
 
+#if 0
 #include <slurm/slurm.h>
+#endif
 
 #include <FDIO.hpp>
 
@@ -51,6 +53,7 @@ std::string getUsage(libmaus2::util::ArgParser const & arg)
 }
 
 
+#if 0
 struct SlurmControlConfig
 {
 	slurm_ctl_conf_t * conf;
@@ -226,6 +229,7 @@ struct SlurmJobs
 		return jobs->job_array[i].job_id;
 	}
 };
+#endif
 
 static void writeJobDescription(
 	std::string const & fn,
@@ -663,12 +667,13 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 
 	std::cerr << "[V] hostname=" << hostname << " serverport=" << serverport << " number of container " << CDLV.size() << std::endl;
 
+	#if 0
 	SlurmControlConfig SCC;
 	SlurmPartitions SP;
+	#endif
 
-	uint64_t const partid = SP.getIdForName(partition);
-	uint64_t const maxcores = SP.getMaxCpusPerNode(partid);
-
+	// uint64_t const partid = SP.getIdForName(partition);
+	// uint64_t const maxcores = SP.getMaxCpusPerNode(partid);
 
 	for ( uint64_t i = 0; i < workers; ++i )
 		startWorker(
