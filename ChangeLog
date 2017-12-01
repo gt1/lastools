@@ -1,3 +1,13 @@
+lastools (0.0.82-1) unstable; urgency=medium
+
+  * update help message in slurmcontrol
+  * remove slurm library dependency
+  * implement wait for sleep process terminated
+  * rewrite IO for slurmcontrol/slurmworker
+  * requeue jobs on failure in slurmcontrol
+
+ -- German Tischler <tischler@mpi-cbg.de>  Fri, 01 Dec 2017 15:58:42 +0100
+
 lastools (0.0.81-1) unstable; urgency=medium
 
   * store subsampling information in FastA output
