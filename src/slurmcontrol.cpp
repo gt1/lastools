@@ -375,8 +375,13 @@ struct EPoll
 {
 	int fd;
 
-	EPoll() : fd(-1)
+	EPoll(int const
+	#if defined(HAVE_EPOLL_CREATE) && !defined(HAVE_EPOLL_CREATE1)
+		size
+	#endif
+	) : fd(-1)
 	{
+		#if defined(HAVE_EPOLL_CREATE1)
 		fd = epoll_create1(0);
 
 		if ( fd < 0 )
@@ -388,6 +393,25 @@ struct EPoll
 			lme.finish();
 			throw lme;
 		}
+		#elif defined(HAVE_EPOLL_CREATE)
+		fd = epoll_create(size);
+
+		if ( fd < 0 )
+		{
+			int const error = errno;
+
+			libmaus2::exception::LibMausException lme;
+			lme.getStream() << "[E] epoll_create1() failed: " << strerror(error) << std::endl;
+			lme.finish();
+			throw lme;
+		}
+
+		#else
+		libmaus2::exception::LibMausException lme;
+		lme.getStream() << "[E] EPoll: epoll interface not supported " << strerror(error) << std::endl;
+		lme.finish();
+		throw lme;
+		#endif
 	}
 
 	~EPoll()
@@ -399,10 +423,15 @@ struct EPoll
 		}
 	}
 
+	#if defined(HAVE_EPOLL_CREATE) || defined(HAVE_EPOLL_CREATE1)
 	void add(int const addfd)
 	{
 		struct epoll_event ev;
-		ev.events = EPOLLIN | EPOLLRDHUP;
+		ev.events = EPOLLIN
+			#if defined(EPOLLRDHUP)
+			| EPOLLRDHUP
+			#endif
+			;
 		ev.data.fd = addfd;
 
 		while ( true )
@@ -510,6 +539,17 @@ struct EPoll
 			}
 		}
 	}
+	#else
+	void add(int const)
+	{
+	}
+	void remove(int const)
+	{
+	}
+	bool wait(int &, int const = 1000 /* milli seconds */)
+	{
+	}
+	#endif
 };
 
 struct ProgState
@@ -632,7 +672,6 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 		CDL.deserialise(ISI);
 	}
 
-
 	std::vector < libmaus2::util::ContainerDescription > & CDLV = CDL.V;
 
 	std::vector < libmaus2::util::CommandContainer > VCC(CDLV.size());
@@ -659,7 +698,7 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 
 	uint64_t const workerthreads = maxthreads;
 
-	EPoll EP;
+	EPoll EP(workers+1);
 
 	libmaus2::network::ServerSocket::unique_ptr_type Pservsock(
 		libmaus2::network::ServerSocket::allocateServerSocket(
@@ -957,7 +996,7 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 				else
 				{
 					std::cerr << "[V] process for slot " << i << " jobid " << AW[i].id << " is erratic" << std::endl;
-					
+
 					resetSlot(AW.begin(),i /* slotid */,idToSlot,fdToSlot,restartSet,wakeupSet,EP);
 				}
 			}
