@@ -184,7 +184,7 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 
 	FDIO fdio(sockA.getFD());
 	fdio.writeNumber(jobid);
-	uint64_t const workerid = fdio.readNumber();
+	/* uint64_t const workerid = */ fdio.readNumber();
 
 	bool running = true;
 
