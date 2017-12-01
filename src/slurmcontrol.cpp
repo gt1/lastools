@@ -683,128 +683,183 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 			else
 			{
 				uint64_t const i = itslot->second;
+				
+				if ( ! AW[i].active )
+				{
+					libmaus2::exception::LibMausException lme;
+					lme.getStream() << "[E] epoll returned file descriptor for inactive slot" << std::endl;
+					lme.finish();
+					throw lme;
+				}
 
 				try
 				{
-					if ( AW[i].active )
+					// read worker state
+					uint64_t const rd = AW[i].Asocket->readSingle<uint64_t>();
+
+					// worker is idle
+					if ( rd == 0 )
 					{
-						// read worker state
-						uint64_t const rd = AW[i].Asocket->readSingle<uint64_t>();
-
-						// worker is idle
-						if ( rd == 0 )
+						if ( Sunfinished.size() )
 						{
-							if ( Sunfinished.size() )
-							{
-								std::pair<uint64_t,uint64_t> const currentid = *(Sunfinished.begin());
-								Sunfinished.erase(currentid);
-								libmaus2::util::Command const com = VCC[currentid.first].V[currentid.second];
-								std::ostringstream ostr;
-								com.serialise(ostr);
-								// process command
-								AW[i].packageid = currentid;
-								AW[i].Asocket->writeSingle<uint64_t>(0);
-								AW[i].Asocket->writeString(ostr.str());
-								pending += 1;
-
-								std::cerr << "[V] started " << com << " for " << currentid.first << "," << currentid.second << " on slot " << i << std::endl;
-							}
-							else
-							{
-								// stay idle
-								AW[i].Asocket->writeSingle<uint64_t>(1);
-							}
-						}
-						// worker has finished a job (may or may not be succesful)
-						else if ( rd == 1 )
-						{
-							pending -= 1;
-
-							uint64_t const status = AW[i].Asocket->readSingle<uint64_t>();
-							int const istatus = static_cast<int>(status);
-							// acknowledge
+							std::pair<uint64_t,uint64_t> const currentid = *(Sunfinished.begin());
+							Sunfinished.erase(currentid);
+							libmaus2::util::Command const com = VCC[currentid.first].V[currentid.second];
+							std::ostringstream ostr;
+							com.serialise(ostr);
+							// process command
+							AW[i].packageid = currentid;
 							AW[i].Asocket->writeSingle<uint64_t>(0);
+							AW[i].Asocket->writeString(ostr.str());
+							pending += 1;
 
-							std::cerr << "[V] slot " << i << " reports job ended with istatus=" << istatus << std::endl;
+							std::cerr << "[V] started " << com << " for " << currentid.first << "," << currentid.second << " on slot " << i << std::endl;
+						}
+						else
+						{
+							// stay idle
+							AW[i].Asocket->writeSingle<uint64_t>(1);
+						}
+					}
+					// worker has finished a job (may or may not be succesful)
+					else if ( rd == 1 )
+					{
+						pending -= 1;
 
-							if ( WIFEXITED(istatus) && (WEXITSTATUS(istatus) == 0) )
+						uint64_t const status = AW[i].Asocket->readSingle<uint64_t>();
+						int const istatus = static_cast<int>(status);
+						// acknowledge
+						AW[i].Asocket->writeSingle<uint64_t>(0);
+
+						std::cerr << "[V] slot " << i << " reports job ended with istatus=" << istatus << std::endl;
+
+						if ( WIFEXITED(istatus) && (WEXITSTATUS(istatus) == 0) )
+						{
+							std::cerr << "[V] updating command container " << AW[i].packageid.first << std::endl;
+
+							Munfinished [ AW[i].packageid.first ] --;
+
+							if ( ! Munfinished [AW[i].packageid.first] )
 							{
-								std::cerr << "[V] updating command container " << AW[i].packageid.first << std::endl;
-
-								Munfinished [ AW[i].packageid.first ] --;
-
-								if ( ! Munfinished [AW[i].packageid.first] )
-								{
-									std::cerr << "[V] finished command container " << AW[i].packageid.first << std::endl;
-
-									libmaus2::util::CommandContainer & CC = VCC[
-										AW[i].packageid.first
-									];
-
-									for ( uint64_t j = 0; j < CC.rdepid.size(); ++j )
-									{
-										uint64_t const k = CC.rdepid[j];
-
-										assert ( CDLV[k].missingdep );
-
-										CDLV[k].missingdep -= 1;
-
-										if ( ! CDLV[k].missingdep )
-										{
-											std::cerr << "[V] activating container " << k << std::endl;
-											for ( uint64_t j = 0; j < VCC[k].V.size(); ++j )
-											{
-												Sunfinished.insert(std::pair<uint64_t,uint64_t>(k,j));
-												Munfinished[k]++;
-											}
-										}
-									}
-								}
-
-								AW[i].packageid.first = -1;
-								AW[i].packageid.second = -1;
-							}
-							else
-							{
-								Mfail [ AW[i].packageid ] += 1;
+								std::cerr << "[V] finished command container " << AW[i].packageid.first << std::endl;
 
 								libmaus2::util::CommandContainer & CC = VCC[
 									AW[i].packageid.first
 								];
 
-								// mark pipeline as failed
-								if ( Mfail [ AW[i].packageid ] >= CC.maxattempt )
+								for ( uint64_t j = 0; j < CC.rdepid.size(); ++j )
 								{
-									failed = true;
-								}
-								// requeue
-								else
-								{
-									Sunfinished.insert(AW[i].packageid);
+									uint64_t const k = CC.rdepid[j];
+
+									assert ( CDLV[k].missingdep );
+
+									CDLV[k].missingdep -= 1;
+
+									if ( ! CDLV[k].missingdep )
+									{
+										std::cerr << "[V] activating container " << k << std::endl;
+										for ( uint64_t j = 0; j < VCC[k].V.size(); ++j )
+										{
+											Sunfinished.insert(std::pair<uint64_t,uint64_t>(k,j));
+											Munfinished[k]++;
+										}
+									}
 								}
 							}
-						}
-						// worker is still running a job
-						else if ( rd == 2 )
-						{
-							// acknowledge
-							AW[i].Asocket->writeSingle<uint64_t>(0);
+
+							AW[i].packageid.first = -1;
+							AW[i].packageid.second = -1;
 						}
 						else
 						{
-							uint64_t const id = AW[i].id;
-							EP.remove(AW[i].Asocket->getFD());
-							fdToSlot.erase(AW[i].Asocket->getFD());
-							AW[i].reset();
-							idToSlot.erase(id);
-							restartSet.insert(i);
+							Mfail [ AW[i].packageid ] += 1;
 
-							std::cerr << "[V] process for slot " << i << " jobid " << id << " is erratic" << std::endl;
+							libmaus2::util::CommandContainer & CC = VCC[
+								AW[i].packageid.first
+							];
+
+							// mark pipeline as failed
+							if ( Mfail [ AW[i].packageid ] >= CC.maxattempt )
+							{
+								failed = true;
+							}
+							// requeue
+							else
+							{
+								Sunfinished.insert(AW[i].packageid);
+							}
+
+							AW[i].packageid.first = -1;
+							AW[i].packageid.second = -1;
 						}
+					}
+					// worker is still running a job
+					else if ( rd == 2 )
+					{
+						// acknowledge
+						AW[i].Asocket->writeSingle<uint64_t>(0);
+					}
+					else
+					{
+						if ( AW[i].packageid.first >= 0 )
+						{
+							pending -= 1;
+						
+							Mfail [ AW[i].packageid ] += 1;
+
+							libmaus2::util::CommandContainer & CC = VCC[
+								AW[i].packageid.first
+							];
+
+							// mark pipeline as failed
+							if ( Mfail [ AW[i].packageid ] >= CC.maxattempt )
+							{
+								failed = true;
+							}
+							// requeue
+							else
+							{
+								Sunfinished.insert(AW[i].packageid);
+							}
+						
+						}
+					
+						uint64_t const id = AW[i].id;
+						EP.remove(AW[i].Asocket->getFD());
+						fdToSlot.erase(AW[i].Asocket->getFD());
+						AW[i].reset();
+						idToSlot.erase(id);
+						restartSet.insert(i);
+
+						std::cerr << "[V] process for slot " << i << " jobid " << id << " is erratic" << std::endl;
 					}
 				}
 				catch(...)
 				{
+					if ( AW[i].packageid.first >= 0 )
+					{
+						pending -= 1;
+					
+						Mfail [ AW[i].packageid ] += 1;
+
+						libmaus2::util::CommandContainer & CC = VCC[
+							AW[i].packageid.first
+						];
+
+						// mark pipeline as failed
+						if ( Mfail [ AW[i].packageid ] >= CC.maxattempt )
+						{
+							failed = true;
+						}
+						// requeue
+						else
+						{
+							Sunfinished.insert(AW[i].packageid);
+						}
+					
+					}
+
+					// get job id
 					uint64_t const id = AW[i].id;
 					EP.remove(AW[i].Asocket->getFD());
 					fdToSlot.erase(AW[i].Asocket->getFD());
