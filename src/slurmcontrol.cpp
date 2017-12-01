@@ -683,7 +683,7 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 			else
 			{
 				uint64_t const i = itslot->second;
-				
+
 				if ( ! AW[i].active )
 				{
 					libmaus2::exception::LibMausException lme;
@@ -804,7 +804,7 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 						if ( AW[i].packageid.first >= 0 )
 						{
 							pending -= 1;
-						
+
 							Mfail [ AW[i].packageid ] += 1;
 
 							libmaus2::util::CommandContainer & CC = VCC[
@@ -821,9 +821,9 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 							{
 								Sunfinished.insert(AW[i].packageid);
 							}
-						
+
 						}
-					
+
 						uint64_t const id = AW[i].id;
 						EP.remove(AW[i].Asocket->getFD());
 						fdToSlot.erase(AW[i].Asocket->getFD());
@@ -839,7 +839,7 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 					if ( AW[i].packageid.first >= 0 )
 					{
 						pending -= 1;
-					
+
 						Mfail [ AW[i].packageid ] += 1;
 
 						libmaus2::util::CommandContainer & CC = VCC[
@@ -856,7 +856,7 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 						{
 							Sunfinished.insert(AW[i].packageid);
 						}
-					
+
 					}
 
 					// get job id
