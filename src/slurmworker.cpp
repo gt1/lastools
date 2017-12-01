@@ -125,16 +125,16 @@ std::pair<pid_t,int> waitWithTimeout(int const timeout)
 		{
 			kill(sleeppid,SIGTERM);
 			int sleepstatus = 0;
-			
+
 			while ( true )
 			{
 				pid_t const wpid = waitpid(sleeppid,&sleepstatus,0);
-				
+
 				if ( wpid == sleeppid )
 					break;
-				
+
 				int const error = errno;
-				
+
 				switch ( error )
 				{
 					case EAGAIN:
@@ -150,7 +150,7 @@ std::pair<pid_t,int> waitWithTimeout(int const timeout)
 					}
 				}
 			}
-			
+
 			return std::pair<pid_t,int>(wpid,status);
 		}
 	}
@@ -181,7 +181,7 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 	}
 
 	libmaus2::network::ClientSocket sockA(port,hostname.c_str());
-	
+
 	FDIO fdio(sockA.getFD());
 	fdio.writeNumber(jobid);
 	uint64_t const workerid = fdio.readNumber();
@@ -231,7 +231,7 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 				}
 				else
 				{
-				
+
 				}
 				break;
 			}

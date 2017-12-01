@@ -270,10 +270,10 @@ struct WorkerInfo
 		workerid = std::numeric_limits<uint64_t>::max();
 		resetPackageId();
 	}
-	
+
 	void resetPackageId()
 	{
-		packageid = std::pair<int64_t,int64_t>(-1,-1);	
+		packageid = std::pair<int64_t,int64_t>(-1,-1);
 	}
 };
 
@@ -561,14 +561,14 @@ void checkRequeue(
 	if ( Mfail [ AW[slotid].packageid ] >= CC.maxattempt )
 	{
 		std::cerr << "[V] too many failures on " << AW[slotid].packageid.first << "," << AW[slotid].packageid.second << ", marking pipeline as failed" << std::endl;
-	
+
 		failed = true;
 	}
 	// requeue
 	else
 	{
 		std::cerr << "[V] requeuing " << AW[slotid].packageid.first << "," << AW[slotid].packageid.second << std::endl;
-		
+
 		Sunfinished.insert(AW[slotid].packageid);
 		processWakeupSet(AW,wakeupSet);
 	}
@@ -711,7 +711,7 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 
 				FDIO fdio(nptr->getFD());
 				uint64_t const jobid = fdio.readNumber();
-				
+
 				std::cerr << "[V] accepted connection for jobid=" << jobid << std::endl;
 
 				if ( idToSlot.find(jobid) != idToSlot.end() )
@@ -725,7 +725,7 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 						EP.add(AW[slot].Asocket->getFD());
 						fdToSlot[AW[slot].Asocket->getFD()] = slot;
 						AW[slot].active = true;
-						
+
 						std::cerr << "[V] marked slot " << slot << " active for jobid " << AW[slot].id << std::endl;
 					}
 					else
@@ -744,7 +744,7 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 			else
 			{
 				uint64_t const i = itslot->second;
-				
+
 				std::cerr << "[V] epoll returned slot " << i << " ready for reading" << std::endl;
 
 				if ( ! AW[i].active )
@@ -782,7 +782,7 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 						else
 						{
 							wakeupSet.insert(i);
-							std::cerr << "[V] putting slot " << i << " in wakeupSet" << std::endl;											
+							std::cerr << "[V] putting slot " << i << " in wakeupSet" << std::endl;
 						}
 					}
 					// worker has finished a job (may or may not be succesful)
@@ -838,7 +838,7 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 						else
 						{
 							std::cerr << "[V] slot " << i << " failed, checking requeue " << AW[i].packageid.first << "," << AW[i].packageid.second << std::endl;
-							
+
 							checkRequeue(i /* slotid */,AW.begin(),Mfail,Sunfinished,wakeupSet,VCC,failed);
 
 							AW[i].resetPackageId();

@@ -28,19 +28,19 @@ struct FDIO
 
 	FDIO(int const rfd) : fd(rfd)
 	{
-	
+
 	}
-	
+
 	void readArray(unsigned char * A, ::ssize_t l)
 	{
 		while ( l )
 		{
 			::ssize_t const r = ::read(fd,A,l);
-			
+
 			if ( r < 0 )
 			{
 				int const error = errno;
-				
+
 				switch ( error )
 				{
 					case EINTR:
@@ -51,7 +51,7 @@ struct FDIO
 						libmaus2::exception::LibMausException lme;
 						lme.getStream() << "[E] read failed with error " << strerror(error) << std::endl;
 						lme.finish();
-						throw lme;			
+						throw lme;
 					}
 				}
 			}
@@ -60,12 +60,12 @@ struct FDIO
 				libmaus2::exception::LibMausException lme;
 				lme.getStream() << "[E] read failed with EOF" << std::endl;
 				lme.finish();
-				throw lme;			
+				throw lme;
 			}
 			else
 			{
 				assert ( r <= l );
-				
+
 				A += r;
 				l -= r;
 			}
@@ -77,11 +77,11 @@ struct FDIO
 		while ( l )
 		{
 			::ssize_t const r = ::write(fd,A,l);
-			
+
 			if ( r < 0 )
 			{
 				int const error = errno;
-				
+
 				switch ( error )
 				{
 					case EINTR:
@@ -92,7 +92,7 @@ struct FDIO
 						libmaus2::exception::LibMausException lme;
 						lme.getStream() << "[E] write failed with error " << strerror(error) << std::endl;
 						lme.finish();
-						throw lme;			
+						throw lme;
 					}
 				}
 			}
@@ -101,12 +101,12 @@ struct FDIO
 				libmaus2::exception::LibMausException lme;
 				lme.getStream() << "[E] write failed with EOF" << std::endl;
 				lme.finish();
-				throw lme;			
+				throw lme;
 			}
 			else
 			{
 				assert ( r <= l );
-				
+
 				A += r;
 				l -= r;
 			}
@@ -125,7 +125,7 @@ struct FDIO
 		}
 		writeArray(&A[0],n);
 	}
-	
+
 	uint64_t readNumber()
 	{
 		static unsigned int const n = 8;
@@ -139,13 +139,13 @@ struct FDIO
 		}
 		return v;
 	}
-	
+
 	void writeString(std::string const & s)
 	{
 		writeNumber(s.size());
 		writeArray(reinterpret_cast<unsigned char const *>(s.c_str()),s.size());
 	}
-	
+
 	std::string readString()
 	{
 		uint64_t const n = readNumber();
