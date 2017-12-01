@@ -30,12 +30,11 @@
 #include <libmaus2/network/Socket.hpp>
 #include <libmaus2/util/GetFileSize.hpp>
 #include <libmaus2/util/Command.hpp>
+#include <FDIO.hpp>
 #include <sys/wait.h>
 
 #include <sys/types.h>
 #include <pwd.h>
-
-#include <slurm/slurm.h>
 
 pid_t startCommand(libmaus2::util::Command const & C)
 {
@@ -155,9 +154,10 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 	}
 
 	libmaus2::network::ClientSocket sockA(port,hostname.c_str());
-	sockA.writeSingle<uint64_t>(jobid);
-
-	uint64_t const workerid = sockA.readSingle<uint64_t>();
+	
+	FDIO fdio(sockA.getFD());
+	fdio.writeNumber(jobid);
+	uint64_t const workerid = fdio.readNumber();
 
 	bool running = true;
 
@@ -176,15 +176,18 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 		{
 			case state_idle:
 			{
+				std::cerr << "[V] telling control we are idle" << std::endl;
 				// tell control we are idle
-				sockA.writeSingle<uint64_t>(0);
+				fdio.writeNumber(0);
+				std::cerr << "[V] waiting for acknowledgement" << std::endl;
 				// get reply
-				uint64_t const rep = sockA.readSingle<uint64_t>();
+				uint64_t const rep = fdio.readNumber();
+				std::cerr << "[V] got acknowledgement with code " << rep << std::endl;
 
 				// execute command
 				if ( rep == 0 )
 				{
-					std::string const jobdesc = sockA.readString();
+					std::string const jobdesc = fdio.readString();
 					std::istringstream jobdescistr(jobdesc);
 					libmaus2::util::Command const com(jobdescistr);
 
@@ -196,14 +199,18 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 				// terminate
 				else if ( rep == 2 )
 				{
+					std::cerr << "[V] terminating" << std::endl;
 					running = false;
 				}
-
+				else
+				{
+				
+				}
 				break;
 			}
 			case state_running:
 			{
-				std::pair<pid_t,int> const P = waitWithTimeout(1 /* timeout */);
+				std::pair<pid_t,int> const P = waitWithTimeout(60 /* timeout */);
 
 				pid_t const wpid = P.first;
 				int const status = P.second;
@@ -213,10 +220,10 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 					workpid = static_cast<pid_t>(-1);
 
 					// tell control we finished a job
-					sockA.writeSingle<uint64_t>(1);
-					sockA.writeSingle<uint64_t>(status);
+					fdio.writeNumber(1);
+					fdio.writeNumber(status);
 					// wait for acknowledgement
-					sockA.readSingle<uint64_t>();
+					fdio.readNumber();
 
 					std::cerr << "[V] finished with status " << status << std::endl;
 
@@ -225,9 +232,9 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 				else
 				{
 					// tell control we are still running our job
-					sockA.writeSingle<uint64_t>(2);
+					fdio.writeNumber(2);
 					// wait for acknowledgement
-					sockA.readSingle<uint64_t>();
+					fdio.readNumber();
 				}
 				break;
 			}

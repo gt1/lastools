@@ -2,7 +2,7 @@ ACLOCAL_AMFLAGS=-I m4
 
 AM_CPPFLAGS = -DDATA_PATH=\"$(datadir)\"
 
-noinst_HEADERS = which.hpp runProgram.hpp
+noinst_HEADERS = which.hpp runProgram.hpp FDIO.hpp
 
 MANPAGES = 
 

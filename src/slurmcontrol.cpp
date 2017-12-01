@@ -39,6 +39,8 @@
 
 #include <slurm/slurm.h>
 
+#include <FDIO.hpp>
+
 std::string getUsage(libmaus2::util::ArgParser const & arg)
 {
 	std::ostringstream ostr;
@@ -265,8 +267,13 @@ struct WorkerInfo
 		id = -1;
 		Asocket.reset();
 		active = false;
-		packageid = std::pair<int64_t,int64_t>(-1,-1);
 		workerid = std::numeric_limits<uint64_t>::max();
+		resetPackageId();
+	}
+	
+	void resetPackageId()
+	{
+		packageid = std::pair<int64_t,int64_t>(-1,-1);	
 	}
 };
 
@@ -519,6 +526,55 @@ struct ProgState
 	}
 };
 
+void processWakeupSet(
+	WorkerInfo * const AW,
+	std::set<uint64_t> & wakeupSet
+)
+{
+	for ( std::set < uint64_t >::const_iterator it = wakeupSet.begin();
+		it != wakeupSet.end(); ++it )
+	{
+		uint64_t const i = *it;
+		std::cerr << "[V] sending wakeup to slot " << i << std::endl;
+
+		FDIO fdio(AW[i].Asocket->getFD());
+		fdio.writeNumber(1);
+	}
+	wakeupSet.clear();
+}
+
+void checkRequeue(
+	uint64_t const slotid,
+	WorkerInfo * const AW,
+	std::map < std::pair<int64_t,int64_t>, uint64_t > & Mfail,
+	std::set < std::pair<uint64_t,uint64_t> > & Sunfinished,
+	std::set<uint64_t> & wakeupSet,
+	std::vector < libmaus2::util::CommandContainer > const & VCC,
+	bool & failed
+)
+{
+	Mfail [ AW[slotid].packageid ] += 1;
+
+	libmaus2::util::CommandContainer const & CC = VCC[AW[slotid].packageid.first];
+
+	// mark pipeline as failed
+	if ( Mfail [ AW[slotid].packageid ] >= CC.maxattempt )
+	{
+		std::cerr << "[V] too many failures on " << AW[slotid].packageid.first << "," << AW[slotid].packageid.second << ", marking pipeline as failed" << std::endl;
+	
+		failed = true;
+	}
+	// requeue
+	else
+	{
+		std::cerr << "[V] requeuing " << AW[slotid].packageid.first << "," << AW[slotid].packageid.second << std::endl;
+		
+		Sunfinished.insert(AW[slotid].packageid);
+		processWakeupSet(AW,wakeupSet);
+	}
+}
+
+
 int slurmcontrol(libmaus2::util::ArgParser const & arg)
 {
 	std::string const tmpfilebase = arg.uniqueArgPresent("T") ? arg["T"] : libmaus2::util::ArgInfo::getDefaultTmpFileName(arg.progname);
@@ -605,6 +661,7 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 		);
 
 	std::set<uint64_t> restartSet;
+	std::set<uint64_t> wakeupSet;
 	uint64_t pending = 0;
 
 	ProgState pstate;
@@ -651,14 +708,16 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 				assert ( rfd == Pservsock->getFD() );
 
 				libmaus2::network::SocketBase::unique_ptr_type nptr = Pservsock->accept();
-				uint64_t const jobid = nptr->readSingle<uint64_t>();
 
+				FDIO fdio(nptr->getFD());
+				uint64_t const jobid = fdio.readNumber();
+				
 				std::cerr << "[V] accepted connection for jobid=" << jobid << std::endl;
 
 				if ( idToSlot.find(jobid) != idToSlot.end() )
 				{
 					uint64_t const slot = idToSlot.find(jobid)->second;
-					nptr->writeSingle<uint64_t>(AW[slot].workerid);
+					fdio.writeNumber(AW[slot].workerid);
 
 					if ( ! AW[slot].Asocket )
 					{
@@ -666,6 +725,8 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 						EP.add(AW[slot].Asocket->getFD());
 						fdToSlot[AW[slot].Asocket->getFD()] = slot;
 						AW[slot].active = true;
+						
+						std::cerr << "[V] marked slot " << slot << " active for jobid " << AW[slot].id << std::endl;
 					}
 					else
 					{
@@ -683,6 +744,8 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 			else
 			{
 				uint64_t const i = itslot->second;
+				
+				std::cerr << "[V] epoll returned slot " << i << " ready for reading" << std::endl;
 
 				if ( ! AW[i].active )
 				{
@@ -695,7 +758,8 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 				try
 				{
 					// read worker state
-					uint64_t const rd = AW[i].Asocket->readSingle<uint64_t>();
+					FDIO fdio(AW[i].Asocket->getFD());
+					uint64_t const rd = fdio.readNumber();
 
 					// worker is idle
 					if ( rd == 0 )
@@ -709,16 +773,16 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 							com.serialise(ostr);
 							// process command
 							AW[i].packageid = currentid;
-							AW[i].Asocket->writeSingle<uint64_t>(0);
-							AW[i].Asocket->writeString(ostr.str());
+							fdio.writeNumber(0);
+							fdio.writeString(ostr.str());
 							pending += 1;
 
 							std::cerr << "[V] started " << com << " for " << currentid.first << "," << currentid.second << " on slot " << i << std::endl;
 						}
 						else
 						{
-							// stay idle
-							AW[i].Asocket->writeSingle<uint64_t>(1);
+							wakeupSet.insert(i);
+							std::cerr << "[V] putting slot " << i << " in wakeupSet" << std::endl;											
 						}
 					}
 					// worker has finished a job (may or may not be succesful)
@@ -726,10 +790,10 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 					{
 						pending -= 1;
 
-						uint64_t const status = AW[i].Asocket->readSingle<uint64_t>();
+						uint64_t const status = fdio.readNumber();
 						int const istatus = static_cast<int>(status);
 						// acknowledge
-						AW[i].Asocket->writeSingle<uint64_t>(0);
+						fdio.writeNumber(0);
 
 						std::cerr << "[V] slot " << i << " reports job ended with istatus=" << istatus << std::endl;
 
@@ -763,65 +827,35 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 											Sunfinished.insert(std::pair<uint64_t,uint64_t>(k,j));
 											Munfinished[k]++;
 										}
+										if ( Sunfinished.size() )
+											processWakeupSet(AW.begin(),wakeupSet);
 									}
 								}
 							}
 
-							AW[i].packageid.first = -1;
-							AW[i].packageid.second = -1;
+							AW[i].resetPackageId();
 						}
 						else
 						{
-							Mfail [ AW[i].packageid ] += 1;
+							std::cerr << "[V] slot " << i << " failed, checking requeue " << AW[i].packageid.first << "," << AW[i].packageid.second << std::endl;
+							
+							checkRequeue(i /* slotid */,AW.begin(),Mfail,Sunfinished,wakeupSet,VCC,failed);
 
-							libmaus2::util::CommandContainer & CC = VCC[
-								AW[i].packageid.first
-							];
-
-							// mark pipeline as failed
-							if ( Mfail [ AW[i].packageid ] >= CC.maxattempt )
-							{
-								failed = true;
-							}
-							// requeue
-							else
-							{
-								Sunfinished.insert(AW[i].packageid);
-							}
-
-							AW[i].packageid.first = -1;
-							AW[i].packageid.second = -1;
+							AW[i].resetPackageId();
 						}
 					}
 					// worker is still running a job
 					else if ( rd == 2 )
 					{
 						// acknowledge
-						AW[i].Asocket->writeSingle<uint64_t>(0);
+						fdio.writeNumber(0);
 					}
 					else
 					{
 						if ( AW[i].packageid.first >= 0 )
 						{
 							pending -= 1;
-
-							Mfail [ AW[i].packageid ] += 1;
-
-							libmaus2::util::CommandContainer & CC = VCC[
-								AW[i].packageid.first
-							];
-
-							// mark pipeline as failed
-							if ( Mfail [ AW[i].packageid ] >= CC.maxattempt )
-							{
-								failed = true;
-							}
-							// requeue
-							else
-							{
-								Sunfinished.insert(AW[i].packageid);
-							}
-
+							checkRequeue(i /* slotid */,AW.begin(),Mfail,Sunfinished,wakeupSet,VCC,failed);
 						}
 
 						uint64_t const id = AW[i].id;
@@ -839,24 +873,7 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 					if ( AW[i].packageid.first >= 0 )
 					{
 						pending -= 1;
-
-						Mfail [ AW[i].packageid ] += 1;
-
-						libmaus2::util::CommandContainer & CC = VCC[
-							AW[i].packageid.first
-						];
-
-						// mark pipeline as failed
-						if ( Mfail [ AW[i].packageid ] >= CC.maxattempt )
-						{
-							failed = true;
-						}
-						// requeue
-						else
-						{
-							Sunfinished.insert(AW[i].packageid);
-						}
-
+						checkRequeue(i /* slotid */,AW.begin(),Mfail,Sunfinished,wakeupSet,VCC,failed);
 					}
 
 					// get job id
@@ -872,6 +889,8 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 			}
 		}
 	}
+
+	processWakeupSet(AW.begin(),wakeupSet);
 
 	std::set<uint64_t> Sactive;
 	for ( uint64_t i = 0; i < AW.size(); ++i )
@@ -889,13 +908,14 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 			try
 			{
 				// read worker state
-				uint64_t const rd = AW[i].Asocket->readSingle<uint64_t>();
+				FDIO fdio(AW[i].Asocket->getFD());
+				uint64_t const rd = fdio.readNumber();
 
 				// worker is idle
 				if ( rd == 0 )
 				{
 					// request terminate
-					AW[i].Asocket->writeSingle<uint64_t>(2);
+					fdio.writeNumber(2);
 					EP.remove(AW[i].Asocket->getFD());
 					fdToSlot.erase(AW[i].Asocket->getFD());
 					AW[i].reset();
@@ -909,7 +929,7 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 				else if ( rd == 2 )
 				{
 					std::cerr << "[V] slot " << i << " reports job running, but we know of no such job" << std::endl;
-					AW[i].Asocket->writeSingle<uint64_t>(0);
+					fdio.writeNumber(0);
 				}
 				else
 				{
