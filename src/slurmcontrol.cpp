@@ -47,11 +47,18 @@ std::string getUsage(libmaus2::util::ArgParser const & arg)
 {
 	std::ostringstream ostr;
 
-	ostr << "usage: " << arg.progname << " container" << std::endl;
+	ostr << "usage: " << arg.progname << " [<parameters>] <container.cdl>" << std::endl;
+	ostr << "\n";
+	ostr << "parameters:\n";
+	ostr << " -t          : number of threads (defaults to number of cores on machine)\n";
+	ostr << " -T          : prefix for temporary files (default: create files in current working directory)\n";
+	ostr << " -workertime : time for workers in (default: 1440)\n";
+	ostr << " -workermem  : memory for workers (default: 40000)\n";
+	ostr << " -partition  : cluster partition (default: haswell)\n";
+	ostr << " -workers    : number of workers (default: 16)\n";
 
 	return ostr.str();
 }
-
 
 #if 0
 struct SlurmControlConfig
@@ -599,6 +606,11 @@ void resetSlot(
 int slurmcontrol(libmaus2::util::ArgParser const & arg)
 {
 	std::string const tmpfilebase = arg.uniqueArgPresent("T") ? arg["T"] : libmaus2::util::ArgInfo::getDefaultTmpFileName(arg.progname);
+	uint64_t const workertime = arg.uniqueArgPresent("workertime") ? arg.getParsedArg<uint64_t>("workertime") : 1440;
+	uint64_t const workermem = arg.uniqueArgPresent("workermem") ? arg.getParsedArg<uint64_t>("workermem") : 40000;
+	std::string const partition = arg.uniqueArgPresent("p") ? arg["p"] : "haswell";
+	uint64_t const workers = arg.uniqueArgPresent("workers") ? arg.getParsedArg<uint64_t>("workers") : 16;
+
 	std::string const hostname = libmaus2::network::GetHostName::getHostName();
 	std::string const cdl = arg[0];
 
@@ -607,10 +619,6 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 	uint64_t const tries = 1000;
 	uint64_t nextworkerid = 0;
 
-	uint64_t const workertime = arg.uniqueArgPresent("workertime") ? arg.getParsedArg<uint64_t>("workertime") : 1440;
-	uint64_t const workermem = arg.uniqueArgPresent("workermem") ? arg.getParsedArg<uint64_t>("workermem") : 40000;
-	std::string const partition = arg.uniqueArgPresent("p") ? arg["p"] : "haswell";
-	uint64_t const workers = arg.uniqueArgPresent("workers") ? arg.getParsedArg<uint64_t>("workers") : 16;
 
 	libmaus2::autoarray::AutoArray<WorkerInfo> AW(workers);
 	std::map<uint64_t,uint64_t> idToSlot;
@@ -1002,6 +1010,23 @@ int main(int argc, char * argv[])
 	try
 	{
 		libmaus2::util::ArgParser const arg(argc,argv);
+
+
+		if ( arg.argPresent("h") || arg.argPresent("help") )
+		{
+			std::cerr << getUsage(arg);
+			return EXIT_SUCCESS;
+		}
+		else if ( arg.argPresent("version") )
+		{
+			std::cerr << "This is " << PACKAGE_NAME << " version " << PACKAGE_VERSION << std::endl;
+			return EXIT_SUCCESS;
+		}
+		else if ( arg.size() < 1 )
+		{
+			std::cerr << getUsage(arg);
+			return EXIT_FAILURE;
+		}
 
 		int const r = slurmcontrol(arg);
 
