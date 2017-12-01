@@ -574,6 +574,23 @@ void checkRequeue(
 	}
 }
 
+void resetSlot(
+	WorkerInfo * const AW, uint64_t const slotid,
+	std::map<uint64_t,uint64_t> & idToSlot,
+	std::map<int,uint64_t> & fdToSlot,
+	std::set<uint64_t> & restartSet,
+	std::set<uint64_t> & wakeupSet,
+	EPoll & EP
+)
+{
+	uint64_t const id = AW[slotid].id;
+	EP.remove(AW[slotid].Asocket->getFD());
+	fdToSlot.erase(AW[slotid].Asocket->getFD());
+	AW[slotid].reset();
+	idToSlot.erase(id);
+	wakeupSet.erase(id);
+	restartSet.insert(slotid);
+}
 
 int slurmcontrol(libmaus2::util::ArgParser const & arg)
 {
@@ -766,9 +783,13 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 					{
 						if ( Sunfinished.size() )
 						{
+							// get next package
 							std::pair<uint64_t,uint64_t> const currentid = *(Sunfinished.begin());
+							// erase it from todo list
 							Sunfinished.erase(currentid);
+							// get command
 							libmaus2::util::Command const com = VCC[currentid.first].V[currentid.second];
+							// serialise command to string
 							std::ostringstream ostr;
 							com.serialise(ostr);
 							// process command
@@ -858,14 +879,9 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 							checkRequeue(i /* slotid */,AW.begin(),Mfail,Sunfinished,wakeupSet,VCC,failed);
 						}
 
-						uint64_t const id = AW[i].id;
-						EP.remove(AW[i].Asocket->getFD());
-						fdToSlot.erase(AW[i].Asocket->getFD());
-						AW[i].reset();
-						idToSlot.erase(id);
-						restartSet.insert(i);
+						std::cerr << "[V] process for slot " << i << " jobid " << AW[i].id << " is erratic" << std::endl;
 
-						std::cerr << "[V] process for slot " << i << " jobid " << id << " is erratic" << std::endl;
+						resetSlot(AW.begin(),i /* slotid */,idToSlot,fdToSlot,restartSet,wakeupSet,EP);
 					}
 				}
 				catch(...)
@@ -876,15 +892,9 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 						checkRequeue(i /* slotid */,AW.begin(),Mfail,Sunfinished,wakeupSet,VCC,failed);
 					}
 
-					// get job id
-					uint64_t const id = AW[i].id;
-					EP.remove(AW[i].Asocket->getFD());
-					fdToSlot.erase(AW[i].Asocket->getFD());
-					AW[i].reset();
-					idToSlot.erase(id);
-					restartSet.insert(i);
+					std::cerr << "[V] exception for slot " << i << " jobid " << AW[i].id << std::endl;
 
-					std::cerr << "[V] exception for slot " << i << " jobid " << id << std::endl;
+					resetSlot(AW.begin(),i /* slotid */,idToSlot,fdToSlot,restartSet,wakeupSet,EP);
 				}
 			}
 		}
@@ -933,26 +943,16 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 				}
 				else
 				{
-					uint64_t const id = AW[i].id;
-					EP.remove(AW[i].Asocket->getFD());
-					fdToSlot.erase(AW[i].Asocket->getFD());
-					AW[i].reset();
-					idToSlot.erase(id);
-					restartSet.insert(i);
-
-					std::cerr << "[V] process for slot " << i << " jobid " << id << " is erratic" << std::endl;
+					std::cerr << "[V] process for slot " << i << " jobid " << AW[i].id << " is erratic" << std::endl;
+					
+					resetSlot(AW.begin(),i /* slotid */,idToSlot,fdToSlot,restartSet,wakeupSet,EP);
 				}
 			}
 			catch(...)
 			{
-				uint64_t const id = AW[i].id;
-				EP.remove(AW[i].Asocket->getFD());
-				fdToSlot.erase(AW[i].Asocket->getFD());
-				AW[i].reset();
-				idToSlot.erase(id);
-				restartSet.insert(i);
+				std::cerr << "[V] exception for slot " << i << " jobid " << AW[i].id << std::endl;
 
-				std::cerr << "[V] exception for slot " << i << " jobid " << id << std::endl;
+				resetSlot(AW.begin(),i /* slotid */,idToSlot,fdToSlot,restartSet,wakeupSet,EP);
 			}
 		}
 
