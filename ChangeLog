@@ -1,3 +1,9 @@
+lastools (0.0.83-1) unstable; urgency=medium
+
+  * compile with older epoll interface
+
+ -- German Tischler <tischler@mpi-cbg.de>  Fri, 01 Dec 2017 16:26:08 +0100
+
 lastools (0.0.82-1) unstable; urgency=medium
 
   * update help message in slurmcontrol
