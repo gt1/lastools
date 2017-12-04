@@ -209,7 +209,10 @@ ContainerInfo handle(libmaus2::util::TempFileNameGenerator & tgen, std::vector<s
 				tokens.push_back("/bin/bash");
 				tokens.push_back(script);
 
-				libmaus2::util::Command const C(in,out,err,code,tokens);
+				libmaus2::util::Command C(in,out,err,code,tokens);
+				C.numattempts = 0;
+				C.maxattempts = CN.maxattempt;
+				C.completed = false;
 				CN.V[i] = C;
 			}
 		}
