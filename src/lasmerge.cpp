@@ -137,6 +137,8 @@ int lasmerge(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo cons
 		return lasmergeTemplate<libmaus2::dazzler::align::OverlapComparatorAIdBId>(arg,arginfo);
 	else if ( sortorder == "bidaid" )
 		return lasmergeTemplate<libmaus2::dazzler::align::OverlapComparatorBIdAId>(arg,arginfo);
+	else if ( sortorder == "full" )
+		return lasmergeTemplate<libmaus2::dazzler::align::OverlapFullComparator>(arg,arginfo);
 	else
 		return lasmergeTemplate<libmaus2::dazzler::align::OverlapComparator>(arg,arginfo);
 }
