@@ -643,6 +643,27 @@ void resetSlot(
 	restartSet.insert(slotid);
 }
 
+void writeContainer(
+	std::vector < libmaus2::util::ContainerDescription > & CDLV,
+	std::vector < libmaus2::util::CommandContainer > & CC,
+	uint64_t const i
+)
+{
+	std::string const fn = CDLV[i].fn;
+	std::string const tmpfn = fn + ".tmp";
+
+	libmaus2::aio::OutputStreamInstance::unique_ptr_type pOSI(
+		new libmaus2::aio::OutputStreamInstance(tmpfn)
+	);
+
+	CC [ i ] . serialise ( *pOSI );
+
+	pOSI->flush();
+	pOSI.reset();
+
+	libmaus2::aio::OutputStreamFactoryContainer::rename(tmpfn,fn);
+}
+
 int slurmcontrol(libmaus2::util::ArgParser const & arg)
 {
 	std::string const tmpfilebase = arg.uniqueArgPresent("T") ? arg["T"] : libmaus2::util::ArgInfo::getDefaultTmpFileName(arg.progname);
@@ -658,7 +679,6 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 	uint64_t const backlog = 1024;
 	uint64_t const tries = 1000;
 	uint64_t nextworkerid = 0;
-
 
 	libmaus2::autoarray::AutoArray<WorkerInfo> AW(workers);
 	std::map<uint64_t,uint64_t> idToSlot;
@@ -681,13 +701,50 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 	{
 		libmaus2::aio::InputStreamInstance ISI(CDLV[i].fn);
 		VCC[i].deserialise(ISI);
+		CDLV[i].missingdep = 0;
+	}
 
+	// count number of unfinished jobs per command container
+	for ( uint64_t i = 0; i < CDLV.size(); ++i )
+	{
+		libmaus2::util::CommandContainer & CC = VCC[i];
+		uint64_t numunfinished = 0;
+
+		for ( uint64_t j = 0; j < CC.V.size(); ++j )
+			if ( CC.V[j].completed )
+			{
+
+			}
+			else
+			{
+				Munfinished[i]++;
+				numunfinished += 1;
+			}
+
+		std::cerr << "[V] container " << i << " has " << numunfinished << " unfinished jobs" << std::endl;
+
+		if ( numunfinished )
+		{
+			for ( uint64_t j = 0; j < CC.rdepid.size(); ++j )
+			{
+				uint64_t const k = CC.rdepid[j];
+
+				std::cerr << "[V] container " << k << " has missing dependency " << i << std::endl;
+
+				CDLV[k].missingdep += 1;
+			}
+		}
+	}
+
+	for ( uint64_t i = 0; i < CDLV.size(); ++i )
+	{
 		if ( CDLV[i].missingdep == 0 )
 		{
+			std::cerr << "[V] container " << i << " has no missing dependencies, enqueuing jobs" << std::endl;
+
 			for ( uint64_t j = 0; j < VCC[i].V.size(); ++j )
 			{
 				Sunfinished.insert(std::pair<uint64_t,uint64_t>(i,j));
-				Munfinished[i]++;
 			}
 		}
 	}
@@ -870,19 +927,23 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 
 						std::cerr << "[V] slot " << i << " reports job ended with istatus=" << istatus << std::endl;
 
+						libmaus2::util::CommandContainer & CC = VCC[AW[i].packageid.first];
+
+
 						if ( WIFEXITED(istatus) && (WEXITSTATUS(istatus) == 0) )
 						{
 							std::cerr << "[V] updating command container " << AW[i].packageid.first << std::endl;
+
+							CC.V[AW[i].packageid.second].numattempts += 1;
+							CC.V[AW[i].packageid.second].completed = true;
+
+							writeContainer(CDLV,VCC,AW[i].packageid.first);
 
 							Munfinished [ AW[i].packageid.first ] --;
 
 							if ( ! Munfinished [AW[i].packageid.first] )
 							{
 								std::cerr << "[V] finished command container " << AW[i].packageid.first << std::endl;
-
-								libmaus2::util::CommandContainer & CC = VCC[
-									AW[i].packageid.first
-								];
 
 								for ( uint64_t j = 0; j < CC.rdepid.size(); ++j )
 								{
@@ -898,7 +959,6 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 										for ( uint64_t j = 0; j < VCC[k].V.size(); ++j )
 										{
 											Sunfinished.insert(std::pair<uint64_t,uint64_t>(k,j));
-											Munfinished[k]++;
 										}
 										if ( Sunfinished.size() )
 											processWakeupSet(AW.begin(),wakeupSet);
@@ -911,6 +971,10 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 						else
 						{
 							std::cerr << "[V] slot " << i << " failed, checking requeue " << AW[i].packageid.first << "," << AW[i].packageid.second << std::endl;
+
+							CC.V[AW[i].packageid.second].numattempts += 1;
+
+							writeContainer(CDLV,VCC,AW[i].packageid.first);
 
 							checkRequeue(i /* slotid */,AW.begin(),Mfail,Sunfinished,wakeupSet,VCC,failed);
 
@@ -927,7 +991,14 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 					{
 						if ( AW[i].packageid.first >= 0 )
 						{
+							libmaus2::util::CommandContainer & CC = VCC[AW[i].packageid.first];
+
+							CC.V[AW[i].packageid.second].numattempts += 1;
+
+							writeContainer(CDLV,VCC,AW[i].packageid.first);
+
 							pending -= 1;
+
 							checkRequeue(i /* slotid */,AW.begin(),Mfail,Sunfinished,wakeupSet,VCC,failed);
 						}
 
@@ -940,6 +1011,12 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 				{
 					if ( AW[i].packageid.first >= 0 )
 					{
+						libmaus2::util::CommandContainer & CC = VCC[AW[i].packageid.first];
+
+						CC.V[AW[i].packageid.second].numattempts += 1;
+
+						writeContainer(CDLV,VCC,AW[i].packageid.first);
+
 						pending -= 1;
 						checkRequeue(i /* slotid */,AW.begin(),Mfail,Sunfinished,wakeupSet,VCC,failed);
 					}
