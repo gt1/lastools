@@ -46,16 +46,60 @@ int laschangetspace(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgIn
 	std::string const db0name = arg[1];
 	std::string const db1name = arg[2];
 
+	uint64_t const maxovl = arg.uniqueArgPresent("maxovl") ? arg.getUnsignedNumericArg<uint64_t>("maxovl") : 64*1024;
+
 	uint64_t const numthreads = arg.uniqueArgPresent("t") ? arg.getUnsignedNumericArg<uint64_t>("t") : libmaus2::parallel::NumCpus::getNumLogicalProcessors();
 	int64_t const outtspace = arg.uniqueArgPresent("tspace") ? arg.getUnsignedNumericArg<uint64_t>("tspace") : getDefaultTSpace();
 
-	libmaus2::dazzler::db::DatabaseFile DB0(db0name);
+	std::cerr << "[V] loading data for " << db0name << " to memory...";
+	libmaus2::dazzler::db::DatabaseFile::DBArrayFileSet::unique_ptr_type Pdb0data(
+		libmaus2::dazzler::db::DatabaseFile::copyToArrays(db0name)
+	);
+	libmaus2::dazzler::db::DatabaseFile::DBArrayFileSet const * db0data = Pdb0data.get();
+	std::cerr << "done." << std::endl;
+
+	libmaus2::dazzler::db::DatabaseFile::DBArrayFileSet::unique_ptr_type Pdb1data;
+	libmaus2::dazzler::db::DatabaseFile::DBArrayFileSet const * db1data = 0;
+	if ( db1name != db0name )
+	{
+		std::cerr << "[V] loading data for " << db1name << " to memory...";
+		libmaus2::dazzler::db::DatabaseFile::DBArrayFileSet::unique_ptr_type Tdb1data(
+			libmaus2::dazzler::db::DatabaseFile::copyToArrays(db1name)
+		);
+		Pdb1data = UNIQUE_PTR_MOVE(Tdb1data);
+		db1data = Pdb1data.get();
+		std::cerr << "done." << std::endl;
+	}
+	else
+	{
+		db1data = Pdb0data.get();
+	}
+
+	libmaus2::dazzler::db::DatabaseFile::unique_ptr_type PDB0(
+		new libmaus2::dazzler::db::DatabaseFile(db0data->getDBURL())
+	);
+	libmaus2::dazzler::db::DatabaseFile & DB0 = *PDB0;
 	DB0.computeTrimVector();
 	std::vector<uint64_t> RL0;
 	DB0.getAllReadLengths(RL0);
 
-	libmaus2::dazzler::db::DatabaseFile DB1(db1name);
-	DB1.computeTrimVector();
+	libmaus2::dazzler::db::DatabaseFile::unique_ptr_type PDB1;
+	libmaus2::dazzler::db::DatabaseFile * pDB1 = 0;
+	if ( db1name != db0name )
+	{
+		libmaus2::dazzler::db::DatabaseFile::unique_ptr_type TDB1(
+			new libmaus2::dazzler::db::DatabaseFile(db1data->getDBURL())
+		);
+		PDB1 = UNIQUE_PTR_MOVE(PDB1);
+		PDB1->computeTrimVector();
+		pDB1 = PDB1.get();
+	}
+	else
+	{
+		pDB1 = PDB0.get();
+	}
+	libmaus2::dazzler::db::DatabaseFile & DB1 = *pDB1;
+
 	std::vector<uint64_t> RL1;
 	DB1.getAllReadLengths(RL1);
 
@@ -72,13 +116,6 @@ int laschangetspace(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgIn
 		ANP[i] = UNIQUE_PTR_MOVE(tptr);
 	}
 
-	libmaus2::dazzler::db::DatabaseFile::ReadDataRange::unique_ptr_type adata(
-		DB0.decodeReadIntervalParallel(0,RL0.size(),numthreads,false /* rc */,0 /* term */));
-	libmaus2::dazzler::db::DatabaseFile::ReadDataRange::unique_ptr_type bdata_forward(
-		DB1.decodeReadIntervalParallel(0,RL1.size(),numthreads,false /* rc */,0 /* term */));
-	libmaus2::dazzler::db::DatabaseFile::ReadDataRange::unique_ptr_type bdata_reverse(
-		DB1.decodeReadIntervalParallel(0,RL1.size(),numthreads,true /* rc */,0 /* term */));
-
 	libmaus2::dazzler::align::AlignmentWriter AW(outlas,outtspace);
 
 	libmaus2::dazzler::align::Overlap OVL;
@@ -88,9 +125,10 @@ int laschangetspace(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgIn
 		int64_t const intspace = libmaus2::dazzler::align::AlignmentFile::getTSpace(arg[i]);
 		int64_t const novl = libmaus2::dazzler::align::AlignmentFile::getNovl(arg[i]);
 
-		uint64_t maxovl = 256*1024;
 		uint64_t o = 0;
 		std::vector < libmaus2::dazzler::align::Overlap > VOVL(maxovl);
+		std::vector < uint64_t > Vaid(maxovl);
+		std::vector < uint64_t > Vbid(maxovl);
 
 		uint64_t proc = 0;
 
@@ -98,8 +136,77 @@ int laschangetspace(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgIn
 		{
 			o = 0;
 
+			std::cerr << "[V] loading alignments...";
 			while ( o < maxovl && PIN->getNextOverlap(OVL) )
-				VOVL[o++] = OVL;
+			{
+				Vaid[o] = OVL.aread;
+				Vbid[o] = OVL.bread;
+				VOVL[o] = OVL;
+				++o;
+			}
+			std::cerr << "got " << o << std::endl;
+
+			std::sort(Vaid.begin(),Vaid.begin()+o);
+			uint64_t const numa = std::unique(Vaid.begin(),Vaid.begin()+o) - Vaid.begin();
+			std::sort(Vbid.begin(),Vbid.begin()+o);
+			uint64_t const numb = std::unique(Vbid.begin(),Vbid.begin()+o) - Vbid.begin();
+
+			std::cerr << "[V] numa=" << numa << " numb=" << numb << std::endl;
+
+			libmaus2::dazzler::db::DatabaseFile::ReadDataRange::unique_ptr_type adata(
+				DB0.decodeReadDataByArrayParallelDecode(Vaid.begin(),numa,numthreads,false /* rc */,0 /* term */));
+			libmaus2::dazzler::db::DatabaseFile::ReadDataRange::unique_ptr_type bdata_forward(
+				DB1.decodeReadDataByArrayParallelDecode(Vbid.begin(),numb,numthreads,false /* rc */,0 /* term */));
+			libmaus2::dazzler::db::DatabaseFile::ReadDataRange::unique_ptr_type bdata_reverse(
+				DB1.decodeReadDataByArrayParallelDecode(Vbid.begin(),numb,numthreads,true /* rc */,0 /* term */));
+
+			std::cerr << "[V] decoded read data" << std::endl;
+
+			#if defined(LASCHANGETSPACEDEBUG)
+
+			#if defined(_OPENMP)
+			#pragma omp parallel for num_threads(numthreads)
+			#endif
+			for ( uint64_t i = 0; i < numa; ++i )
+			{
+				uint64_t const aid = Vaid[i];
+				uint8_t const * ua = adata->get(i).first;
+				uint8_t const * ue = adata->get(i).second;
+				std::basic_string<uint8_t> sua = DB0.getu(aid,false);
+
+				#if 0
+				std::cerr << "expecting " << std::string(sua.begin(),sua.end()) << std::endl;
+				std::cerr << "got " << std::string(ua,ue) << std::endl;
+				#endif
+
+				assert ( ue-ua == static_cast<ptrdiff_t>(sua.size()) );
+				assert ( std::basic_string<uint8_t>(ua,ue) == sua );
+			}
+			#if defined(_OPENMP)
+			#pragma omp parallel for num_threads(numthreads)
+			#endif
+			for ( uint64_t i = 0; i < numb; ++i )
+			{
+				uint64_t const bid = Vbid[i];
+				uint8_t const * ua = bdata_forward->get(i).first;
+				uint8_t const * ue = bdata_forward->get(i).second;
+				std::basic_string<uint8_t> const sua = DB1.getu(bid,false);
+				assert ( ue-ua == static_cast<ptrdiff_t>(sua.size()) );
+				assert ( std::basic_string<uint8_t>(ua,ue) == sua );
+			}
+			#if defined(_OPENMP)
+			#pragma omp parallel for num_threads(numthreads)
+			#endif
+			for ( uint64_t i = 0; i < numb; ++i )
+			{
+				uint64_t const bid = Vbid[i];
+				uint8_t const * ua = bdata_reverse->get(i).first;
+				uint8_t const * ue = bdata_reverse->get(i).second;
+				std::basic_string<uint8_t> const sua = DB1.getu(bid,true);
+				assert ( ue-ua == static_cast<ptrdiff_t>(sua.size()) );
+				assert ( std::basic_string<uint8_t>(ua,ue) == sua );
+			}
+			#endif
 
 			#if defined(_OPENMP)
 			#pragma omp parallel for schedule(dynamic,1) num_threads(numthreads)
@@ -115,11 +222,19 @@ int laschangetspace(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgIn
 				libmaus2::lcs::AlignmentTraceContainer & ATC = *(AATC[tid]);
 				libmaus2::lcs::NP & NP = *(ANP[tid]);
 
-				uint8_t const * ua = adata->get(VOVL[j].aread).first;
+				std::vector<uint64_t>::const_iterator it_a = ::std::lower_bound(Vaid.begin(),Vaid.begin()+numa,VOVL[j].aread);
+				assert ( it_a != Vaid.begin()+numa && static_cast<int64_t>(*it_a) == VOVL[j].aread );
+				std::vector<uint64_t>::const_iterator it_b = ::std::lower_bound(Vbid.begin(),Vbid.begin()+numb,VOVL[j].bread);
+				assert ( it_b != Vbid.begin()+numb && static_cast<int64_t>(*it_b) == VOVL[j].bread );
+
+				uint64_t const arank = it_a - Vaid.begin();
+				uint64_t const brank = it_b - Vbid.begin();
+
+				uint8_t const * ua = adata->get(arank).first;
 				uint8_t const * ub = VOVL[j].isInverse() ?
-					bdata_reverse->get(VOVL[j].bread).first
+					bdata_reverse->get(brank).first
 					:
-					bdata_forward->get(VOVL[j].bread).first;
+					bdata_forward->get(brank).first;
 
 				VOVL[j].computeTrace(ua,ub,intspace,ATC,NP);
 
