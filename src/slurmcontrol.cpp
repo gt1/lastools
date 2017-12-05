@@ -753,7 +753,9 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 	for ( uint64_t i = 0; i < VCC.size(); ++i )
 		maxthreads = std::max(maxthreads,VCC[i].threads);
 
-	uint64_t const workerthreads = maxthreads;
+	uint64_t workerthreads = maxthreads;
+	if ( arg.uniqueArgPresent("workerthreads") )
+		workerthreads = arg.getParsedArg<uint64_t>("workerthreads");
 
 	EPoll EP(workers+1);
 
