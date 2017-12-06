@@ -117,7 +117,13 @@ int lasshow(libmaus2::util::ArgParser const & arg)
 				<< " "
 				<< bid
 				<< (OVL.isInverse()?'c':'n')
-				<< "[" << OVL.path.bbpos << "," << OVL.path.bepos << ")/" << b.size() << " " << OVL.path.diffs << " diffs " << OVL.getErrorSum() << " esum";
+				<< "[" << OVL.path.bbpos << "," << OVL.path.bepos << ")/" << b.size() << " " << OVL.path.diffs << " diffs " << OVL.getErrorSum() << " esum"
+				;
+
+			if ( OVL.isTrue() )
+			{
+				std::cout << " " << "true";
+			}
 
 			if ( showalignment )
 			{
