@@ -1,3 +1,10 @@
+lastools (0.0.89-1) unstable; urgency=medium
+
+  * parse ignorefail argument from block identifier in commandpack
+  * output true flag in lasshow
+
+ -- German Tischler <tischler@mpi-cbg.de>  Wed, 06 Dec 2017 11:20:01 +0100
+
 lastools (0.0.88-1) unstable; urgency=medium
 
   * check current directory upon starting new job in slurmcontrol/slurmworker
