@@ -600,20 +600,22 @@ void checkRequeue(
 	std::map < std::pair<int64_t,int64_t>, uint64_t > & Mfail,
 	std::set < std::pair<uint64_t,uint64_t> > & Sunfinished,
 	std::set<uint64_t> & wakeupSet,
-	std::vector < libmaus2::util::CommandContainer > const & VCC,
+	std::vector < libmaus2::util::CommandContainer > & VCC,
 	bool & failed
 )
 {
 	Mfail [ AW[slotid].packageid ] += 1;
 
-	libmaus2::util::CommandContainer const & CC = VCC[AW[slotid].packageid.first];
+	libmaus2::util::CommandContainer & CC = VCC[AW[slotid].packageid.first];
+	libmaus2::util::Command & CO = CC.V[AW[slotid].packageid.second];
 
 	// mark pipeline as failed
 	if ( Mfail [ AW[slotid].packageid ] >= CC.maxattempt )
 	{
 		std::cerr << "[V] too many failures on " << AW[slotid].packageid.first << "," << AW[slotid].packageid.second << ", marking pipeline as failed" << std::endl;
 
-		failed = true;
+		if ( !CO.ignorefail )
+			failed = true;
 	}
 	// requeue
 	else
@@ -663,6 +665,81 @@ void writeContainer(
 
 	libmaus2::aio::OutputStreamFactoryContainer::rename(tmpfn,fn);
 }
+
+void handleSuccessfulCommand(
+	WorkerInfo * const AW,
+	uint64_t const slotid,
+	std::map < uint64_t, uint64_t > & Munfinished,
+	std::set < std::pair<uint64_t,uint64_t> > & Sunfinished,
+	std::set<uint64_t> & wakeupSet,
+	std::vector < libmaus2::util::ContainerDescription > & CDLV,
+	std::vector < libmaus2::util::CommandContainer > & VCC
+)
+{
+	libmaus2::util::CommandContainer & CC = VCC[AW[slotid].packageid.first];
+	CC.V[AW[slotid].packageid.second].numattempts += 1;
+	CC.V[AW[slotid].packageid.second].completed = true;
+
+	writeContainer(CDLV,VCC,AW[slotid].packageid.first);
+
+	uint64_t const numunfin = --Munfinished [ AW[slotid].packageid.first ];
+
+	if ( !numunfin )
+	{
+		std::cerr << "[V] finished command container " << AW[slotid].packageid.first << std::endl;
+
+		for ( uint64_t j = 0; j < CC.rdepid.size(); ++j )
+		{
+			uint64_t const k = CC.rdepid[j];
+
+			assert ( CDLV[k].missingdep );
+
+			CDLV[k].missingdep -= 1;
+
+			if ( ! CDLV[k].missingdep )
+			{
+				std::cerr << "[V] activating container " << k << std::endl;
+				for ( uint64_t j = 0; j < VCC[k].V.size(); ++j )
+				{
+					Sunfinished.insert(std::pair<uint64_t,uint64_t>(k,j));
+				}
+				if ( Sunfinished.size() )
+					processWakeupSet(AW,wakeupSet);
+			}
+		}
+	}
+
+	AW[slotid].resetPackageId();
+}
+
+void handleFailedCommand(
+	WorkerInfo * const AW,
+	uint64_t const slotid,
+	std::set<uint64_t> & wakeupSet,
+	std::set < std::pair<uint64_t,uint64_t> > & Sunfinished,
+	std::map < std::pair<int64_t,int64_t>, uint64_t > & Mfail,
+	bool & failed,
+	std::vector < libmaus2::util::ContainerDescription > & CDLV,
+	std::vector < libmaus2::util::CommandContainer > & VCC,
+	std::map < uint64_t, uint64_t > & Munfinished
+)
+{
+	libmaus2::util::CommandContainer & CC = VCC[AW[slotid].packageid.first];
+	libmaus2::util::Command & CO = CC.V[AW[slotid].packageid.second];
+
+	CO.numattempts += 1;
+
+	if ( CO.numattempts >= CC.maxattempt && CO.ignorefail )
+	{
+		CO.numattempts -= 1;
+		handleSuccessfulCommand(AW,slotid,Munfinished,Sunfinished,wakeupSet,CDLV,VCC);
+	}
+
+	writeContainer(CDLV,VCC,AW[slotid].packageid.first);
+	checkRequeue(slotid,AW,Mfail,Sunfinished,wakeupSet,VCC,failed);
+	AW[slotid].resetPackageId();
+}
+
 
 int slurmcontrol(libmaus2::util::ArgParser const & arg)
 {
@@ -936,58 +1013,14 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 
 						std::cerr << "[V] slot " << i << " reports job ended with istatus=" << istatus << std::endl;
 
-						libmaus2::util::CommandContainer & CC = VCC[AW[i].packageid.first];
-
-
 						if ( WIFEXITED(istatus) && (WEXITSTATUS(istatus) == 0) )
 						{
-							std::cerr << "[V] updating command container " << AW[i].packageid.first << std::endl;
-
-							CC.V[AW[i].packageid.second].numattempts += 1;
-							CC.V[AW[i].packageid.second].completed = true;
-
-							writeContainer(CDLV,VCC,AW[i].packageid.first);
-
-							Munfinished [ AW[i].packageid.first ] --;
-
-							if ( ! Munfinished [AW[i].packageid.first] )
-							{
-								std::cerr << "[V] finished command container " << AW[i].packageid.first << std::endl;
-
-								for ( uint64_t j = 0; j < CC.rdepid.size(); ++j )
-								{
-									uint64_t const k = CC.rdepid[j];
-
-									assert ( CDLV[k].missingdep );
-
-									CDLV[k].missingdep -= 1;
-
-									if ( ! CDLV[k].missingdep )
-									{
-										std::cerr << "[V] activating container " << k << std::endl;
-										for ( uint64_t j = 0; j < VCC[k].V.size(); ++j )
-										{
-											Sunfinished.insert(std::pair<uint64_t,uint64_t>(k,j));
-										}
-										if ( Sunfinished.size() )
-											processWakeupSet(AW.begin(),wakeupSet);
-									}
-								}
-							}
-
-							AW[i].resetPackageId();
+							handleSuccessfulCommand(AW.begin(),i,Munfinished,Sunfinished,wakeupSet,CDLV,VCC);
 						}
 						else
 						{
 							std::cerr << "[V] slot " << i << " failed, checking requeue " << AW[i].packageid.first << "," << AW[i].packageid.second << std::endl;
-
-							CC.V[AW[i].packageid.second].numattempts += 1;
-
-							writeContainer(CDLV,VCC,AW[i].packageid.first);
-
-							checkRequeue(i /* slotid */,AW.begin(),Mfail,Sunfinished,wakeupSet,VCC,failed);
-
-							AW[i].resetPackageId();
+							handleFailedCommand(AW.begin(),i,wakeupSet,Sunfinished,Mfail,failed,CDLV,VCC,Munfinished);
 						}
 					}
 					// worker is still running a job
@@ -1000,15 +1033,8 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 					{
 						if ( AW[i].packageid.first >= 0 )
 						{
-							libmaus2::util::CommandContainer & CC = VCC[AW[i].packageid.first];
-
-							CC.V[AW[i].packageid.second].numattempts += 1;
-
-							writeContainer(CDLV,VCC,AW[i].packageid.first);
-
 							pending -= 1;
-
-							checkRequeue(i /* slotid */,AW.begin(),Mfail,Sunfinished,wakeupSet,VCC,failed);
+							handleFailedCommand(AW.begin(),i,wakeupSet,Sunfinished,Mfail,failed,CDLV,VCC,Munfinished);
 						}
 
 						std::cerr << "[V] process for slot " << i << " jobid " << AW[i].id << " is erratic" << std::endl;
@@ -1020,14 +1046,9 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 				{
 					if ( AW[i].packageid.first >= 0 )
 					{
-						libmaus2::util::CommandContainer & CC = VCC[AW[i].packageid.first];
-
-						CC.V[AW[i].packageid.second].numattempts += 1;
-
-						writeContainer(CDLV,VCC,AW[i].packageid.first);
-
 						pending -= 1;
-						checkRequeue(i /* slotid */,AW.begin(),Mfail,Sunfinished,wakeupSet,VCC,failed);
+
+						handleFailedCommand(AW.begin(),i,wakeupSet,Sunfinished,Mfail,failed,CDLV,VCC,Munfinished);
 					}
 
 					std::cerr << "[V] exception for slot " << i << " jobid " << AW[i].id << std::endl;
