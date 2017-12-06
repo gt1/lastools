@@ -1,3 +1,9 @@
+lastools (0.0.90-1) unstable; urgency=medium
+
+  * handle ignorefail flag in slurmcontrol
+
+ -- German Tischler <tischler@mpi-cbg.de>  Wed, 06 Dec 2017 11:58:25 +0100
+
 lastools (0.0.89-1) unstable; urgency=medium
 
   * parse ignorefail argument from block identifier in commandpack
