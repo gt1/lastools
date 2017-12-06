@@ -107,13 +107,20 @@ static uint64_t parseNumber(std::string const & s)
 	return i;
 }
 
-ContainerInfo handle(libmaus2::util::TempFileNameGenerator & tgen, std::vector<std::string> & lines, uint64_t const id, uint64_t const subid, uint64_t const cnid, std::vector<uint64_t> const & depid, uint64_t const numthreads)
+ContainerInfo handle(libmaus2::util::TempFileNameGenerator & tgen, std::vector<std::string> & lines, uint64_t const id, uint64_t const subid, uint64_t const cnid, std::vector<uint64_t> const & depid, uint64_t const numthreads, std::string const & sid)
 {
 	libmaus2::util::CommandContainer CN;
 	CN.id = cnid;
 	CN.depid = depid;
 	CN.attempt = 0;
 	CN.maxattempt = 2;
+
+	bool ignorefail = false;
+
+	if ( sid.find("{{ignorefail}}") != std::string::npos )
+	{
+		ignorefail = true;
+	}
 
 	// remove empty lines
 	uint64_t o = 0;
@@ -213,6 +220,7 @@ ContainerInfo handle(libmaus2::util::TempFileNameGenerator & tgen, std::vector<s
 				C.numattempts = 0;
 				C.maxattempts = CN.maxattempt;
 				C.completed = false;
+				C.ignorefail = ignorefail;
 				CN.V[i] = C;
 			}
 		}
@@ -430,7 +438,7 @@ int commandpack(libmaus2::util::ArgParser const & arg)
 
 			std::vector < std::string > lines(V.begin() + low, V.begin()+high);
 			ndepid.push_back(cnid);
-			containers.push_back(handle(tgen,lines,id,subid,cnid++,depid,numthreads));
+			containers.push_back(handle(tgen,lines,id,subid,cnid++,depid,numthreads,Vbatch[id].first));
 		}
 
 		depid = ndepid;
