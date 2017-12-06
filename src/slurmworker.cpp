@@ -185,6 +185,18 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 	FDIO fdio(sockA.getFD());
 	fdio.writeNumber(jobid);
 	/* uint64_t const workerid = */ fdio.readNumber();
+	std::string expcurdir = fdio.readString();
+	std::string curdir = libmaus2::util::ArgInfo::getCurDir();
+
+	bool const curdirok = (curdir == expcurdir);
+
+	fdio.writeNumber(curdirok);
+
+	if ( !curdirok )
+	{
+		std::cerr << "[E] current directory " << curdir << " does not match expected current directory " << expcurdir << std::endl;
+		return EXIT_FAILURE;
+	}
 
 	bool running = true;
 

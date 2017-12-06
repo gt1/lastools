@@ -672,6 +672,8 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 	std::string const partition = arg.uniqueArgPresent("p") ? arg["p"] : "haswell";
 	uint64_t const workers = arg.uniqueArgPresent("workers") ? arg.getParsedArg<uint64_t>("workers") : 16;
 
+	std::string const curdir = libmaus2::util::ArgInfo::getCurDir();
+
 	std::string const hostname = libmaus2::network::GetHostName::getHostName();
 	std::string const cdl = arg[0];
 
@@ -846,22 +848,27 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 				{
 					uint64_t const slot = idToSlot.find(jobid)->second;
 					fdio.writeNumber(AW[slot].workerid);
+					fdio.writeString(curdir);
+					bool const curdirok = fdio.readNumber();
 
-					if ( ! AW[slot].Asocket )
+					if ( curdirok )
 					{
-						AW[slot].Asocket = UNIQUE_PTR_MOVE(nptr);
-						EP.add(AW[slot].Asocket->getFD());
-						fdToSlot[AW[slot].Asocket->getFD()] = slot;
-						AW[slot].active = true;
+						if ( ! AW[slot].Asocket )
+						{
+							AW[slot].Asocket = UNIQUE_PTR_MOVE(nptr);
+							EP.add(AW[slot].Asocket->getFD());
+							fdToSlot[AW[slot].Asocket->getFD()] = slot;
+							AW[slot].active = true;
 
-						std::cerr << "[V] marked slot " << slot << " active for jobid " << AW[slot].id << std::endl;
-					}
-					else
-					{
-						libmaus2::exception::LibMausException lme;
-						lme.getStream() << "[E] erratic worker trying to open second connection" << std::endl;
-						lme.finish();
-						throw lme;
+							std::cerr << "[V] marked slot " << slot << " active for jobid " << AW[slot].id << std::endl;
+						}
+						else
+						{
+							libmaus2::exception::LibMausException lme;
+							lme.getStream() << "[E] erratic worker trying to open second connection" << std::endl;
+							lme.finish();
+							throw lme;
+						}
 					}
 				}
 				else
