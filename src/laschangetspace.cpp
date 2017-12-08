@@ -90,7 +90,7 @@ int laschangetspace(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgIn
 		libmaus2::dazzler::db::DatabaseFile::unique_ptr_type TDB1(
 			new libmaus2::dazzler::db::DatabaseFile(db1data->getDBURL())
 		);
-		PDB1 = UNIQUE_PTR_MOVE(PDB1);
+		PDB1 = UNIQUE_PTR_MOVE(TDB1);
 		PDB1->computeTrimVector();
 		pDB1 = PDB1.get();
 	}
