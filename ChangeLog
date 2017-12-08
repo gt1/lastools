@@ -1,3 +1,9 @@
+lastools (0.0.94-1) unstable; urgency=medium
+
+  * catch errors while resubmitting jobs
+
+ -- German Tischler <tischler@mpi-cbg.de>  Fri, 08 Dec 2017 16:03:19 +0100
+
 lastools (0.0.93-1) unstable; urgency=medium
 
   * catch errors occuring while handling new connection
