@@ -16,7 +16,7 @@ EXTRA_PROGRAMS =
 bin_PROGRAMS = lassort lasindex lastobam reformatfasta fasta2fastq lasroleswap bamtolas blasrtobam lascat lasmarkprimary call.damapper lasaligntotracepoints lasfilterquality \
 	laschainsort lasmerge lascomputetandem lasextracttandemrecompute tandemaligner lasdedup lassubsample lassuffixprefix cocommand lasreduce \
 	lasfilterlength paftolas commandpack commandstart commandfollowup commandprime SLURM.HPC.daligner commandderive laschecksymmetry extractreads viewmasks \
-	lassimplededup lascheck laschangetspace lasproject lasshow slurmworker slurmcontrol @SLURMTEST@
+	lassimplededup lascheck laschangetspace lasproject lasshow slurmworker slurmcontrol lasdeepcheck @SLURMTEST@
 dist_bin_SCRIPTS = swappedLasToBAM.sh
 
 lasindex_SOURCES = lasindex.cpp
@@ -213,6 +213,11 @@ lasshow_SOURCES = lasshow.cpp
 lasshow_LDADD = ${LIBMAUS2LIBS}
 lasshow_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
 lasshow_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
+
+lasdeepcheck_SOURCES = lasdeepcheck.cpp
+lasdeepcheck_LDADD = ${LIBMAUS2LIBS}
+lasdeepcheck_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
+lasdeepcheck_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
 
 slurmcontrol_SOURCES = slurmcontrol.cpp which.cpp runProgram.cpp
 slurmcontrol_LDADD = ${LIBMAUS2LIBS}
