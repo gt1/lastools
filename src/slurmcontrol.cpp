@@ -913,44 +913,54 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 			else if ( itslot->second == std::numeric_limits<uint64_t>::max() )
 			{
 				assert ( rfd == Pservsock->getFD() );
+				int64_t slot = -1;
 
-				libmaus2::network::SocketBase::unique_ptr_type nptr = Pservsock->accept();
-
-				FDIO fdio(nptr->getFD());
-				uint64_t const jobid = fdio.readNumber();
-
-				std::cerr << "[V] accepted connection for jobid=" << jobid << std::endl;
-
-				if ( idToSlot.find(jobid) != idToSlot.end() )
+				try
 				{
-					uint64_t const slot = idToSlot.find(jobid)->second;
-					fdio.writeNumber(AW[slot].workerid);
-					fdio.writeString(curdir);
-					bool const curdirok = fdio.readNumber();
+					libmaus2::network::SocketBase::unique_ptr_type nptr = Pservsock->accept();
 
-					if ( curdirok )
+					FDIO fdio(nptr->getFD());
+					uint64_t const jobid = fdio.readNumber();
+
+					std::cerr << "[V] accepted connection for jobid=" << jobid << std::endl;
+
+					if ( idToSlot.find(jobid) != idToSlot.end() )
 					{
-						if ( ! AW[slot].Asocket )
-						{
-							AW[slot].Asocket = UNIQUE_PTR_MOVE(nptr);
-							EP.add(AW[slot].Asocket->getFD());
-							fdToSlot[AW[slot].Asocket->getFD()] = slot;
-							AW[slot].active = true;
+						slot = idToSlot.find(jobid)->second;
+						fdio.writeNumber(AW[slot].workerid);
+						fdio.writeString(curdir);
+						bool const curdirok = fdio.readNumber();
 
-							std::cerr << "[V] marked slot " << slot << " active for jobid " << AW[slot].id << std::endl;
-						}
-						else
+						if ( curdirok )
 						{
-							libmaus2::exception::LibMausException lme;
-							lme.getStream() << "[E] erratic worker trying to open second connection" << std::endl;
-							lme.finish();
-							throw lme;
+							if ( ! AW[slot].Asocket )
+							{
+								AW[slot].Asocket = UNIQUE_PTR_MOVE(nptr);
+								EP.add(AW[slot].Asocket->getFD());
+								fdToSlot[AW[slot].Asocket->getFD()] = slot;
+								AW[slot].active = true;
+
+								std::cerr << "[V] marked slot " << slot << " active for jobid " << AW[slot].id << std::endl;
+							}
+							else
+							{
+								libmaus2::exception::LibMausException lme;
+								lme.getStream() << "[E] erratic worker trying to open second connection" << std::endl;
+								lme.finish();
+								throw lme;
+							}
 						}
 					}
+					else
+					{
+						std::cerr << "[V] job id unknown" << std::endl;
+					}
 				}
-				else
+				catch(std::exception const & ex)
 				{
-					std::cerr << "[V] job id unknown" << std::endl;
+					std::cerr << "[E] error while accepting new connection:\n" << ex.what() << std::endl;
+					if ( slot >= 0 )
+						AW[slot].reset();
 				}
 			}
 			else
