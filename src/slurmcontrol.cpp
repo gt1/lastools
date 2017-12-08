@@ -876,16 +876,28 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 
 	while ( Sunfinished.size() || pending )
 	{
+		std::set<uint64_t> nrestartSet;
 		for ( std::set<uint64_t>::const_iterator it = restartSet.begin(); it != restartSet.end(); ++it )
 		{
 			uint64_t const i = *it;
-			startWorker(
-				nextworkerid,tmpfilebase,hostname,serverport,
-				workertime,workermem,workerthreads,partition,arg,AW.begin(),i,
-				idToSlot,workers
-			);
+
+			try
+			{
+				startWorker(
+					nextworkerid,tmpfilebase,hostname,serverport,
+					workertime,workermem,workerthreads,partition,arg,AW.begin(),i,
+					idToSlot,workers
+				);
+			}
+			catch(std::exception const & ex)
+			{
+				std::cerr << "[E] job start failed:\n" << ex.what() << std::endl;
+				nrestartSet.insert(i);
+				AW[i].reset();
+			}
 		}
 		restartSet.clear();
+		restartSet = nrestartSet;
 
 		ProgState npstate(
 			Sunfinished.size(),
