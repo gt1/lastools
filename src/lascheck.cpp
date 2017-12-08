@@ -52,15 +52,23 @@ int lascheck(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo cons
 	std::vector<uint64_t> RL1;
 	DB1.getAllReadLengths(RL1);
 
+	libmaus2::dazzler::align::OverlapFullComparator comp;
+
 	libmaus2::dazzler::align::Overlap OVL;
+	libmaus2::dazzler::align::Overlap OVLprev;
 	for ( uint64_t i = 2; i < arg.size(); ++i )
 	{
 		libmaus2::dazzler::align::AlignmentFileRegion::unique_ptr_type PIN(libmaus2::dazzler::align::OverlapIndexer::openAlignmentFileWithoutIndex(arg[i]));
 
 		bool ok = true;
+		bool sortok = true;
 
+		bool prevvalid = false;
 		while ( PIN->getNextOverlap(OVL) )
 		{
+			if ( prevvalid )
+				sortok = sortok && (!comp(OVL,OVLprev));
+
 			std::ostringstream ostr;
 			if ( OVL.path.abpos < 0 )
 				ostr << "[E] broken abpos " << OVL.path.abpos << std::endl;
@@ -79,9 +87,12 @@ int lascheck(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo cons
 				std::cerr << ostr.str();
 				ok = false;
 			}
+
+			OVLprev = OVL;
+			prevvalid = true;
 		}
 
-		std::cout << arg[i] << " " << (ok?"ok":"broken") << std::endl;
+		std::cout << arg[i] << " " << (ok?"ok":"broken") << " sortorder " << (sortok?"ok":"unsorted") << std::endl;
 	}
 
 	return EXIT_SUCCESS;
