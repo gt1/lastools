@@ -1,3 +1,9 @@
+lastools (0.0.95-1) unstable; urgency=medium
+
+  * support parallel merging in lasmerge for canonical sort order
+
+ -- German Tischler <tischler@mpi-cbg.de>  Mon, 11 Dec 2017 11:55:00 +0100
+
 lastools (0.0.94-1) unstable; urgency=medium
 
   * catch errors while resubmitting jobs
