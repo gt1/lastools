@@ -39,7 +39,7 @@ std::string getUsage(libmaus2::util::ArgParser const & arg)
 }
 
 template<typename comparator_type>
-int lasmergeTemplate(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo const & arginfo)
+int lasmergeTemplate(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo const & arginfo, uint64_t const numthreads)
 {
 	comparator_type comp;
 	std::string const tmpfilebase = arg.uniqueArgPresent("T") ? arg["T"] : arginfo.getDefaultTmpFileName();
@@ -97,7 +97,10 @@ int lasmergeTemplate(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgI
 				std::string const O = fnostr.str();
 				libmaus2::util::TempFileRemovalContainer::addTempFile(O);
 
-				libmaus2::dazzler::align::SortingOverlapOutputBuffer<comparator_type>::mergeFiles(I,O,comp);
+				if ( numthreads > 1 )
+					libmaus2::dazzler::align::SortingOverlapOutputBuffer<comparator_type>::mergeFilesParallel(I,O,numthreads,comp);
+				else
+					libmaus2::dazzler::align::SortingOverlapOutputBuffer<comparator_type>::mergeFiles(I,O,comp);
 
 				if ( deleteinput )
 					for ( uint64_t i = 0; i < I.size(); ++i )
@@ -130,17 +133,18 @@ int lasmergeTemplate(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgI
 int lasmerge(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo const & arginfo)
 {
 	std::string const sortorder = arg.uniqueArgPresent("s") ? arg["s"] : std::string("canonical");
+	uint64_t const numthreads = arg.uniqueArgPresent("t") ? arg.getUnsignedNumericArg<uint64_t>("t") : 1;
 
 	if ( sortorder == "ba" )
-		return lasmergeTemplate<libmaus2::dazzler::align::OverlapComparatorBReadARead>(arg,arginfo);
+		return lasmergeTemplate<libmaus2::dazzler::align::OverlapComparatorBReadARead>(arg,arginfo,1);
 	else if ( sortorder == "aidbid" )
-		return lasmergeTemplate<libmaus2::dazzler::align::OverlapComparatorAIdBId>(arg,arginfo);
+		return lasmergeTemplate<libmaus2::dazzler::align::OverlapComparatorAIdBId>(arg,arginfo,1);
 	else if ( sortorder == "bidaid" )
-		return lasmergeTemplate<libmaus2::dazzler::align::OverlapComparatorBIdAId>(arg,arginfo);
+		return lasmergeTemplate<libmaus2::dazzler::align::OverlapComparatorBIdAId>(arg,arginfo,1);
 	else if ( sortorder == "full" )
-		return lasmergeTemplate<libmaus2::dazzler::align::OverlapFullComparator>(arg,arginfo);
+		return lasmergeTemplate<libmaus2::dazzler::align::OverlapFullComparator>(arg,arginfo,1);
 	else
-		return lasmergeTemplate<libmaus2::dazzler::align::OverlapComparator>(arg,arginfo);
+		return lasmergeTemplate<libmaus2::dazzler::align::OverlapComparator>(arg,arginfo,numthreads);
 }
 
 /**
