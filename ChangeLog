@@ -1,3 +1,10 @@
+lastools (0.0.96-1) unstable; urgency=medium
+
+  * add filters in lasshow
+  * print more information on failure in slurmcontrol
+
+ -- German Tischler <tischler@mpi-cbg.de>  Tue, 12 Dec 2017 15:32:48 +0100
+
 lastools (0.0.95-1) unstable; urgency=medium
 
   * support parallel merging in lasmerge for canonical sort order
