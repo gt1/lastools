@@ -1053,29 +1053,48 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 					}
 					else
 					{
+						std::cerr << "[V] process for slot " << i << " jobid " << AW[i].id << " is erratic" << std::endl;
+
 						if ( AW[i].packageid.first >= 0 )
 						{
 							pending -= 1;
 							handleFailedCommand(AW.begin(),i,wakeupSet,Sunfinished,Mfail,failed,CDLV,VCC,Munfinished);
 						}
 
-						std::cerr << "[V] process for slot " << i << " jobid " << AW[i].id << " is erratic" << std::endl;
-
 						resetSlot(AW.begin(),i /* slotid */,idToSlot,fdToSlot,restartSet,wakeupSet,EP);
 					}
 				}
-				catch(...)
+				catch(std::exception const & ex)
 				{
+					std::cerr << "[V] exception for slot " << i << " jobid " << AW[i].id << std::endl;
+					std::cerr << ex.what() << std::endl;
+
 					if ( AW[i].packageid.first >= 0 )
 					{
 						pending -= 1;
 
-						handleFailedCommand(AW.begin(),i,wakeupSet,Sunfinished,Mfail,failed,CDLV,VCC,Munfinished);
+						try
+						{
+							handleFailedCommand(AW.begin(),i,wakeupSet,Sunfinished,Mfail,failed,CDLV,VCC,Munfinished);
+						}
+						catch(std::exception const & ex)
+						{
+							std::cerr << "[E] exception in handleFailedCommand: " << std::endl;
+							std::cerr << ex.what() << std::endl;
+							throw;
+						}
 					}
 
-					std::cerr << "[V] exception for slot " << i << " jobid " << AW[i].id << std::endl;
-
-					resetSlot(AW.begin(),i /* slotid */,idToSlot,fdToSlot,restartSet,wakeupSet,EP);
+					try
+					{
+						resetSlot(AW.begin(),i /* slotid */,idToSlot,fdToSlot,restartSet,wakeupSet,EP);
+					}
+					catch(std::exception const & ex)
+					{
+						std::cerr << "[E] exception in resetSlot: " << std::endl;
+						std::cerr << ex.what() << std::endl;
+						throw;
+					}
 				}
 			}
 		}
@@ -1202,7 +1221,7 @@ int main(int argc, char * argv[])
 	}
 	catch(std::exception const & ex)
 	{
-		std::cerr << ex.what() << std::endl;
+		std::cerr << "[E] exception in main: " << ex.what() << std::endl;
 		return EXIT_FAILURE;
 	}
 }
