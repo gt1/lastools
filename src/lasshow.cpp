@@ -44,6 +44,8 @@ int64_t getDefaultTSpace()
 int lasshow(libmaus2::util::ArgParser const & arg)
 {
 	bool const showalignment = arg.uniqueArgPresent("a");
+	int64_t const vaid = arg.uniqueArgPresent("aid") ? arg.getUnsignedNumericArg<uint64_t>("aid") : -1;
+	int64_t const vbid = arg.uniqueArgPresent("bid") ? arg.getUnsignedNumericArg<uint64_t>("bid") : -1;
 
 	std::string const db0name = arg[0];
 	std::string const db1name = arg[1];
@@ -112,47 +114,54 @@ int lasshow(libmaus2::util::ArgParser const & arg)
 				br = libmaus2::fastx::reverseComplementUnmapped(b);
 			}
 
-			std::cout
-				<< aid << "[" << OVL.path.abpos << "," << OVL.path.aepos << ")/" << a.size()
-				<< " "
-				<< bid
-				<< (OVL.isInverse()?'c':'n')
-				<< "[" << OVL.path.bbpos << "," << OVL.path.bepos << ")/" << b.size() << " " << OVL.path.diffs << " diffs " << OVL.getErrorSum() << " esum"
-				;
-
-			if ( OVL.isTrue() )
+			if (
+				(vaid < 0 || vaid == OVL.aread)
+				&&
+				(vbid < 0 || vbid == OVL.bread)
+			)
 			{
-				std::cout << " " << "true";
-			}
+				std::cout
+					<< aid << "[" << OVL.path.abpos << "," << OVL.path.aepos << ")/" << a.size()
+					<< " "
+					<< bid
+					<< (OVL.isInverse()?'c':'n')
+					<< "[" << OVL.path.bbpos << "," << OVL.path.bepos << ")/" << b.size() << " " << OVL.path.diffs << " diffs " << OVL.getErrorSum() << " esum"
+					;
 
-			if ( showalignment )
-			{
+				if ( OVL.isTrue() )
+				{
+					std::cout << " " << "true";
+				}
 
-				uint8_t const * aptr = reinterpret_cast<uint8_t const *>(a.c_str());
-				uint8_t const * bptr =
-					OVL.isInverse()
-					?
-					reinterpret_cast<uint8_t const *>(br.c_str())
-					:
-					reinterpret_cast<uint8_t const *>( b.c_str());
+				if ( showalignment )
+				{
 
-				OVL.computeTrace(aptr,bptr,intspace,ATC,NP);
+					uint8_t const * aptr = reinterpret_cast<uint8_t const *>(a.c_str());
+					uint8_t const * bptr =
+						OVL.isInverse()
+						?
+						reinterpret_cast<uint8_t const *>(br.c_str())
+						:
+						reinterpret_cast<uint8_t const *>( b.c_str());
 
-				std::cout << " " << ATC.getAlignmentStatistics() << "\n";
-				std::cout.put('\n');
+					OVL.computeTrace(aptr,bptr,intspace,ATC,NP);
 
-				libmaus2::lcs::AlignmentPrint::printAlignmentLines(
-					std::cout,
-					aptr + OVL.path.abpos, OVL.path.aepos-OVL.path.abpos,
-					bptr + OVL.path.bbpos, OVL.path.bepos-OVL.path.bbpos,
-					80,
-					ATC.ta,
-					ATC.te
-				);
-			}
-			else
-			{
-				std::cout.put('\n');
+					std::cout << " " << ATC.getAlignmentStatistics() << "\n";
+					std::cout.put('\n');
+
+					libmaus2::lcs::AlignmentPrint::printAlignmentLines(
+						std::cout,
+						aptr + OVL.path.abpos, OVL.path.aepos-OVL.path.abpos,
+						bptr + OVL.path.bbpos, OVL.path.bepos-OVL.path.bbpos,
+						80,
+						ATC.ta,
+						ATC.te
+					);
+				}
+				else
+				{
+					std::cout.put('\n');
+				}
 			}
 		}
 	}
