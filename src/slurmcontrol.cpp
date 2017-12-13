@@ -651,14 +651,14 @@ void writeContainer(
 	uint64_t const i
 )
 {
-	std::string const fn = CDLV[i].fn;
+	std::string const fn = CDLV.at(i).fn;
 	std::string const tmpfn = fn + ".tmp";
 
 	libmaus2::aio::OutputStreamInstance::unique_ptr_type pOSI(
 		new libmaus2::aio::OutputStreamInstance(tmpfn)
 	);
 
-	CC [ i ] . serialise ( *pOSI );
+	CC . at ( i ) . serialise ( *pOSI );
 
 	pOSI->flush();
 	pOSI.reset();
@@ -673,16 +673,32 @@ void handleSuccessfulCommand(
 	std::set < std::pair<uint64_t,uint64_t> > & Sunfinished,
 	std::set<uint64_t> & wakeupSet,
 	std::vector < libmaus2::util::ContainerDescription > & CDLV,
-	std::vector < libmaus2::util::CommandContainer > & VCC
+	std::vector < libmaus2::util::CommandContainer > & VCC,
+	bool const verbose = false
 )
 {
-	libmaus2::util::CommandContainer & CC = VCC[AW[slotid].packageid.first];
-	CC.V[AW[slotid].packageid.second].numattempts += 1;
-	CC.V[AW[slotid].packageid.second].completed = true;
+	if ( verbose )
+		std::cerr << "[V] getting package id for slot " << slotid << std::endl;
+	std::pair<uint64_t,uint64_t> const packageid = AW[slotid].packageid;
+	if ( verbose )
+		std::cerr << "[V] found package id " << packageid.first << "," << packageid.second << std::endl;
 
-	writeContainer(CDLV,VCC,AW[slotid].packageid.first);
+	if ( verbose )
+		std::cerr << "[V] getting command container" << std::endl;
+	libmaus2::util::CommandContainer & CC = VCC[packageid.first];
+	if ( verbose )
+		std::cerr << "[V] got command container" << std::endl;
 
-	uint64_t const numunfin = --Munfinished [ AW[slotid].packageid.first ];
+	if ( verbose )
+		std::cerr << "[V] updating numattempts,completed" << std::endl;
+	CC.V[packageid.second].numattempts += 1;
+	CC.V[packageid.second].completed = true;
+	if ( verbose )
+		std::cerr << "[V] updated numattempts,completed to " << CC.V[packageid.second].numattempts << "," << CC.V[packageid.second].completed << std::endl;
+
+	writeContainer(CDLV,VCC,packageid.first);
+
+	uint64_t const numunfin = --Munfinished [ packageid.first ];
 
 	if ( !numunfin )
 	{
@@ -724,20 +740,40 @@ void handleFailedCommand(
 	std::map < uint64_t, uint64_t > & Munfinished
 )
 {
-	libmaus2::util::CommandContainer & CC = VCC[AW[slotid].packageid.first];
-	libmaus2::util::Command & CO = CC.V[AW[slotid].packageid.second];
+	std::cerr << "[V] getting package id for slot " << slotid << std::endl;
+	std::pair<uint64_t,uint64_t> const packageid = AW[slotid].packageid;
+	std::cerr << "[V] found package id " << packageid.first << "," << packageid.second << std::endl;
 
+	std::cerr << "[V] getting reference to command container" << std::endl;
+	libmaus2::util::CommandContainer & CC = VCC.at(packageid.first);
+	std::cerr << "[V] got reference to command container" << std::endl;
+
+	std::cerr << "[V] gettting reference to command" << std::endl;
+	libmaus2::util::Command & CO = CC.V[packageid.second];
+	std::cerr << "[V] got reference to command" << std::endl;
+
+	std::cerr << "[V] incrementing numattempts" << std::endl;
 	CO.numattempts += 1;
+	std::cerr << "[V] incremented numattempts to " << CO.numattempts << std::endl;
 
 	if ( CO.numattempts >= CC.maxattempt && CO.ignorefail )
 	{
-		CO.numattempts -= 1;
-		handleSuccessfulCommand(AW,slotid,Munfinished,Sunfinished,wakeupSet,CDLV,VCC);
-	}
+		std::cerr << "[V] number of attempts reached max " << CC.maxattempt << " but container has ignorefail flag set" << std::endl;
 
-	writeContainer(CDLV,VCC,AW[slotid].packageid.first);
-	checkRequeue(slotid,AW,Mfail,Sunfinished,wakeupSet,VCC,failed);
-	AW[slotid].resetPackageId();
+		std::cerr << "[V] decreasing numattempts" << std::endl;
+		CO.numattempts -= 1;
+		std::cerr << "[V] decreased numattempts to " << CO.numattempts << std::endl;
+
+		std::cerr << "[V] calling handleSuccesfulCommand" << std::endl;
+		handleSuccessfulCommand(AW,slotid,Munfinished,Sunfinished,wakeupSet,CDLV,VCC,true);
+		std::cerr << "[V] returned from handleSuccesfulCommand" << std::endl;
+	}
+	else
+	{
+		writeContainer(CDLV,VCC,packageid.first);
+		checkRequeue(slotid,AW,Mfail,Sunfinished,wakeupSet,VCC,failed);
+		AW[slotid].resetPackageId();
+	}
 }
 
 
