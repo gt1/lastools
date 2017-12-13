@@ -288,10 +288,135 @@ struct WorkerInfo
 	}
 };
 
+struct StartWorkerRequest
+{
+	uint64_t * nextworkerid;
+	std::string tmpfilebase;
+	std::string hostname;
+	uint64_t serverport;
+	uint64_t workertime;
+	uint64_t workermem;
+	uint64_t workerthreads;
+	std::string partition;
+	libmaus2::util::ArgParser const * arg;
+	WorkerInfo * AW;
+	uint64_t i;
+	std::map<uint64_t,uint64_t> * idToSlot;
+	uint64_t workers;
+
+	StartWorkerRequest() {}
+	StartWorkerRequest(
+		uint64_t & rnextworkerid,
+		std::string rtmpfilebase,
+		std::string rhostname,
+		uint64_t rserverport,
+		uint64_t rworkertime,
+		uint64_t rworkermem,
+		uint64_t rworkerthreads,
+		std::string rpartition,
+		libmaus2::util::ArgParser const & rarg,
+		WorkerInfo * rAW,
+		uint64_t ri,
+		std::map<uint64_t,uint64_t> & ridToSlot,
+		uint64_t rworkers
+	) :
+		nextworkerid(&rnextworkerid),
+		tmpfilebase(rtmpfilebase),
+		hostname(rhostname),
+		serverport(rserverport),
+		workertime(rworkertime),
+		workermem(rworkermem),
+		workerthreads(rworkerthreads),
+		partition(rpartition),
+		arg(&rarg),
+		AW(rAW),
+		i(ri),
+		idToSlot(&ridToSlot),
+		workers(rworkers)
+	{
+
+	}
+
+	void dispatch()
+	{
+		uint64_t const workerid = (*nextworkerid)++;
+		std::ostringstream workernamestr;
+		workernamestr << "worker_" << workerid;
+		std::string const workername = workernamestr.str();
+
+		std::ostringstream outfnstr;
+		outfnstr << tmpfilebase << "_" << workerid << ".out";
+		std::string const outfn = outfnstr.str();
+
+		std::string const descname = tmpfilebase + "_worker.sbatch";
+
+		std::ostringstream commandstr;
+		commandstr << "slurmworker " << hostname << " " << serverport;
+		std::string command = commandstr.str();
+
+		writeJobDescription(
+			descname,
+			workername,
+			outfn,
+			workertime,
+			workermem,
+			workerthreads,
+			partition,
+			command
+		);
+
+		std::vector<std::string> Varg;
+		Varg.push_back("sbatch");
+		Varg.push_back(descname);
+
+		std::string const jobid_s = runProgram(Varg,*arg);
+
+		std::deque<std::string> Vtoken = libmaus2::util::stringFunctions::tokenize(jobid_s,std::string(" "));
+
+		if ( Vtoken.size() >= 4 )
+		{
+			std::istringstream istr(Vtoken[3]);
+			uint64_t id;
+			istr >> id;
+
+			if ( istr && istr.peek() == '\n' )
+			{
+				// std::cerr << "got job id " << id << std::endl;
+
+				AW [ i ].id = id;
+				AW [ i ].workerid = workerid;
+				(*idToSlot)[id] = i;
+			}
+			else
+			{
+				libmaus2::exception::LibMausException lme;
+				lme.getStream() << "[E] unable to find job id in " << jobid_s << std::endl;
+				lme.finish();
+				throw lme;
+			}
+		}
+		else
+		{
+			libmaus2::exception::LibMausException lme;
+			lme.getStream() << "[E] unable to find job id in " << jobid_s << std::endl;
+			lme.finish();
+			throw lme;
+		}
+
+		libmaus2::aio::FileRemoval::removeFile(descname);
+
+		std::cerr << "[V] started job " << (i+1) << " out of " << workers << " with id " << AW[i].id << std::endl;
+	}
+};
+
+#if 0
 void startWorker(
-	uint64_t & nextworkerid, std::string const & tmpfilebase,
-	std::string const & hostname, uint64_t const serverport,
-	uint64_t const workertime, uint64_t const workermem,
+	uint64_t & nextworkerid,
+	std::string const & tmpfilebase,
+	std::string const & hostname,
+	uint64_t const serverport,
+	uint64_t const workertime,
+	uint64_t const workermem,
 	uint64_t const workerthreads,
 	std::string const & partition,
 	libmaus2::util::ArgParser const & arg,
@@ -369,7 +494,7 @@ void startWorker(
 
 	std::cerr << "[V] started job " << (i+1) << " out of " << workers << " with id " << AW[i].id << std::endl;
 }
-
+#endif
 
 struct EPoll
 {
@@ -896,12 +1021,16 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 	// uint64_t const partid = SP.getIdForName(partition);
 	// uint64_t const maxcores = SP.getMaxCpusPerNode(partid);
 
+	std::vector < StartWorkerRequest > Vreq(workers);
 	for ( uint64_t i = 0; i < workers; ++i )
-		startWorker(
+		Vreq[i] = StartWorkerRequest(
 			nextworkerid,tmpfilebase,hostname,serverport,
 			workertime,workermem,workerthreads,partition,arg,AW.begin(),i,
 			idToSlot,workers
 		);
+
+	for ( uint64_t i = 0; i < workers; ++i )
+		Vreq[i].dispatch();
 
 	std::set<uint64_t> restartSet;
 	std::set<uint64_t> wakeupSet;
@@ -919,11 +1048,7 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 
 			try
 			{
-				startWorker(
-					nextworkerid,tmpfilebase,hostname,serverport,
-					workertime,workermem,workerthreads,partition,arg,AW.begin(),i,
-					idToSlot,workers
-				);
+				Vreq[i].dispatch();
 			}
 			catch(std::exception const & ex)
 			{
