@@ -648,6 +648,7 @@ struct SlurmControl
 
 	std::set < JobDescription > Sunfinished;
 	std::set < JobDescription > Srunning;
+	std::set<uint64_t> Sresubmit;
 	uint64_t ndeepsleep;
 	std::map < uint64_t, uint64_t > Munfinished;
 
@@ -705,6 +706,19 @@ struct SlurmControl
 			fdio.writeNumber(1);
 		}
 		wakeupSet.clear();
+	}
+
+	void processResubmitSet()
+	{
+		for ( std::set < uint64_t >::const_iterator it = Sresubmit.begin();
+			it != Sresubmit.end(); ++it )
+		{
+			uint64_t const i = *it;
+			std::cerr << "[V] resubmitting slot " << i << " after deep sleep" << std::endl;
+			Vreq[i].dispatch();
+
+		}
+		Sresubmit.clear();
 	}
 
 	uint64_t computeMaxThreads()
@@ -834,6 +848,7 @@ struct SlurmControl
 
 			addUnfinished(AW[slotid].packageid);
 			processWakeupSet();
+			processResubmitSet();
 		}
 	}
 
@@ -922,7 +937,10 @@ struct SlurmControl
 						addUnfinished(JobDescription(k,j));
 					}
 					if ( Sunfinished.size() )
+					{
 						processWakeupSet();
+						processResubmitSet();
+					}
 				}
 			}
 		}
@@ -1181,7 +1199,22 @@ struct SlurmControl
 							}
 							else
 							{
-								wakeupSet.insert(i);
+								if ( ndeepsleep == Srunning.size() )
+								{
+									// put slot to deep sleep
+									std::cerr << "[V] putting slot " << i << " to deep sleep" << std::endl;
+									
+									// request termination
+									fdio.writeNumber(2);
+									EP.remove(AW[i].Asocket->getFD());
+									fdToSlot.erase(AW[i].Asocket->getFD());
+									AW[i].reset();
+									Sresubmit.insert(i);		
+								}
+								else
+								{
+									wakeupSet.insert(i);
+								}
 								std::cerr << "[V] putting slot " << i << " in wakeupSet" << std::endl;
 							}
 						}
@@ -1258,6 +1291,7 @@ struct SlurmControl
 		}
 
 		processWakeupSet();
+		processResubmitSet();
 
 		std::set<uint64_t> Sactive;
 		for ( uint64_t i = 0; i < AW.size(); ++i )
