@@ -122,6 +122,13 @@ ContainerInfo handle(libmaus2::util::TempFileNameGenerator & tgen, std::vector<s
 		ignorefail = true;
 	}
 
+	bool deepsleep = false;
+
+	if ( sid.find("{{deepsleep}}") != std::string::npos )
+	{
+		deepsleep = true;
+	}
+
 	// remove empty lines
 	uint64_t o = 0;
 	for ( uint64_t i = 0; i < lines.size(); ++i )
@@ -221,6 +228,7 @@ ContainerInfo handle(libmaus2::util::TempFileNameGenerator & tgen, std::vector<s
 				C.maxattempts = CN.maxattempt;
 				C.completed = false;
 				C.ignorefail = ignorefail;
+				C.deepsleep = deepsleep;
 				CN.V[i] = C;
 			}
 		}
