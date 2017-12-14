@@ -1213,9 +1213,10 @@ struct SlurmControl
 								}
 								else
 								{
+									std::cerr << "[V] putting slot " << i << " in wakeupSet" << std::endl;
+									
 									wakeupSet.insert(i);
 								}
-								std::cerr << "[V] putting slot " << i << " in wakeupSet" << std::endl;
 							}
 						}
 						// worker has finished a job (may or may not be succesful)
