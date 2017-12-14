@@ -37,7 +37,7 @@ std::string getUsage(libmaus2::util::ArgParser const & arg)
 
 static uint64_t getDefaultLinesPerPack()
 {
-	return 1000;
+	return std::numeric_limits<uint64_t>::max();
 }
 
 static std::string getDefaultD(libmaus2::util::ArgParser const & arg)
