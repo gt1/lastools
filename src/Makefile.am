@@ -16,7 +16,7 @@ EXTRA_PROGRAMS =
 bin_PROGRAMS = lassort lasindex lastobam reformatfasta fasta2fastq lasroleswap bamtolas blasrtobam lascat lasmarkprimary call.damapper lasaligntotracepoints lasfilterquality \
 	laschainsort lasmerge lascomputetandem lasextracttandemrecompute tandemaligner lasdedup lassubsample lassuffixprefix cocommand lasreduce \
 	lasfilterlength paftolas commandpack commandstart commandfollowup commandprime SLURM.HPC.daligner commandderive laschecksymmetry extractreads viewmasks \
-	lassimplededup lascheck laschangetspace lasproject lasshow slurmworker slurmcontrol lasdeepcheck @SLURMTEST@
+	lassimplededup lascheck laschangetspace lasproject lasshow slurmworker slurmcontrol lasdeepcheck showcdl @SLURMTEST@
 dist_bin_SCRIPTS = swappedLasToBAM.sh
 
 lasindex_SOURCES = lasindex.cpp
@@ -228,3 +228,13 @@ slurmworker_SOURCES = slurmworker.cpp which.cpp runProgram.cpp
 slurmworker_LDADD = ${LIBMAUS2LIBS}
 slurmworker_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
 slurmworker_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
+
+showcommandcontainer_SOURCES = showcommandcontainer.cpp
+showcommandcontainer_LDADD = ${LIBMAUS2LIBS}
+showcommandcontainer_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
+showcommandcontainer_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
+
+showcdl_SOURCES = showcdl.cpp
+showcdl_LDADD = ${LIBMAUS2LIBS}
+showcdl_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
+showcdl_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
