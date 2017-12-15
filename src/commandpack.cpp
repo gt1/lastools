@@ -433,7 +433,19 @@ int commandpack(libmaus2::util::ArgParser const & arg)
 
 		assert ( V.size() );
 
-		uint64_t const packs = (V.size() + linesperpack - 1)/linesperpack;
+		uint64_t packs;
+
+		if ( linesperpack == std::numeric_limits<uint64_t>::max() )
+		{
+			if ( V.size() )
+				packs = 1;
+			else
+				packs = 0;
+		}
+		else
+		{
+			packs = (V.size() + linesperpack - 1)/linesperpack;
+		}
 
 		std::cerr << "[V] processing id=" << id << " " << Vbatch[id].first << " of size " << V.size() << " with " << packs << " packages" << std::endl;
 
