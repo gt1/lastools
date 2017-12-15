@@ -61,7 +61,7 @@ struct CommandContainerView
 	}
 
 	CommandContainerView(std::string const & rcdl)
-	: 
+	:
 	  cdl(rcdl),
 	  CDL(loadCDL(cdl)),
 	  CDLV(CDL.V),
@@ -76,7 +76,7 @@ std::ostream & operator<<(std::ostream & out, CommandContainerView const & C)
 	{
 		out << "CommandContainer[" << i << "]=" << C.VCC[i] << std::endl;
 	}
-	
+
 	return out;
 }
 
@@ -85,7 +85,7 @@ int showcdl(libmaus2::util::ArgParser const & arg)
 	std::string const cdl = arg[0];
 
 	CommandContainerView CCV(cdl);
-	
+
 	std::cout << CCV;
 
 	return EXIT_SUCCESS;

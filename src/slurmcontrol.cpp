@@ -1203,18 +1203,18 @@ struct SlurmControl
 								{
 									// put slot to deep sleep
 									std::cerr << "[V] putting slot " << i << " to deep sleep" << std::endl;
-									
+
 									// request termination
 									fdio.writeNumber(2);
 									EP.remove(AW[i].Asocket->getFD());
 									fdToSlot.erase(AW[i].Asocket->getFD());
 									AW[i].reset();
-									Sresubmit.insert(i);		
+									Sresubmit.insert(i);
 								}
 								else
 								{
 									std::cerr << "[V] putting slot " << i << " in wakeupSet" << std::endl;
-									
+
 									wakeupSet.insert(i);
 								}
 							}
