@@ -277,6 +277,7 @@ struct SlurmControl
 		bool active;
 		JobDescription packageid;
 		uint64_t workerid;
+		std::string wtmpbase;
 
 		WorkerInfo() { reset(); }
 
@@ -310,6 +311,7 @@ struct SlurmControl
 		uint64_t i;
 		std::map<uint64_t,uint64_t> * idToSlot;
 		uint64_t workers;
+		libmaus2::util::TempFileNameGenerator * tmpgen;
 
 		StartWorkerRequest() {}
 		StartWorkerRequest(
@@ -325,7 +327,8 @@ struct SlurmControl
 			WorkerInfo * rAW,
 			uint64_t ri,
 			std::map<uint64_t,uint64_t> & ridToSlot,
-			uint64_t rworkers
+			uint64_t rworkers,
+			libmaus2::util::TempFileNameGenerator * rtmpgen
 		) :
 			nextworkerid(&rnextworkerid),
 			tmpfilebase(rtmpfilebase),
@@ -339,7 +342,8 @@ struct SlurmControl
 			AW(rAW),
 			i(ri),
 			idToSlot(&ridToSlot),
-			workers(rworkers)
+			workers(rworkers),
+			tmpgen(rtmpgen)
 		{
 
 		}
@@ -351,11 +355,15 @@ struct SlurmControl
 			workernamestr << "worker_" << workerid;
 			std::string const workername = workernamestr.str();
 
+			std::ostringstream wtmpbasestr;
+			wtmpbasestr << tmpgen->getFileName() << "_" << workerid;
+			std::string const wtmpbase = wtmpbasestr.str();
+
 			std::ostringstream outfnstr;
-			outfnstr << tmpfilebase << "_" << workerid << ".out";
+			outfnstr << wtmpbase << ".out";
 			std::string const outfn = outfnstr.str();
 
-			std::string const descname = tmpfilebase + "_worker.sbatch";
+			std::string const descname = wtmpbase + "_worker.sbatch";
 
 			std::ostringstream commandstr;
 			commandstr << "slurmworker " << hostname << " " << serverport;
@@ -392,6 +400,7 @@ struct SlurmControl
 
 					AW [ i ].id = id;
 					AW [ i ].workerid = workerid;
+					AW [ i ].wtmpbase = wtmpbase;
 					(*idToSlot)[id] = i;
 				}
 				else
@@ -630,6 +639,7 @@ struct SlurmControl
 	uint64_t nextworkerid;
 	std::string const hostname;
 	std::string const tmpfilebase;
+	libmaus2::util::TempFileNameGenerator tmpgen;
 	uint64_t const workertime;
 	uint64_t const workermem;
 	std::string const partition;
@@ -692,7 +702,6 @@ struct SlurmControl
 		OSI << "#SBATCH --partition=" << partition << "\n";
 		OSI << "srun bash -c \"" << command << "\"\n";
 	}
-
 
 	void processWakeupSet()
 	{
@@ -821,7 +830,7 @@ struct SlurmControl
 			Vreq[i] = StartWorkerRequest(
 				nextworkerid,tmpfilebase,hostname,serverport,
 				workertime,workermem,workerthreads,partition,arg,AW.begin(),i,
-				idToSlot,workers
+				idToSlot,workers,&tmpgen
 			);
 		return Vreq;
 	}
@@ -995,7 +1004,6 @@ struct SlurmControl
 		}
 	}
 
-
 	SlurmControl(
 		std::string const & rtmpfilebase,
 		uint64_t const rworkertime,
@@ -1009,6 +1017,7 @@ struct SlurmControl
 	: curdir(libmaus2::util::ArgInfo::getCurDir()),
 	  serverport(50000), backlog(1024), tries(1000), nextworkerid(0), hostname(libmaus2::network::GetHostName::getHostName()),
 	  tmpfilebase(rtmpfilebase),
+	  tmpgen(tmpfilebase+"_tmpgen",3),
 	  workertime(rworkertime),
 	  workermem(rworkermem),
 	  partition(rpartition),
@@ -1126,9 +1135,7 @@ struct SlurmControl
 
 							if ( curdirok )
 							{
-								std::ostringstream tmpostr;
-								tmpostr << tmpgen.getFileName() << "_container_" << AW[slot].workerid;
-								fdio.writeString(tmpostr.str());
+								fdio.writeString(AW[slot].wtmpbase);
 
 								if ( ! AW[slot].Asocket )
 								{
