@@ -1124,6 +1124,10 @@ struct SlurmControl
 
 							if ( curdirok )
 							{
+								std::ostringstream tmpostr;
+								tmpostr << tmpfilebase << "_container_" << AW[slot].workerid;
+								fdio.writeString(tmpostr.str());
+
 								if ( ! AW[slot].Asocket )
 								{
 									AW[slot].Asocket = UNIQUE_PTR_MOVE(nptr);
@@ -1190,6 +1194,8 @@ struct SlurmControl
 								AW[i].packageid = currentid;
 								fdio.writeNumber(0);
 								fdio.writeString(ostr.str());
+								fdio.writeNumber(currentid.containerid);
+								fdio.writeNumber(currentid.subid);
 
 								Srunning.insert(currentid);
 								if ( com.deepsleep )

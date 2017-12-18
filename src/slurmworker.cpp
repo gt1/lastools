@@ -30,13 +30,65 @@
 #include <libmaus2/network/Socket.hpp>
 #include <libmaus2/util/GetFileSize.hpp>
 #include <libmaus2/util/Command.hpp>
+#include <libmaus2/util/TarWriter.hpp>
+#include <libmaus2/parallel/PosixThread.hpp>
 #include <FDIO.hpp>
 #include <sys/wait.h>
 
 #include <sys/types.h>
 #include <pwd.h>
 
-pid_t startCommand(libmaus2::util::Command const & C)
+static int doClose(int const fd)
+{
+	while ( true )
+	{
+		int const r = ::close(fd);
+
+		if ( r == 0 )
+			return 0;
+		else
+		{
+			int const error = errno;
+
+			switch ( error )
+			{
+				case EINTR:
+				case EAGAIN:
+					break;
+				default:
+					return r;
+			}
+		}
+	}
+}
+
+static int doDup2(int const fd0, int const fd1)
+{
+	while ( true )
+	{
+		int const r = ::dup2(fd0,fd1);
+
+		if ( r == -1 )
+		{
+			int const error = errno;
+
+			switch ( error )
+			{
+				case EINTR:
+				case EAGAIN:
+					break;
+				default:
+					return r;
+			}
+		}
+		else
+		{
+			return r;
+		}
+	}
+}
+
+pid_t startCommand(libmaus2::util::Command C, int const outfd = -1, int const errfd = -1)
 {
 	pid_t const pid = fork();
 
@@ -44,6 +96,26 @@ pid_t startCommand(libmaus2::util::Command const & C)
 	{
 		try
 		{
+			if ( outfd >= 0 )
+			{
+				C.out = "/dev/stdout";
+				if ( doClose(STDOUT_FILENO) != 0 )
+					_exit(EXIT_FAILURE);
+				if ( doDup2(outfd,STDOUT_FILENO) == -1 )
+					_exit(EXIT_FAILURE);
+				if ( doClose(outfd) != 0 )
+					_exit(EXIT_FAILURE);
+			}
+			if ( errfd >= 0 )
+			{
+				C.err = "/dev/stderr";
+				if ( doClose(STDERR_FILENO) != 0 )
+					_exit(EXIT_FAILURE);
+				if ( doDup2(errfd,STDERR_FILENO) == -1 )
+					_exit(EXIT_FAILURE);
+				if ( doClose(errfd) != 0 )
+					_exit(EXIT_FAILURE);
+			}
 			int const r = C.dispatch();
 			_exit(r);
 		}
@@ -156,8 +228,68 @@ std::pair<pid_t,int> waitWithTimeout(int const timeout)
 	}
 }
 
+struct PosixOutput
+{
+	typedef PosixOutput this_type;
+	typedef libmaus2::util::unique_ptr<this_type>::type unique_ptr_type;
+
+	std::string fn;
+	int fd;
+
+	PosixOutput(std::string const & rfn)
+	: fn(rfn), fd(libmaus2::aio::PosixFdOutputStreamBuffer::doOpen(fn))
+	{
+
+	}
+
+	~PosixOutput()
+	{
+		libmaus2::aio::PosixFdOutputStreamBuffer::doFlush(fd,fn);
+		libmaus2::aio::PosixFdOutputStreamBuffer::doClose(fd,fn);
+	}
+
+	void flush()
+	{
+		libmaus2::aio::PosixFdOutputStreamBuffer::doFlush(fd,fn);
+	}
+
+	uint64_t getFileSize()
+	{
+		uint64_t const off = libmaus2::aio::PosixFdOutputStreamBuffer::doSeekAbsolute(fd,fn,0,SEEK_END);
+		return off;
+	}
+};
+
+struct RunInfo
+{
+	uint64_t containerid;
+	uint64_t subid;
+	uint64_t outstart;
+	uint64_t outend;
+	uint64_t errstart;
+	uint64_t errend;
+
+	RunInfo()
+	{
+
+	}
+
+	std::ostream & serialise(std::ostream & out) const
+	{
+		libmaus2::util::NumberSerialisation::serialiseNumber(out,containerid);
+		libmaus2::util::NumberSerialisation::serialiseNumber(out,subid);
+		libmaus2::util::NumberSerialisation::serialiseNumber(out,outstart);
+		libmaus2::util::NumberSerialisation::serialiseNumber(out,outend);
+		libmaus2::util::NumberSerialisation::serialiseNumber(out,errstart);
+		libmaus2::util::NumberSerialisation::serialiseNumber(out,errend);
+		return out;
+	}
+};
+
 int slurmworker(libmaus2::util::ArgParser const & arg)
 {
+	RunInfo RI;
+
 	std::string const tmpfilebase = arg.uniqueArgPresent("T") ? arg["T"] : libmaus2::util::ArgInfo::getDefaultTmpFileName(arg.progname);
 
 	std::string const hostname = arg[0];
@@ -198,6 +330,23 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 		return EXIT_FAILURE;
 	}
 
+	std::string const remotetmpbase = fdio.readString();
+
+	std::string const outbase = remotetmpbase + "_out";
+	std::string const outdata = outbase + ".data";
+	std::string const errbase = remotetmpbase + "_err";
+	std::string const errdata = errbase + ".data";
+	std::string const metafn = remotetmpbase + ".meta";
+
+	libmaus2::aio::OutputStreamInstance metaOSI(metafn);
+
+	PosixOutput outData(outdata);
+	PosixOutput errData(errdata);
+
+	std::pair<uint64_t,uint64_t> outP(0,0);
+	std::pair<uint64_t,uint64_t> errP(0,0);
+
+
 	bool running = true;
 
 	enum state_type
@@ -229,8 +378,15 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 					std::string const jobdesc = fdio.readString();
 					std::istringstream jobdescistr(jobdesc);
 					libmaus2::util::Command const com(jobdescistr);
+					uint64_t const containerid = fdio.readNumber();
+					uint64_t const subid = fdio.readNumber();
 
-					std::cerr << "[V] starting command " << com << std::endl;
+					std::cerr << "[V] starting command " << com << " (" << containerid << "," << subid << ")" << std::endl;
+
+					RI.containerid = containerid;
+					RI.subid = subid;
+					RI.outstart = outData.getFileSize();
+					RI.errstart = errData.getFileSize();
 
 					workpid = startCommand(com);
 					state = state_running;
@@ -257,6 +413,11 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 				if ( wpid == workpid )
 				{
 					workpid = static_cast<pid_t>(-1);
+
+					RI.outend = outData.getFileSize();
+					RI.errend = errData.getFileSize();
+					RI.serialise(metaOSI);
+					metaOSI.flush();
 
 					// tell control we finished a job
 					fdio.writeNumber(1);
