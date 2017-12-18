@@ -293,8 +293,9 @@ struct CopyThread : public libmaus2::parallel::PosixThread
 
 	int const infd;
 	std::ostream & out;
+	bool const immediateFlush;
 
-	CopyThread(int const rinfd, std::ostream & rout) : infd(rinfd), out(rout) {}
+	CopyThread(int const rinfd, std::ostream & rout, bool rimmediateFlush) : infd(rinfd), out(rout), immediateFlush(rimmediateFlush) {}
 
 	virtual void * run()
 	{
@@ -316,6 +317,19 @@ struct CopyThread : public libmaus2::parallel::PosixThread
 						lme.getStream() << "[E] CopyThread::run: failed to copy " << r << " bytes" << std::endl;
 						lme.finish();
 						throw lme;
+					}
+
+					if ( immediateFlush )
+					{
+						out.flush();
+
+						if ( ! out )
+						{
+							libmaus2::exception::LibMausException lme;
+							lme.getStream() << "[E] CopyThread::run: failed to copy " << r << " bytes" << std::endl;
+							lme.finish();
+							throw lme;
+						}
 					}
 				}
 				else if ( r == 0 )
@@ -538,10 +552,10 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 					outPipe->closeWriteEnd();
 					errPipe->closeWriteEnd();
 
-					CopyThread::unique_ptr_type toutCopy(new CopyThread(outPipe->getReadEnd(),outData));
+					CopyThread::unique_ptr_type toutCopy(new CopyThread(outPipe->getReadEnd(),outData,false /* im flush */));
 					outCopy = UNIQUE_PTR_MOVE(toutCopy);
 					outCopy->start();
-					CopyThread::unique_ptr_type terrCopy(new CopyThread(errPipe->getReadEnd(),errData));
+					CopyThread::unique_ptr_type terrCopy(new CopyThread(errPipe->getReadEnd(),errData,true /* im flush */));
 					errCopy = UNIQUE_PTR_MOVE(terrCopy);
 					errCopy->start();
 
@@ -587,6 +601,9 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 					errCopy.reset();
 					outPipe.reset();
 					errPipe.reset();
+
+					outData.flush();
+					errData.flush();
 
 					std::cerr << "[V] finished with status " << status << std::endl;
 
