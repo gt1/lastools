@@ -388,7 +388,7 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 					RI.outstart = outData.getFileSize();
 					RI.errstart = errData.getFileSize();
 
-					workpid = startCommand(com);
+					workpid = startCommand(com,outData.fd,errData.fd);
 					state = state_running;
 				}
 				// terminate
