@@ -1057,6 +1057,8 @@ struct SlurmControl
 		for ( uint64_t i = 0; i < workers; ++i )
 			Vreq[i].dispatch();
 
+		libmaus2::util::TempFileNameGenerator tmpgen(tmpfilebase+"_tmpgen",3);
+
 		while ( Sunfinished.size() || Srunning.size() )
 		{
 			std::set<uint64_t> nrestartSet;
@@ -1125,7 +1127,7 @@ struct SlurmControl
 							if ( curdirok )
 							{
 								std::ostringstream tmpostr;
-								tmpostr << tmpfilebase << "_container_" << AW[slot].workerid;
+								tmpostr << tmpgen.getFileName() << "_container_" << AW[slot].workerid;
 								fdio.writeString(tmpostr.str());
 
 								if ( ! AW[slot].Asocket )
