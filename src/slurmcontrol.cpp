@@ -1210,7 +1210,7 @@ struct SlurmControl
 								if ( com.deepsleep )
 									ndeepsleep += 1;
 
-								std::cerr << "[V] started " << com << " for " << currentid.containerid << "," << currentid.subid << " on slot " << i << std::endl;
+								std::cerr << "[V] started " << com << " for " << currentid.containerid << "," << currentid.subid << " on slot " << i << " wtmpbase " << AW[i].wtmpbase << std::endl;
 							}
 							else
 							{
