@@ -286,6 +286,142 @@ struct RunInfo
 	}
 };
 
+struct CopyThread : public libmaus2::parallel::PosixThread
+{
+	typedef CopyThread this_type;
+	typedef libmaus2::util::unique_ptr<this_type>::type unique_ptr_type;
+
+	int const infd;
+	std::ostream & out;
+
+	CopyThread(int const rinfd, std::ostream & rout) : infd(rinfd), out(rout) {}
+
+	virtual void * run()
+	{
+		libmaus2::autoarray::AutoArray<char> C(8192,false);
+
+		try
+		{
+			while ( true )
+			{
+				::ssize_t r = ::read(infd,C.begin(),C.size());
+
+				if ( r > 0 )
+				{
+					out.write(C.begin(),r);
+
+					if ( ! out )
+					{
+						libmaus2::exception::LibMausException lme;
+						lme.getStream() << "[E] CopyThread::run: failed to copy " << r << " bytes" << std::endl;
+						lme.finish();
+						throw lme;
+					}
+				}
+				else if ( r == 0 )
+				{
+					break;
+				}
+				else
+				{
+					int const error = errno;
+
+					switch ( error )
+					{
+						case EAGAIN:
+						case EINTR:
+							break;
+						default:
+						{
+							libmaus2::exception::LibMausException lme;
+							lme.getStream() << "[E] CopyThread::run: failed to read: " << strerror(error) << std::endl;
+							lme.finish();
+							throw lme;
+						}
+					}
+				}
+			}
+		}
+		catch(std::exception const & ex)
+		{
+			libmaus2::parallel::ScopePosixSpinLock slock(libmaus2::aio::StreamLock::cerrlock);
+			std::cerr << ex.what() << std::endl;
+			return 0;
+		}
+
+		return 0;
+	}
+};
+
+struct Pipe
+{
+	typedef Pipe this_type;
+	typedef libmaus2::util::unique_ptr<this_type>::type unique_ptr_type;
+
+	int fd[2];
+
+	Pipe()
+	{
+		while ( true )
+		{
+			int const r = pipe(&fd[0]);
+
+			if ( r != 0 )
+			{
+				int const error = errno;
+
+				switch ( error )
+				{
+					case EINTR:
+					case EAGAIN:
+						break;
+					default:
+					{
+						libmaus2::exception::LibMausException lme;
+						lme.getStream() << "[E] pipe failed: " << strerror(error) << std::endl;
+						lme.finish();
+						throw lme;
+					}
+				}
+			}
+		}
+	}
+
+	~Pipe()
+	{
+		closeReadEnd();
+		closeWriteEnd();
+	}
+
+	int getReadEnd()
+	{
+		return fd[0];
+	}
+
+	int getWriteEnd()
+	{
+		return fd[1];
+	}
+
+	void closeReadEnd()
+	{
+		if ( fd[0] >= 0 )
+		{
+			doClose(fd[0]);
+			fd[0] = -1;
+		}
+	}
+
+	void closeWriteEnd()
+	{
+		if ( fd[1] >= 0 )
+		{
+			doClose(fd[1]);
+			fd[1] = -1;
+		}
+	}
+};
+
 int slurmworker(libmaus2::util::ArgParser const & arg)
 {
 	RunInfo RI;
@@ -339,13 +475,14 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 	std::string const metafn = remotetmpbase + ".meta";
 
 	libmaus2::aio::OutputStreamInstance metaOSI(metafn);
+	libmaus2::aio::OutputStreamInstance outData(outdata);
+	libmaus2::aio::OutputStreamInstance errData(errdata);
 
-	PosixOutput outData(outdata);
-	PosixOutput errData(errdata);
-
-	std::pair<uint64_t,uint64_t> outP(0,0);
-	std::pair<uint64_t,uint64_t> errP(0,0);
-
+	CopyThread::unique_ptr_type outCopy;
+	CopyThread::unique_ptr_type errCopy;
+	Pipe::unique_ptr_type outPipe;
+	Pipe::unique_ptr_type errPipe;
+	// (int const rinfd, std::ostream & rout) : infd(rinfd), out(rout) {}
 
 	bool running = true;
 
@@ -385,10 +522,23 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 
 					RI.containerid = containerid;
 					RI.subid = subid;
-					RI.outstart = outData.getFileSize();
-					RI.errstart = errData.getFileSize();
+					RI.outstart = outData.tellp();
+					RI.errstart = errData.tellp();
 
-					workpid = startCommand(com,outData.fd,errData.fd);
+					Pipe::unique_ptr_type toutPipe(new Pipe());
+					outPipe = UNIQUE_PTR_MOVE(toutPipe);
+					Pipe::unique_ptr_type terrPipe(new Pipe());
+					errPipe = UNIQUE_PTR_MOVE(terrPipe);
+
+					workpid = startCommand(com,outPipe->getWriteEnd(),errPipe->getWriteEnd());
+					outPipe->closeWriteEnd();
+					errPipe->closeWriteEnd();
+
+					CopyThread::unique_ptr_type toutCopy(new CopyThread(outPipe->getReadEnd(),outData));
+					outCopy = UNIQUE_PTR_MOVE(toutCopy);
+					CopyThread::unique_ptr_type terrCopy(new CopyThread(errPipe->getReadEnd(),errData));
+					errCopy = UNIQUE_PTR_MOVE(terrCopy);
+
 					state = state_running;
 				}
 				// terminate
@@ -414,8 +564,8 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 				{
 					workpid = static_cast<pid_t>(-1);
 
-					RI.outend = outData.getFileSize();
-					RI.errend = errData.getFileSize();
+					RI.outend = outData.tellp();
+					RI.errend = errData.tellp();
 					RI.serialise(metaOSI);
 					metaOSI.flush();
 
@@ -424,6 +574,13 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 					fdio.writeNumber(status);
 					// wait for acknowledgement
 					fdio.readNumber();
+
+					outCopy->join();
+					outCopy.reset();
+					errCopy->join();
+					errCopy.reset();
+					outPipe.reset();
+					errPipe.reset();
 
 					std::cerr << "[V] finished with status " << status << std::endl;
 
@@ -440,6 +597,10 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 			}
 		}
 	}
+
+	metaOSI.flush();
+	outData.flush();
+	errData.flush();
 
 	return EXIT_SUCCESS;
 }
