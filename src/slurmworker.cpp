@@ -384,6 +384,10 @@ struct Pipe
 					}
 				}
 			}
+			else
+			{
+				break;
+			}
 		}
 	}
 
