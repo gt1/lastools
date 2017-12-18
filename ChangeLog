@@ -1,3 +1,9 @@
+lastools (0.0.107-1) unstable; urgency=medium
+
+  * fix endless loop in slurmworker
+
+ -- German Tischler <tischler@mpi-cbg.de>  Mon, 18 Dec 2017 15:04:55 +0100
+
 lastools (0.0.106-1) unstable; urgency=medium
 
   * implement copy thread method in slurmworker
