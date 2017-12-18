@@ -492,6 +492,9 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 	std::string const errdata = errbase + ".data";
 	std::string const metafn = remotetmpbase + ".meta";
 
+	std::cerr << "[V] using outdata=" << outdata << std::endl;
+	std::cerr << "[V] using errdata=" << errdata << std::endl;
+
 	libmaus2::aio::OutputStreamInstance metaOSI(metafn);
 	libmaus2::aio::OutputStreamInstance outData(outdata);
 	libmaus2::aio::OutputStreamInstance errData(errdata);
