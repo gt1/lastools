@@ -540,8 +540,10 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 
 					CopyThread::unique_ptr_type toutCopy(new CopyThread(outPipe->getReadEnd(),outData));
 					outCopy = UNIQUE_PTR_MOVE(toutCopy);
+					outCopy->start();
 					CopyThread::unique_ptr_type terrCopy(new CopyThread(errPipe->getReadEnd(),errData));
 					errCopy = UNIQUE_PTR_MOVE(terrCopy);
+					errCopy->start();
 
 					state = state_running;
 				}
