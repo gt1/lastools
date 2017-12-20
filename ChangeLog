@@ -1,3 +1,9 @@
+lastools (0.0.114-1) unstable; urgency=medium
+
+  * terminate worker process if we lose connection with control in slurmworker
+
+ -- German Tischler <tischler@mpi-cbg.de>  Wed, 20 Dec 2017 10:25:03 +0100
+
 lastools (0.0.113-1) unstable; urgency=medium
 
   * only enque non-completed tasks at start of slurmcontrol
