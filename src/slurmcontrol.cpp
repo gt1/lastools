@@ -782,6 +782,7 @@ struct SlurmControl
 
 			if ( numunfinished )
 			{
+				// check reverse dependencies
 				for ( uint64_t j = 0; j < CC.rdepid.size(); ++j )
 				{
 					uint64_t const k = CC.rdepid[j];
@@ -817,7 +818,10 @@ struct SlurmControl
 
 				for ( uint64_t j = 0; j < VCC[i].V.size(); ++j )
 				{
-					addUnfinished(JobDescription(i,j));
+					if ( !VCC[i].V[j].completed )
+					{
+						addUnfinished(JobDescription(i,j));
+					}
 				}
 			}
 		}
