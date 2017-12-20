@@ -516,72 +516,137 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 	state_type state = state_idle;
 	pid_t workpid = static_cast<pid_t>(-1);
 
-	while ( running )
+	try
 	{
-		switch ( state )
+		while ( running )
 		{
-			case state_idle:
+			switch ( state )
 			{
-				std::cerr << "[V] telling control we are idle" << std::endl;
-				// tell control we are idle
-				fdio.writeNumber(0);
-				std::cerr << "[V] waiting for acknowledgement" << std::endl;
-				// get reply
-				uint64_t const rep = fdio.readNumber();
-				std::cerr << "[V] got acknowledgement with code " << rep << std::endl;
-
-				// execute command
-				if ( rep == 0 )
+				case state_idle:
 				{
-					std::string const jobdesc = fdio.readString();
-					std::istringstream jobdescistr(jobdesc);
-					libmaus2::util::Command const com(jobdescistr);
-					uint64_t const containerid = fdio.readNumber();
-					uint64_t const subid = fdio.readNumber();
+					std::cerr << "[V] telling control we are idle" << std::endl;
+					// tell control we are idle
+					fdio.writeNumber(0);
+					std::cerr << "[V] waiting for acknowledgement" << std::endl;
+					// get reply
+					uint64_t const rep = fdio.readNumber();
+					std::cerr << "[V] got acknowledgement with code " << rep << std::endl;
 
-					std::cerr << "[V] starting command " << com << " (" << containerid << "," << subid << ")" << std::endl;
+					// execute command
+					if ( rep == 0 )
+					{
+						std::string const jobdesc = fdio.readString();
+						std::istringstream jobdescistr(jobdesc);
+						libmaus2::util::Command const com(jobdescistr);
+						uint64_t const containerid = fdio.readNumber();
+						uint64_t const subid = fdio.readNumber();
 
-					RI.containerid = containerid;
-					RI.subid = subid;
-					RI.outstart = outData.tellp();
-					RI.errstart = errData.tellp();
+						std::cerr << "[V] starting command " << com << " (" << containerid << "," << subid << ")" << std::endl;
 
-					Pipe::unique_ptr_type toutPipe(new Pipe());
-					outPipe = UNIQUE_PTR_MOVE(toutPipe);
-					Pipe::unique_ptr_type terrPipe(new Pipe());
-					errPipe = UNIQUE_PTR_MOVE(terrPipe);
+						RI.containerid = containerid;
+						RI.subid = subid;
+						RI.outstart = outData.tellp();
+						RI.errstart = errData.tellp();
 
-					workpid = startCommand(com,outPipe->getWriteEnd(),errPipe->getWriteEnd());
-					outPipe->closeWriteEnd();
-					errPipe->closeWriteEnd();
+						Pipe::unique_ptr_type toutPipe(new Pipe());
+						outPipe = UNIQUE_PTR_MOVE(toutPipe);
+						Pipe::unique_ptr_type terrPipe(new Pipe());
+						errPipe = UNIQUE_PTR_MOVE(terrPipe);
 
-					CopyThread::unique_ptr_type toutCopy(new CopyThread(outPipe->getReadEnd(),outData,false /* im flush */));
-					outCopy = UNIQUE_PTR_MOVE(toutCopy);
-					outCopy->start();
-					CopyThread::unique_ptr_type terrCopy(new CopyThread(errPipe->getReadEnd(),errData,true /* im flush */));
-					errCopy = UNIQUE_PTR_MOVE(terrCopy);
-					errCopy->start();
+						workpid = startCommand(com,outPipe->getWriteEnd(),errPipe->getWriteEnd());
+						outPipe->closeWriteEnd();
+						errPipe->closeWriteEnd();
 
-					state = state_running;
+						CopyThread::unique_ptr_type toutCopy(new CopyThread(outPipe->getReadEnd(),outData,false /* im flush */));
+						outCopy = UNIQUE_PTR_MOVE(toutCopy);
+						outCopy->start();
+						CopyThread::unique_ptr_type terrCopy(new CopyThread(errPipe->getReadEnd(),errData,true /* im flush */));
+						errCopy = UNIQUE_PTR_MOVE(terrCopy);
+						errCopy->start();
+
+						state = state_running;
+					}
+					// terminate
+					else if ( rep == 2 )
+					{
+						std::cerr << "[V] terminating" << std::endl;
+						running = false;
+					}
+					else
+					{
+
+					}
+					break;
 				}
-				// terminate
-				else if ( rep == 2 )
+				case state_running:
 				{
-					std::cerr << "[V] terminating" << std::endl;
-					running = false;
-				}
-				else
-				{
+					std::pair<pid_t,int> const P = waitWithTimeout(60 /* timeout */);
 
+					pid_t const wpid = P.first;
+					int const status = P.second;
+
+					if ( wpid == workpid )
+					{
+						workpid = static_cast<pid_t>(-1);
+
+						RI.outend = outData.tellp();
+						RI.errend = errData.tellp();
+						RI.serialise(metaOSI);
+						metaOSI.flush();
+
+						// tell control we finished a job
+						fdio.writeNumber(1);
+						fdio.writeNumber(status);
+						// wait for acknowledgement
+						fdio.readNumber();
+
+						outCopy->join();
+						outCopy.reset();
+						errCopy->join();
+						errCopy.reset();
+						outPipe.reset();
+						errPipe.reset();
+
+						outData.flush();
+						errData.flush();
+
+						std::cerr << "[V] finished with status " << status << std::endl;
+
+						state = state_idle;
+					}
+					else
+					{
+						// tell control we are still running our job
+						fdio.writeNumber(2);
+						// wait for acknowledgement
+						fdio.readNumber();
+					}
+					break;
 				}
-				break;
 			}
-			case state_running:
+		}
+	}
+	catch(std::exception const & ex)
+	{
+		std::cerr << ex.what() << std::endl;
+
+		/*
+		 * kill worker process if it is still running
+		 *
+		 * first try SIGTERM to allow for "gracious" failure with possible cleanup activity
+		 *
+		 * if process does not end after SIGTERM then send SIGKILL
+		 */
+		if ( workpid != static_cast<pid_t>(-1) )
+		{
+			kill(workpid,SIGTERM);
+
+			for ( uint64_t i = 0; workpid != static_cast<pid_t>(-1) && i < 10; ++i )
 			{
 				std::pair<pid_t,int> const P = waitWithTimeout(60 /* timeout */);
 
 				pid_t const wpid = P.first;
-				int const status = P.second;
+				//int const status = P.second;
 
 				if ( wpid == workpid )
 				{
@@ -592,11 +657,37 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 					RI.serialise(metaOSI);
 					metaOSI.flush();
 
-					// tell control we finished a job
-					fdio.writeNumber(1);
-					fdio.writeNumber(status);
-					// wait for acknowledgement
-					fdio.readNumber();
+					outCopy->join();
+					outCopy.reset();
+					errCopy->join();
+					errCopy.reset();
+					outPipe.reset();
+					errPipe.reset();
+
+					outData.flush();
+					errData.flush();
+				}
+			}
+		}
+		if ( workpid != static_cast<pid_t>(-1) )
+		{
+			kill(workpid,SIGKILL);
+
+			for ( uint64_t i = 0; workpid != static_cast<pid_t>(-1) && i < 10; ++i )
+			{
+				std::pair<pid_t,int> const P = waitWithTimeout(60 /* timeout */);
+
+				pid_t const wpid = P.first;
+				//int const status = P.second;
+
+				if ( wpid == workpid )
+				{
+					workpid = static_cast<pid_t>(-1);
+
+					RI.outend = outData.tellp();
+					RI.errend = errData.tellp();
+					RI.serialise(metaOSI);
+					metaOSI.flush();
 
 					outCopy->join();
 					outCopy.reset();
@@ -607,19 +698,7 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 
 					outData.flush();
 					errData.flush();
-
-					std::cerr << "[V] finished with status " << status << std::endl;
-
-					state = state_idle;
 				}
-				else
-				{
-					// tell control we are still running our job
-					fdio.writeNumber(2);
-					// wait for acknowledgement
-					fdio.readNumber();
-				}
-				break;
 			}
 		}
 	}
