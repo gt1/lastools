@@ -1,3 +1,9 @@
+lastools (0.0.115-1) unstable; urgency=medium
+
+  * print complete and finished flags in showcdl
+
+ -- German Tischler <tischler@mpi-cbg.de>  Thu, 04 Jan 2018 10:21:57 +0100
+
 lastools (0.0.114-1) unstable; urgency=medium
 
   * terminate worker process if we lose connection with control in slurmworker
