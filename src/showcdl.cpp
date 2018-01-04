@@ -68,14 +68,36 @@ struct CommandContainerView
 	  VCC(loadVCC(CDLV))
 	{
 	}
+
+	bool isComplete() const
+	{
+		bool iscomplete = true;
+
+		for ( uint64_t i = 0; i < VCC.size(); ++i )
+			iscomplete = iscomplete && VCC[i].isComplete();
+
+		return iscomplete;
+	}
+
+	bool isFinished() const
+	{
+		bool isfinished = true;
+
+		for ( uint64_t i = 0; i < VCC.size(); ++i )
+			isfinished = isfinished && VCC[i].isFinished();
+
+		return isfinished;
+	}
 };
 
 std::ostream & operator<<(std::ostream & out, CommandContainerView const & C)
 {
 	for ( uint64_t i = 0; i < C.VCC.size(); ++i )
 	{
-		out << "CommandContainer[" << i << "]=" << C.VCC[i] << std::endl;
+		out << "CommandContainer[" << i << "]=" << C.VCC[i] << " isComplete=" << C.VCC[i].isComplete() << " isFinished=" << C.VCC[i].isFinished() << std::endl;
 	}
+
+	out << "CommandContainer[*] isComplete=" << C.isComplete() << " isFinished=" << C.isFinished() << std::endl;
 
 	return out;
 }
