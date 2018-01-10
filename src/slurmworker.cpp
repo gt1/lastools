@@ -20,6 +20,7 @@
 
 #include <runProgram.hpp>
 #include <which.hpp>
+#include <RunInfo.hpp>
 
 #include <libmaus2/util/ArgParser.hpp>
 #include <libmaus2/util/ArgInfo.hpp>
@@ -260,31 +261,6 @@ struct PosixOutput
 	}
 };
 
-struct RunInfo
-{
-	uint64_t containerid;
-	uint64_t subid;
-	uint64_t outstart;
-	uint64_t outend;
-	uint64_t errstart;
-	uint64_t errend;
-
-	RunInfo()
-	{
-
-	}
-
-	std::ostream & serialise(std::ostream & out) const
-	{
-		libmaus2::util::NumberSerialisation::serialiseNumber(out,containerid);
-		libmaus2::util::NumberSerialisation::serialiseNumber(out,subid);
-		libmaus2::util::NumberSerialisation::serialiseNumber(out,outstart);
-		libmaus2::util::NumberSerialisation::serialiseNumber(out,outend);
-		libmaus2::util::NumberSerialisation::serialiseNumber(out,errstart);
-		libmaus2::util::NumberSerialisation::serialiseNumber(out,errend);
-		return out;
-	}
-};
 
 struct CopyThread : public libmaus2::parallel::PosixThread
 {
