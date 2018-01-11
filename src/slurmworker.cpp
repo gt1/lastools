@@ -471,6 +471,10 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 	std::cerr << "[V] using outdata=" << outdata << std::endl;
 	std::cerr << "[V] using errdata=" << errdata << std::endl;
 
+	fdio.writeString(outdata);
+	fdio.writeString(errdata);
+	fdio.writeString(metafn);
+
 	libmaus2::aio::OutputStreamInstance metaOSI(metafn);
 	libmaus2::aio::OutputStreamInstance outData(outdata);
 	libmaus2::aio::OutputStreamInstance errData(errdata);
@@ -523,6 +527,10 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 						RI.subid = subid;
 						RI.outstart = outData.tellp();
 						RI.errstart = errData.tellp();
+						RI.outend = std::numeric_limits<uint64_t>::max();
+						RI.errend = std::numeric_limits<uint64_t>::max();
+
+						fdio.writeString(RI.serialise());
 
 						Pipe::unique_ptr_type toutPipe(new Pipe());
 						outPipe = UNIQUE_PTR_MOVE(toutPipe);
@@ -573,6 +581,7 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 						// tell control we finished a job
 						fdio.writeNumber(1);
 						fdio.writeNumber(status);
+						fdio.writeString(RI.serialise());
 						// wait for acknowledgement
 						fdio.readNumber();
 

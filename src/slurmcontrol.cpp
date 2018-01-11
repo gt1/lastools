@@ -31,6 +31,8 @@
 #include <libmaus2/util/GetFileSize.hpp>
 #include <libmaus2/util/ContainerDescriptionList.hpp>
 #include <libmaus2/util/CommandContainer.hpp>
+#include <libmaus2/aio/InputOutputStreamInstance.hpp>
+#include <RunInfo.hpp>
 #include <sys/wait.h>
 #include <sys/epoll.h>
 
@@ -279,6 +281,10 @@ struct SlurmControl
 		uint64_t workerid;
 		std::string wtmpbase;
 
+		std::string outdatafn;
+		std::string errdatafn;
+		std::string metafn;
+
 		WorkerInfo() { reset(); }
 
 		void reset()
@@ -287,6 +293,9 @@ struct SlurmControl
 			Asocket.reset();
 			active = false;
 			workerid = std::numeric_limits<uint64_t>::max();
+			outdatafn = std::string();
+			errdatafn = std::string();
+			metafn = std::string();
 			resetPackageId();
 		}
 
@@ -678,6 +687,8 @@ struct SlurmControl
 
 	std::vector < StartWorkerRequest > Vreq;
 
+	libmaus2::aio::InputOutputStreamInstance metastream;
+
 	static void writeJobDescription(
 		std::string const & fn,
 		std::string const & jobname,
@@ -1054,8 +1065,11 @@ struct SlurmControl
 	  // pending(0),
 	  pstate(),
 	  failed(false),
-	  Vreq(computeStartRequests(rarg))
+	  Vreq(computeStartRequests(rarg)),
+	  metastream(cdl + ".meta",std::ios::in | std::ios::out | std::ios::binary)
 	{
+		metastream.seekp(0,std::ios::end);
+
 		std::cerr << "[V] hostname=" << hostname << " serverport=" << serverport << " number of containers " << CDLV.size() << std::endl;
 
 		EP.add(Pservsock->getFD());
@@ -1140,6 +1154,13 @@ struct SlurmControl
 							if ( curdirok )
 							{
 								fdio.writeString(AW[slot].wtmpbase);
+								std::string const outdatafn = fdio.readString();
+								std::string const errdatafn = fdio.readString();
+								std::string const metafn = fdio.readString();
+
+								AW[slot].outdatafn = outdatafn;
+								AW[slot].errdatafn = errdatafn;
+								AW[slot].metafn = metafn;
 
 								if ( ! AW[slot].Asocket )
 								{
@@ -1209,6 +1230,7 @@ struct SlurmControl
 								fdio.writeString(ostr.str());
 								fdio.writeNumber(currentid.containerid);
 								fdio.writeNumber(currentid.subid);
+								std::string const sruninfo = fdio.readString();
 
 								Srunning.insert(currentid);
 								if ( com.deepsleep )
@@ -1243,6 +1265,9 @@ struct SlurmControl
 						{
 							uint64_t const status = fdio.readNumber();
 							int const istatus = static_cast<int>(status);
+							std::string const sruninfo = fdio.readString();
+							RunInfo const RI(sruninfo);
+							RI.serialise(metastream);
 							// acknowledge
 							fdio.writeNumber(0);
 
@@ -1393,7 +1418,12 @@ int slurmcontrol(libmaus2::util::ArgParser const & arg)
 	uint64_t const workers = arg.uniqueArgPresent("workers") ? arg.getParsedArg<uint64_t>("workers") : 16;
 
 	std::string const cdl = arg[0];
+	std::string const cdlmeta = cdl + ".meta";
 
+	if ( ! libmaus2::util::GetFileSize::fileExists(cdlmeta) )
+	{
+		libmaus2::aio::OutputStreamInstance OSI(cdlmeta);
+	}
 
 	SlurmControl SC(
 		tmpfilebase,workertime,workermem,partition,workers,cdl,
