@@ -33,6 +33,10 @@ struct RunInfo
 	{
 
 	}
+	RunInfo(std::string const & s)
+	{
+		deserialise(s);
+	}
 
 	std::ostream & serialise(std::ostream & out) const
 	{
@@ -43,6 +47,30 @@ struct RunInfo
 		libmaus2::util::NumberSerialisation::serialiseNumber(out,errstart);
 		libmaus2::util::NumberSerialisation::serialiseNumber(out,errend);
 		return out;
+	}
+
+	std::string serialise() const
+	{
+		std::ostringstream ostr;
+		serialise(ostr);
+		return ostr.str();
+	}
+
+	std::istream & deserialise(std::istream & in)
+	{
+		containerid = libmaus2::util::NumberSerialisation::deserialiseNumber(in);
+		subid = libmaus2::util::NumberSerialisation::deserialiseNumber(in);
+		outstart = libmaus2::util::NumberSerialisation::deserialiseNumber(in);
+		outend = libmaus2::util::NumberSerialisation::deserialiseNumber(in);
+		errstart = libmaus2::util::NumberSerialisation::deserialiseNumber(in);
+		errend = libmaus2::util::NumberSerialisation::deserialiseNumber(in);
+		return in;
+	}
+
+	void deserialise(std::string const & s)
+	{
+		std::istringstream istr(s);
+		deserialise(istr);
 	}
 };
 #endif
