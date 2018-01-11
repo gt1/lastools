@@ -1,3 +1,10 @@
+lastools (0.0.117-1) unstable; urgency=medium
+
+  * write meta data file in slurmcontrol
+  * add serialisation variants in RunInfo
+
+ -- German Tischler <tischler@mpi-cbg.de>  Thu, 11 Jan 2018 12:35:36 +0100
+
 lastools (0.0.116-1) unstable; urgency=medium
 
   * add lassort2
