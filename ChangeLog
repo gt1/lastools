@@ -1,3 +1,9 @@
+lastools (0.0.119-1) unstable; urgency=medium
+
+  * add verbose information in slurmcontrol
+
+ -- German Tischler <tischler@mpi-cbg.de>  Fri, 12 Jan 2018 09:50:43 +0100
+
 lastools (0.0.118-1) unstable; urgency=medium
 
   * check file descriptor return by epoll against active set in slurmcontrol
