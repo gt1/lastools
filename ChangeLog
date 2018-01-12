@@ -1,3 +1,9 @@
+lastools (0.0.118-1) unstable; urgency=medium
+
+  * check file descriptor return by epoll against active set in slurmcontrol
+
+ -- German Tischler <tischler@mpi-cbg.de>  Fri, 12 Jan 2018 09:26:09 +0100
+
 lastools (0.0.117-1) unstable; urgency=medium
 
   * write meta data file in slurmcontrol
