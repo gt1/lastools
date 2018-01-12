@@ -438,12 +438,13 @@ struct SlurmControl
 	struct EPoll
 	{
 		int fd;
+		std::set<int> activeset;
 
 		EPoll(int const
 		#if defined(HAVE_EPOLL_CREATE) && !defined(HAVE_EPOLL_CREATE1)
 			size
 		#endif
-		) : fd(-1)
+		) : fd(-1), activeset()
 		{
 			#if defined(HAVE_EPOLL_CREATE1)
 			fd = epoll_create1(0);
@@ -508,7 +509,10 @@ struct SlurmControl
 				);
 
 				if ( r == 0 )
+				{
+					activeset.insert(fd);
 					break;
+				}
 
 				int const error = errno;
 
@@ -541,7 +545,10 @@ struct SlurmControl
 				);
 
 				if ( r == 0 )
+				{
+					activeset.erase(fd);
 					break;
+				}
 				else
 				{
 					int const error = errno;
@@ -599,7 +606,17 @@ struct SlurmControl
 				else
 				{
 					rfd = events[0].data.fd;
-					return true;
+					
+					if ( activeset.find(rfd) != activeset.end() )
+					{
+						return true;
+					}
+					else
+					{
+						libmaus2::parallel::ScopePosixSpinLock slock(libmaus2::aio::StreamLock::cerrlock);
+						std::cerr << "[W] warning: epoll returned inactive file descriptor " << rfd << std::endl;
+						return false;
+					}
 				}
 			}
 		}
