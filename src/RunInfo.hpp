@@ -19,6 +19,7 @@
 #define RUNINFO_HPP
 
 #include <libmaus2/util/NumberSerialisation.hpp>
+#include <libmaus2/util/StringSerialisation.hpp>
 
 struct RunInfo
 {
@@ -28,6 +29,8 @@ struct RunInfo
 	uint64_t outend;
 	uint64_t errstart;
 	uint64_t errend;
+	std::string outfn;
+	std::string errfn;
 
 	RunInfo()
 	{
@@ -46,6 +49,8 @@ struct RunInfo
 		libmaus2::util::NumberSerialisation::serialiseNumber(out,outend);
 		libmaus2::util::NumberSerialisation::serialiseNumber(out,errstart);
 		libmaus2::util::NumberSerialisation::serialiseNumber(out,errend);
+		libmaus2::util::StringSerialisation::serialiseString(out,outfn);
+		libmaus2::util::StringSerialisation::serialiseString(out,errfn);
 		return out;
 	}
 
@@ -64,6 +69,8 @@ struct RunInfo
 		outend = libmaus2::util::NumberSerialisation::deserialiseNumber(in);
 		errstart = libmaus2::util::NumberSerialisation::deserialiseNumber(in);
 		errend = libmaus2::util::NumberSerialisation::deserialiseNumber(in);
+		outfn = libmaus2::util::StringSerialisation::deserialiseString(in);
+		errfn = libmaus2::util::StringSerialisation::deserialiseString(in);
 		return in;
 	}
 

@@ -529,6 +529,8 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 						RI.errstart = errData.tellp();
 						RI.outend = std::numeric_limits<uint64_t>::max();
 						RI.errend = std::numeric_limits<uint64_t>::max();
+						RI.outfn = outdata;
+						RI.errfn = errdata;
 
 						fdio.writeString(RI.serialise());
 
