@@ -1,3 +1,9 @@
+lastools (0.0.121-1) unstable; urgency=medium
+
+  * flush metastream immediately after writing in slurmcontrol
+
+ -- German Tischler <tischler@mpi-cbg.de>  Fri, 12 Jan 2018 10:25:45 +0100
+
 lastools (0.0.120-1) unstable; urgency=medium
 
   * fix typos in slurmcontrol
