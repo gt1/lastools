@@ -517,7 +517,7 @@ struct SlurmControl
 					libmaus2::parallel::ScopePosixSpinLock slock(libmaus2::aio::StreamLock::cerrlock);
 					std::cerr << "[I] adding file descriptor " << addfd << " to epoll set" << std::endl;
 					
-					activeset.insert(fd);
+					activeset.insert(addfd);
 					break;
 				}
 
@@ -556,7 +556,7 @@ struct SlurmControl
 					libmaus2::parallel::ScopePosixSpinLock slock(libmaus2::aio::StreamLock::cerrlock);
 					std::cerr << "[I] removing file descriptor " << remfd << " from epoll set" << std::endl;
 					
-					activeset.erase(fd);
+					activeset.erase(remfd);
 					break;
 				}
 				else
