@@ -1,3 +1,9 @@
+lastools (0.0.120-1) unstable; urgency=medium
+
+  * fix typos in slurmcontrol
+
+ -- German Tischler <tischler@mpi-cbg.de>  Fri, 12 Jan 2018 10:13:34 +0100
+
 lastools (0.0.119-1) unstable; urgency=medium
 
   * add verbose information in slurmcontrol
