@@ -577,6 +577,7 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 
 						RI.outend = outData.tellp();
 						RI.errend = errData.tellp();
+						RI.status = status;
 						RI.serialise(metaOSI);
 						metaOSI.flush();
 
@@ -641,6 +642,7 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 
 					RI.outend = outData.tellp();
 					RI.errend = errData.tellp();
+					RI.status = std::numeric_limits<int>::min();
 					RI.serialise(metaOSI);
 					metaOSI.flush();
 
@@ -674,6 +676,7 @@ int slurmworker(libmaus2::util::ArgParser const & arg)
 					RI.outend = outData.tellp();
 					RI.errend = errData.tellp();
 					RI.serialise(metaOSI);
+					RI.status = std::numeric_limits<int>::min();
 					metaOSI.flush();
 
 					outCopy->join();
