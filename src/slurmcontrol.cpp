@@ -1296,6 +1296,7 @@ struct SlurmControl
 							std::string const sruninfo = fdio.readString();
 							RunInfo const RI(sruninfo);
 							RI.serialise(metastream);
+							metastream.flush();
 							// acknowledge
 							fdio.writeNumber(0);
 
