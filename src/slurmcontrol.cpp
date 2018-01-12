@@ -448,6 +448,8 @@ struct SlurmControl
 		{
 			#if defined(HAVE_EPOLL_CREATE1)
 			fd = epoll_create1(0);
+			
+			std::cerr << "epoll_create1 returned " << fd << std::endl;
 
 			if ( fd < 0 )
 			{
@@ -460,6 +462,8 @@ struct SlurmControl
 			}
 			#elif defined(HAVE_EPOLL_CREATE)
 			fd = epoll_create(size);
+
+			std::cerr << "epoll_create(" << size << ") returned " << fd << std::endl;
 
 			if ( fd < 0 )
 			{
@@ -510,6 +514,9 @@ struct SlurmControl
 
 				if ( r == 0 )
 				{
+					libmaus2::parallel::ScopePosixSpinLock slock(libmaus2::aio::StreamLock::cerrlock);
+					std::cerr << "[I] adding file descriptor " << addfd << " to epoll set" << std::endl;
+					
 					activeset.insert(fd);
 					break;
 				}
@@ -546,6 +553,9 @@ struct SlurmControl
 
 				if ( r == 0 )
 				{
+					libmaus2::parallel::ScopePosixSpinLock slock(libmaus2::aio::StreamLock::cerrlock);
+					std::cerr << "[I] removing file descriptor " << remfd << " from epoll set" << std::endl;
+					
 					activeset.erase(fd);
 					break;
 				}
@@ -1089,6 +1099,7 @@ struct SlurmControl
 
 		std::cerr << "[V] hostname=" << hostname << " serverport=" << serverport << " number of containers " << CDLV.size() << std::endl;
 
+		std::cerr << "[V] got server fd " << Pservsock->getFD() << std::endl;
 		EP.add(Pservsock->getFD());
 		fdToSlot[Pservsock->getFD()] = std::numeric_limits<uint64_t>::max();
 
@@ -1159,7 +1170,7 @@ struct SlurmControl
 						FDIO fdio(nptr->getFD());
 						uint64_t const jobid = fdio.readNumber();
 
-						std::cerr << "[V] accepted connection for jobid=" << jobid << std::endl;
+						std::cerr << "[V] accepted connection for jobid=" << jobid << " fd " << nptr->getFD() << std::endl;
 
 						if ( idToSlot.find(jobid) != idToSlot.end() )
 						{
