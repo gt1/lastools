@@ -16,7 +16,7 @@ EXTRA_PROGRAMS =
 bin_PROGRAMS = lassort lasindex lastobam reformatfasta fasta2fastq lasroleswap bamtolas blasrtobam lascat lasmarkprimary call.damapper lasaligntotracepoints lasfilterquality \
 	laschainsort lasmerge lascomputetandem lasextracttandemrecompute tandemaligner lasdedup lassubsample lassuffixprefix cocommand lasreduce \
 	lasfilterlength paftolas commandpack commandstart commandfollowup commandprime SLURM.HPC.daligner commandderive laschecksymmetry extractreads viewmasks \
-	lassimplededup lascheck laschangetspace lasproject lasshow slurmworker slurmcontrol lasdeepcheck showcdl lassort2 @SLURMTEST@
+	lassimplededup lascheck laschangetspace lasproject lasshow slurmworker slurmcontrol lasdeepcheck showcdl lassort2 lasprojectsorted @SLURMTEST@
 dist_bin_SCRIPTS = swappedLasToBAM.sh
 
 lasindex_SOURCES = lasindex.cpp
@@ -208,6 +208,11 @@ lasproject_SOURCES = lasproject.cpp
 lasproject_LDADD = ${LIBMAUS2LIBS}
 lasproject_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
 lasproject_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
+
+lasprojectsorted_SOURCES = lasprojectsorted.cpp
+lasprojectsorted_LDADD = ${LIBMAUS2LIBS}
+lasprojectsorted_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
+lasprojectsorted_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
 
 lasshow_SOURCES = lasshow.cpp
 lasshow_LDADD = ${LIBMAUS2LIBS}
