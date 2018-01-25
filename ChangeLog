@@ -1,3 +1,9 @@
+lastools (0.0.124-1) unstable; urgency=medium
+
+  * add lasprojectsorted
+
+ -- German Tischler <tischler@mpi-cbg.de>  Thu, 25 Jan 2018 13:59:32 +0100
+
 lastools (0.0.123-1) unstable; urgency=medium
 
   * store status in RunInfo
