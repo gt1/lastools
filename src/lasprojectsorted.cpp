@@ -44,48 +44,48 @@ int64_t getDefaultTSpace()
 int lasprojectsorted(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo const &)
 {
 	std::string const outlas = arg[0];
-	
+
 	std::string const dbfn(arg[1]);
 	std::vector<std::string> Vin;
 	for ( uint64_t i = 2; i < arg.size(); ++i )
 		Vin.push_back(arg[i]);
-	
+
 	libmaus2::dazzler::db::DatabaseFile DB(dbfn);
 	DB.computeTrimVector();
 	uint64_t const nreads = DB.size();
-	
+
 	libmaus2::dazzler::align::LasIntervals LAI(Vin,nreads,std::cerr);
 	int64_t const tspace = libmaus2::dazzler::align::AlignmentFile::getTSpace(Vin);
 	libmaus2::dazzler::align::AlignmentWriter AW(outlas,tspace);
-	
+
 	std::vector<std::string> A = arg("a");
 
 	for ( uint64_t i = 0; i < A.size(); ++i )
 	{
 		int64_t aid = -1;
 		int64_t bid = -1;
-		
+
 		std::string a = A[i];
-		
+
 		if ( a.find(",") != std::string::npos )
 		{
 			std::string b = a.substr(a.find(",")+1);
 			a = a.substr(0,a.find(","));
-			
+
 			std::istringstream istr(b);
 			istr >> bid;
-			
+
 			if ( !istr || istr.peek() != std::istream::traits_type::eof() )
 			{
 				std::cerr << "[E] cannot parse " << b << ", ignoring " << A[i] << std::endl;
 				continue;
 			}
 		}
-		
-		{		
+
+		{
 			std::istringstream istr(a);
 			istr >> aid;
-			
+
 			if ( !istr || istr.peek() != std::istream::traits_type::eof() )
 			{
 				std::cerr << "[E] cannot parse " << a << ", ignoring " << A[i] << std::endl;
@@ -94,14 +94,14 @@ int lasprojectsorted(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgI
 		}
 
 		libmaus2::dazzler::align::AlignmentFileCat::unique_ptr_type pdec(LAI.openRange(aid,aid+1));
-	
+
 		libmaus2::dazzler::align::Overlap OVL;
 
 		while ( pdec->getNextOverlap(OVL) )
 			if ( OVL.aread == aid && (bid < 0 || OVL.bread == bid) )
 				AW.put(OVL);
 	}
-	
+
 	return EXIT_SUCCESS;
 }
 

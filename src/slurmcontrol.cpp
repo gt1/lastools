@@ -448,7 +448,7 @@ struct SlurmControl
 		{
 			#if defined(HAVE_EPOLL_CREATE1)
 			fd = epoll_create1(0);
-			
+
 			std::cerr << "epoll_create1 returned " << fd << std::endl;
 
 			if ( fd < 0 )
@@ -516,7 +516,7 @@ struct SlurmControl
 				{
 					libmaus2::parallel::ScopePosixSpinLock slock(libmaus2::aio::StreamLock::cerrlock);
 					std::cerr << "[I] adding file descriptor " << addfd << " to epoll set" << std::endl;
-					
+
 					activeset.insert(addfd);
 					break;
 				}
@@ -555,7 +555,7 @@ struct SlurmControl
 				{
 					libmaus2::parallel::ScopePosixSpinLock slock(libmaus2::aio::StreamLock::cerrlock);
 					std::cerr << "[I] removing file descriptor " << remfd << " from epoll set" << std::endl;
-					
+
 					activeset.erase(remfd);
 					break;
 				}
@@ -616,7 +616,7 @@ struct SlurmControl
 				else
 				{
 					rfd = events[0].data.fd;
-					
+
 					if ( activeset.find(rfd) != activeset.end() )
 					{
 						return true;
