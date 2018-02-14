@@ -62,7 +62,7 @@ void handle(
 			// interval start
 			libmaus2::util::NumberSerialisation::serialiseNumber(std::cout,VI[i].from);
 			// interval end
-			libmaus2::util::NumberSerialisation::serialiseNumber(std::cout,VI[i].to);
+			libmaus2::util::NumberSerialisation::serialiseNumber(std::cout,VI[i].to+1);
 
 			if ( verbose )
 			{
