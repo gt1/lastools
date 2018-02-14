@@ -1,3 +1,10 @@
+lastools (0.0.126-1) unstable; urgency=medium
+
+  * add lasbridge
+  * fix off by one error in lascomputetandem
+
+ -- German Tischler <tischler@mpi-cbg.de>  Wed, 14 Feb 2018 15:59:18 +0100
+
 lastools (0.0.125-1) unstable; urgency=medium
 
   * add lassubset
