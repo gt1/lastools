@@ -49,6 +49,7 @@ int lasbridge(libmaus2::util::ArgParser const & arg)
 	double const maxwindowerror = arg.uniqueArgPresent("maxwindowerror") ? arg.getParsedArg<double>("maxdiferr") : 0.4;
 	uint64_t const numthreads = arg.uniqueArgPresent("t") ? arg.getUnsignedNumericArg<uint64_t>("t") : getDefaultNumThreads();
 	bool const dbmem = arg.uniqueArgPresent("dbmem");
+	bool const small = libmaus2::dazzler::align::AlignmentFile::tspaceToSmall(outtspace);
 
 	// libmaus2::dazzler::align::AlignmentWriter AW(outfn,outtspace);
 
@@ -86,7 +87,7 @@ int lasbridge(libmaus2::util::ArgParser const & arg)
 		libmaus2::dazzler::db::DatabaseFile::unique_ptr_type tPDB(new libmaus2::dazzler::db::DatabaseFile(dbptr->getDBURL()));
 		PDB = UNIQUE_PTR_MOVE(tPDB);
 		PDB->computeTrimVector();
-		
+
 		DBP = PDB.get();
 
 		std::cerr << "done." << std::endl;
@@ -147,9 +148,13 @@ int lasbridge(libmaus2::util::ArgParser const & arg)
 			uint64_t const ilow = VI[z].first;
 			uint64_t const ihigh = VI[z].second;
 
-			int32_t const aread = libmaus2::dazzler::align::OverlapData::getARead(data.getData(ilow).first);
-			int32_t const bread = libmaus2::dazzler::align::OverlapData::getBRead(data.getData(ilow).first);
-			bool const isinv = libmaus2::dazzler::align::OverlapData::getInverseFlag(data.getData(ilow).first);
+			std::vector < uint8_t const * > VP;
+			for ( uint64_t i = ilow; i < ihigh; ++i )
+				VP.push_back(data.getData(i).first);
+
+			int32_t const aread = libmaus2::dazzler::align::OverlapData::getARead(VP[0]);
+			int32_t const bread = libmaus2::dazzler::align::OverlapData::getBRead(VP[0]);
+			bool const isinv = libmaus2::dazzler::align::OverlapData::getInverseFlag(VP[0]);
 
 			uint64_t const alow  = anno[aread];
 			uint64_t const ahigh = anno[aread+1];
@@ -159,124 +164,168 @@ int lasbridge(libmaus2::util::ArgParser const & arg)
 			assert ( asize % (2*sizeof(int32_t)) == 0 );
 			uint64_t const anumintv = asize / (2*sizeof(int32_t));
 
-			for ( uint64_t j = 0; j < anumintv; ++j )
+			bool updated = true;
+
+			std::vector < std::string > Oadd;
+
+			for ( uint64_t urun = 0; updated; ++urun )
 			{
-				int64_t const rfrom = libmaus2::bambam::DecoderBase::getLEInteger(p + (j * 2 + 0) * sizeof(uint32_t), sizeof(uint32_t));
-				int64_t const rto = libmaus2::bambam::DecoderBase::getLEInteger(p + (j * 2 + 1) * sizeof(uint32_t), sizeof(uint32_t));
+				updated = false;
 
-				logstr << aread << " " << bread << " " << ihigh-ilow << " " << j << "/" << anumintv << "=[" << rfrom << "," << rto << ")" << std::endl;
+				VP.resize(ihigh-ilow);
 
-				bool spanner = false;
-
-				// check whether there is a spanning read
-				for ( uint64_t k = ilow; (!spanner) && k < ihigh; ++k )
+				libmaus2::autoarray::AutoArray<uint8_t> A8;
+				uint64_t oA8 = 0;
+				std::vector<uint64_t> O8;
+				for ( uint64_t i = 0; i < Oadd.size(); ++i )
 				{
-					int32_t const abpos = libmaus2::dazzler::align::OverlapData::getABPos(data.getData(k).first);
-					int32_t const aepos = libmaus2::dazzler::align::OverlapData::getAEPos(data.getData(k).first);
+					std::string const & s = Oadd[i];
+					char const * c = s.c_str();
+					uint8_t const * u = reinterpret_cast<uint8_t const *>(c);
+					uint64_t const o = oA8;
+					O8.push_back(o);
 
-					if ( abpos <= rfrom-border && aepos >= rto+border )
-					{
-						spanner = true;
-					}
+					for ( uint64_t j = 0; j < s.size(); ++j )
+						A8.push(oA8,u[j]);
 				}
 
-				// if not then check whether we find something anchored on the left and something on the right
-				if ( !spanner )
+				for ( uint64_t i = 0; i < O8.size(); ++i )
+					VP.push_back(A8.begin() + O8[i]);
+
+				for ( uint64_t j = 0; j < anumintv; ++j )
 				{
-					std::vector < uint64_t > Vanchorleft;
-					std::vector < uint64_t > Vanchorright;
+					int64_t const rfrom = libmaus2::bambam::DecoderBase::getLEInteger(p + (j * 2 + 0) * sizeof(uint32_t), sizeof(uint32_t));
+					int64_t const rto = libmaus2::bambam::DecoderBase::getLEInteger(p + (j * 2 + 1) * sizeof(uint32_t), sizeof(uint32_t));
 
-					for ( uint64_t k = ilow; k < ihigh; ++k )
+					// logstr << urun << " " << aread << " " << bread << " " << VP.size() << " " << j << "/" << anumintv << "=[" << rfrom << "," << rto << ")" << std::endl;
+
+					bool spanner = false;
+
+					// check whether there is a spanning read
+					for ( uint64_t k = 0; (!spanner) && k < VP.size(); ++k )
 					{
-						int32_t const abpos = libmaus2::dazzler::align::OverlapData::getABPos(data.getData(k).first);
-						int32_t const aepos = libmaus2::dazzler::align::OverlapData::getAEPos(data.getData(k).first);
+						int32_t const abpos = libmaus2::dazzler::align::OverlapData::getABPos(VP[k]);
+						int32_t const aepos = libmaus2::dazzler::align::OverlapData::getAEPos(VP[k]);
 
-						if ( abpos <= rfrom-border && aepos >= rfrom+border )
+						if ( abpos <= rfrom-border && aepos >= rto+border )
 						{
-							Vanchorleft.push_back(k);
-						}
-						else if ( abpos <= rto-border && aepos >= rto+border )
-						{
-							Vanchorright.push_back(k);
+							spanner = true;
 						}
 					}
 
-					for ( uint64_t i = 0; i < Vanchorleft.size(); ++i )
-						for ( uint64_t j = 0; j < Vanchorright.size(); ++j )
+					// if not then check whether we find something anchored on the left and something on the right
+					if ( !spanner )
+					{
+						std::vector < uint64_t > Vanchorleft;
+						std::vector < uint64_t > Vanchorright;
+
+						for ( uint64_t k = 0; k < VP.size(); ++k )
 						{
-							uint64_t const ileft = Vanchorleft[i];
-							uint64_t const iright = Vanchorright[j];
+							int32_t const abpos = libmaus2::dazzler::align::OverlapData::getABPos(VP[k]);
+							int32_t const aepos = libmaus2::dazzler::align::OverlapData::getAEPos(VP[k]);
 
-							int32_t const abpos = libmaus2::dazzler::align::OverlapData::getABPos(data.getData(ileft).first);
-							int32_t const aepos = libmaus2::dazzler::align::OverlapData::getAEPos(data.getData(iright).first);
-							int32_t const bbpos = libmaus2::dazzler::align::OverlapData::getBBPos(data.getData(ileft).first);
-							int32_t const bepos = libmaus2::dazzler::align::OverlapData::getBEPos(data.getData(iright).first);
-
-							int64_t const adif = aepos-abpos;
-							int64_t const bdif = bepos-bbpos;
-							int64_t const maxdif = std::max(adif,bdif);
-							int64_t const mindif = std::min(adif,bdif);
-							int64_t const ddif = maxdif-mindif;
-							double const e = static_cast<double>(ddif) / mindif;
-
-
-							if ( e <= maxdiferr )
+							if ( abpos <= rfrom-border && aepos >= rfrom+border )
 							{
-								std::string const sa = DBP->decodeRead(aread,false);
-								std::string const sb = DBP->decodeRead(bread,isinv);
-
-								libmaus2::lcs::NP np;
-
-								np.np(
-									sa.begin() + abpos,
-									sa.begin() + aepos,
-									sb.begin() + bbpos,
-									sb.begin() + bepos
-								);
-
-								libmaus2::lcs::AlignmentTraceContainer::WindowErrorLargeResult const WELR =
-									libmaus2::lcs::AlignmentTraceContainer::windowErrorLargeDetail(np.ta,np.te,500);
-								libmaus2::lcs::AlignmentStatistics const ASw =
-									libmaus2::lcs::AlignmentTraceContainer::getAlignmentStatistics(WELR.t0,WELR.t1);
-								double const werr = ASw.getErrorRate();
-
-								logstr << "\t"
-									<< np.getAlignmentStatistics()
-									<< " "
-									<< ASw
-									<< std::endl;
-
-								#if 0
-								libmaus2::lcs::AlignmentPrint::printAlignmentLines(
-									logstr,
-									sa.begin() + abpos,
-									aepos-abpos,
-									sb.begin() + bbpos,
-									bepos-bbpos,
-									80,
-									np.ta,
-									np.te
-								);
-								#endif
-
-								if ( werr <= maxwindowerror )
-								{
-									libmaus2::dazzler::align::Overlap const OVL = libmaus2::dazzler::align::Overlap::computeOverlap(
-										libmaus2::dazzler::align::OverlapData::getFlags(data.getData(ileft).first),
-										aread,
-										bread,
-										abpos,
-										aepos,
-										bbpos,
-										bepos,
-										outtspace,
-										np.getTraceContainer());
-
-									AW.put(OVL);
-								}
+								Vanchorleft.push_back(k);
+							}
+							else if ( abpos <= rto-border && aepos >= rto+border )
+							{
+								Vanchorright.push_back(k);
 							}
 						}
+
+						for ( uint64_t i = 0; i < Vanchorleft.size(); ++i )
+							for ( uint64_t j = 0; j < Vanchorright.size(); ++j )
+							{
+								uint64_t const ileft = Vanchorleft[i];
+								uint64_t const iright = Vanchorright[j];
+
+								int32_t const abpos = libmaus2::dazzler::align::OverlapData::getABPos(VP[ileft]);
+								int32_t const aepos = libmaus2::dazzler::align::OverlapData::getAEPos(VP[iright]);
+								int32_t const bbpos = libmaus2::dazzler::align::OverlapData::getBBPos(VP[ileft]);
+								int32_t const bepos = libmaus2::dazzler::align::OverlapData::getBEPos(VP[iright]);
+
+								int64_t const adif = aepos-abpos;
+								int64_t const bdif = bepos-bbpos;
+								int64_t const maxdif = std::max(adif,bdif);
+								int64_t const mindif = std::min(adif,bdif);
+								int64_t const ddif = maxdif-mindif;
+								double const e = static_cast<double>(ddif) / mindif;
+
+
+								if ( e <= maxdiferr )
+								{
+									std::string const sa = DBP->decodeRead(aread,false);
+									std::string const sb = DBP->decodeRead(bread,isinv);
+
+									libmaus2::lcs::NP np;
+
+									np.np(
+										sa.begin() + abpos,
+										sa.begin() + aepos,
+										sb.begin() + bbpos,
+										sb.begin() + bepos
+									);
+
+									libmaus2::lcs::AlignmentTraceContainer::WindowErrorLargeResult const WELR =
+										libmaus2::lcs::AlignmentTraceContainer::windowErrorLargeDetail(np.ta,np.te,500);
+									libmaus2::lcs::AlignmentStatistics const ASw =
+										libmaus2::lcs::AlignmentTraceContainer::getAlignmentStatistics(WELR.t0,WELR.t1);
+									double const werr = ASw.getErrorRate();
+
+									logstr << urun << " " << aread << " " << bread
+										<< " " << VP.size() << " " << j << "/" << anumintv << "=[" << rfrom << "," << rto << ") "
+										<< np.getAlignmentStatistics()
+										<< " "
+										<< ASw
+										<< std::endl;
+
+									#if 0
+									libmaus2::lcs::AlignmentPrint::printAlignmentLines(
+										logstr,
+										sa.begin() + abpos,
+										aepos-abpos,
+										sb.begin() + bbpos,
+										bepos-bbpos,
+										80,
+										np.ta,
+										np.te
+									);
+									#endif
+
+									if ( werr <= maxwindowerror )
+									{
+										libmaus2::dazzler::align::Overlap const OVL = libmaus2::dazzler::align::Overlap::computeOverlap(
+											libmaus2::dazzler::align::OverlapData::getFlags(VP[ileft]),
+											aread,
+											bread,
+											abpos,
+											aepos,
+											bbpos,
+											bepos,
+											outtspace,
+											np.getTraceContainer());
+
+										std::ostringstream ovlstr;
+										OVL.serialiseWithPath(ovlstr,small);
+
+										Oadd.push_back(ovlstr.str());
+
+										updated = true;
+									}
+								}
+							}
+					}
 				}
+			}
+
+			for ( uint64_t i = 0; i < Oadd.size(); ++i )
+			{
+				libmaus2::dazzler::align::Overlap OVL;
+				std::istringstream istr(Oadd[i]);
+				uint64_t s = 0;
+				libmaus2::dazzler::align::AlignmentFile::readOverlap(istr,OVL,s,small);
+				AW.put(OVL);
 			}
 
 			libmaus2::parallel::ScopePosixSpinLock slock(libmaus2::aio::StreamLock::cerrlock);
@@ -296,7 +345,7 @@ std::string getUsage(libmaus2::util::ArgParser const & arg)
 	ostr << "usage: " << arg.progname << " out.las in.db in.las" << std::endl;
 	ostr << "\n";
 	ostr << "parameters:\n";
-	
+
 	ostr << "\t--border<int>: border around tandems considered in base pairs (default 500)" << std::endl;
 	ostr << "\t--maxdifferr<double>: maximum indel error accepted between A and B read in [abpos,aepos],[bbpos,bepos] (default 0.3)" << std::endl;
 	ostr << "\t--outtspace<int>: output tspace (default " << libmaus2::dazzler::align::AlignmentFile::getMinimumNonSmallTspace() << ")" << std::endl;
