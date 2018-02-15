@@ -1,3 +1,9 @@
+lastools (0.0.127-1) unstable; urgency=medium
+
+  * add options/parallelism in lasbridge
+
+ -- German Tischler <tischler@mpi-cbg.de>  Thu, 15 Feb 2018 11:26:36 +0100
+
 lastools (0.0.126-1) unstable; urgency=medium
 
   * add lasbridge
