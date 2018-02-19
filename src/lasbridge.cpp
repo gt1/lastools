@@ -250,10 +250,9 @@ int lasbridge(libmaus2::util::ArgParser const & arg)
 								int64_t const maxdif = std::max(adif,bdif);
 								int64_t const mindif = std::min(adif,bdif);
 								int64_t const ddif = maxdif-mindif;
-								double const e = static_cast<double>(ddif) / mindif;
+								double const e = (mindif > 0) ? (static_cast<double>(ddif) / mindif) : std::numeric_limits<double>::max();
 
-
-								if ( e <= maxdiferr )
+								if ( bdif > 0 && e <= maxdiferr )
 								{
 									std::string const sa = DBP->decodeRead(aread,false);
 									std::string const sb = DBP->decodeRead(bread,isinv);
