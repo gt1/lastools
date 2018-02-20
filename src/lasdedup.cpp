@@ -23,6 +23,9 @@
 #include <libmaus2/util/ArgParser.hpp>
 #include <libmaus2/util/OutputFileNameTools.hpp>
 #include <libmaus2/dazzler/align/SortingOverlapOutputBuffer.hpp>
+#include <libmaus2/dazzler/db/DatabaseFile.hpp>
+#include <libmaus2/sorting/SortingBufferedOutputFile.hpp>
+#include <libmaus2/dazzler/align/OverlapInfoIndexer.hpp>
 
 struct Intersection
 {
@@ -63,7 +66,9 @@ void handle(
 	std::vector < libmaus2::dazzler::align::Overlap > & VOVL,
 	libmaus2::autoarray::AutoArray<libmaus2::dazzler::align::TracePoint> & TPV,
 	int64_t const tspace,
-	libmaus2::dazzler::align::AlignmentWriter & AW
+	std::vector<uint64_t> const & RL,
+	libmaus2::dazzler::align::AlignmentWriter & AW,
+	std::ostream & symkill
 )
 {
 	for ( uint64_t i = 1; i < VOVL.size(); ++i )
@@ -77,6 +82,8 @@ void handle(
 
 
 	bool changed = true;
+
+	std::vector < libmaus2::dazzler::align::Overlap > VKILL;
 
 	while ( changed )
 	{
@@ -246,6 +253,8 @@ void handle(
 		for ( uint64_t i = 0; i < VOVL.size(); ++i )
 			if ( killset.find(i) == killset.end() )
 				VOVL[ko++] = VOVL[i];
+			else
+				VKILL.push_back(VOVL[i]);
 		VOVL.resize(ko);
 
 		for ( uint64_t i = 0; i < Vadd.size(); ++i )
@@ -266,6 +275,22 @@ void handle(
 	for ( uint64_t i = 0; i < VOVL.size(); ++i )
 		AW.put(VOVL[i]);
 
+	for ( uint64_t i = 0; i < VKILL.size(); ++i )
+	{
+		libmaus2::dazzler::align::OverlapInfo info = VKILL[i].getHeader().getInfo().swapped();
+
+		if ( VKILL[i].isInverse() )
+		{
+			uint64_t const alen = RL[info.aread >> 1];
+			uint64_t const blen = RL[info.bread >> 1];
+			info = info.inverse(alen,blen);
+		}
+
+		assert ( (info.aread & 1) == 0 );
+
+		info.serialise(symkill);
+	}
+
 	VOVL.resize(0);
 }
 
@@ -273,8 +298,19 @@ int lasdedup(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo cons
 {
 	libmaus2::autoarray::AutoArray<libmaus2::dazzler::align::TracePoint> TPV;
 	std::string const tmpfilebase = arg.uniqueArgPresent("T") ? arg["T"] : arginfo.getDefaultTmpFileName();
+	std::string const symkillfn = tmpfilebase + "_symkill.tmp";
+	libmaus2::util::TempFileRemovalContainer::addTempFile(symkillfn);
+	libmaus2::aio::OutputStreamInstance::unique_ptr_type Psymkill(new libmaus2::aio::OutputStreamInstance(symkillfn));
 
-	for ( uint64_t i = 0; i < arg.size(); ++i )
+	std::string const outfn = arg[0];
+	std::string const dbfn = arg[1];
+
+	libmaus2::dazzler::db::DatabaseFile DB(dbfn);
+	DB.computeTrimVector();
+	std::vector<uint64_t> RL;
+	DB.getAllReadLengths(RL);
+
+	for ( uint64_t i = 2; i < arg.size(); ++i )
 	{
 		std::string const infn = arg[i];
 
@@ -294,7 +330,7 @@ int lasdedup(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo cons
 		while ( Plas->getNextOverlap(OVL) )
 		{
 			if ( OVL.aread != prevaread || OVL.bread != prevbread || OVL.isInverse() != previnverse )
-				handle(VOVL,TPV,tspace,AW);
+				handle(VOVL,TPV,tspace,RL,AW,*Psymkill);
 
 			prevaread = OVL.aread;
 			prevbread = OVL.bread;
@@ -302,8 +338,15 @@ int lasdedup(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo cons
 			VOVL.push_back(OVL);
 		}
 
-		handle(VOVL,TPV,tspace,AW);
+		handle(VOVL,TPV,tspace,RL,AW,*Psymkill);
 	}
+
+	Psymkill->flush();
+	Psymkill.reset();
+
+	libmaus2::sorting::SerialisingSortingBufferedOutputFile<libmaus2::dazzler::align::OverlapInfo>::sort(symkillfn,16*1024*1024);
+	libmaus2::aio::OutputStreamFactoryContainer::rename (symkillfn, arg[0] + ".symkill");
+	libmaus2::dazzler::align::OverlapInfoIndexer::createInfoIndex(arg[0] + ".symkill",DB.size());
 
 	return EXIT_SUCCESS;
 }
