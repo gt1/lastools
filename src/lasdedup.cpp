@@ -368,7 +368,9 @@ int main(int argc, char * argv[])
 			std::cerr << "This is " << PACKAGE_NAME << " version " << PACKAGE_VERSION << "." << std::endl;
 			std::cerr << PACKAGE_NAME << " is distributed under version 3 of the GPL." << std::endl;
 			std::cerr << "\n";
-			std::cerr << "usage: " << arg.progname << " [options] in.las\n";
+			std::cerr << "usage: " << arg.progname << " [options] out.las in.db in.las\n\n";
+			std::cerr << "options:" << std::endl;
+			std::cerr << " -T : prefix for temporary files (default: create files in current working directory)\n";
 			return EXIT_SUCCESS;
 		}
 		else
