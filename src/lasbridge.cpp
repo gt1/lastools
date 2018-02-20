@@ -167,6 +167,7 @@ int lasbridge(libmaus2::util::ArgParser const & arg)
 			bool updated = true;
 
 			std::vector < std::string > Oadd;
+			std::vector < std::string > Radd;
 
 			for ( uint64_t urun = 0; updated; ++urun )
 			{
@@ -305,10 +306,28 @@ int lasbridge(libmaus2::util::ArgParser const & arg)
 											outtspace,
 											np.getTraceContainer());
 
-										std::ostringstream ovlstr;
-										OVL.serialiseWithPath(ovlstr,small);
+										{
+											std::ostringstream ovlstr;
+											OVL.serialiseWithPath(ovlstr,small);
+											Oadd.push_back(ovlstr.str());
+										}
 
-										Oadd.push_back(ovlstr.str());
+										libmaus2::lcs::AlignmentTraceContainer ATC;
+										libmaus2::lcs::NP rnp;
+										libmaus2::dazzler::align::Overlap const ROVL = OVL.getSwapped(
+											outtspace,
+											reinterpret_cast<uint8_t const *>(sa.c_str()),
+											sa.size(),
+											reinterpret_cast<uint8_t const *>(sb.c_str()),
+											sb.size(),
+											ATC,
+											rnp);
+
+										{
+											std::ostringstream ovlstr;
+											ROVL.serialiseWithPath(ovlstr,small);
+											Radd.push_back(ovlstr.str());
+										}
 
 										updated = true;
 									}
@@ -322,6 +341,15 @@ int lasbridge(libmaus2::util::ArgParser const & arg)
 			{
 				libmaus2::dazzler::align::Overlap OVL;
 				std::istringstream istr(Oadd[i]);
+				uint64_t s = 0;
+				libmaus2::dazzler::align::AlignmentFile::readOverlap(istr,OVL,s,small);
+				AW.put(OVL);
+			}
+
+			for ( uint64_t i = 0; i < Radd.size(); ++i )
+			{
+				libmaus2::dazzler::align::Overlap OVL;
+				std::istringstream istr(Radd[i]);
 				uint64_t s = 0;
 				libmaus2::dazzler::align::AlignmentFile::readOverlap(istr,OVL,s,small);
 				AW.put(OVL);
