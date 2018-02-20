@@ -1,3 +1,9 @@
+lastools (0.0.131-1) unstable; urgency=medium
+
+  * fix output file name in lasblocksplit
+
+ -- German Tischler <tischler@mpi-cbg.de>  Tue, 20 Feb 2018 15:25:34 +0100
+
 lastools (0.0.130-1) unstable; urgency=medium
 
   * add lasblocksplit
