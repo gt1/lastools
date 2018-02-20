@@ -1,3 +1,12 @@
+lastools (0.0.130-1) unstable; urgency=medium
+
+  * add lasblocksplit
+  * add description of T parameter in lasdedup
+  * output symkill data in lasdedup
+  * ensure symmetry in lasbridge
+
+ -- German Tischler <tischler@mpi-cbg.de>  Tue, 20 Feb 2018 13:50:16 +0100
+
 lastools (0.0.129-1) unstable; urgency=medium
 
   * check for positive b-range in lasbridge
