@@ -101,7 +101,7 @@ int lasblocksplit(libmaus2::util::ArgParser const & arg)
 
 				fblockid = blockid;
 				std::ostringstream fnostr;
-				fnostr << outprefix << "." << fblockid << ".las";
+				fnostr << outprefix << "." << (fblockid+1) << ".las";
 
 				libmaus2::aio::OutputStreamInstance::unique_ptr_type TAW(
 					new libmaus2::aio::OutputStreamInstance(fnostr.str())
