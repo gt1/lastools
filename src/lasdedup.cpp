@@ -80,6 +80,30 @@ void handle(
 			VOVL[i].isInverse() == VOVL[0].isInverse()
 		);
 
+	std::sort(VOVL.begin(),VOVL.end(),libmaus2::dazzler::align::OverlapFullComparator());
+
+	if ( VOVL.size() )
+	{
+		uint64_t o = 1;
+		libmaus2::dazzler::align::OverlapFullComparator comp;
+
+		for ( uint64_t i = 1; i < VOVL.size(); ++i )
+			if ( comp(VOVL[i-1],VOVL[i]) )
+			{
+				VOVL[o++] = VOVL[i];
+			}
+			else
+			{
+				#if 0
+				std::cerr << "[V] removing exact copy" << std::endl;
+				std::cerr << VOVL[i-1].getHeader().getInfo() << std::endl;
+				std::cerr << VOVL[i-0].getHeader().getInfo() << std::endl;
+				#endif
+			}
+
+		VOVL.resize(o);
+	}
+
 
 	bool changed = true;
 
@@ -251,18 +275,25 @@ void handle(
 
 		uint64_t ko = 0;
 		for ( uint64_t i = 0; i < VOVL.size(); ++i )
+		{
 			if ( killset.find(i) == killset.end() )
+			{
 				VOVL[ko++] = VOVL[i];
+			}
 			else
+			{
+				#if 0
+				std::cerr << "Kill " << VOVL[i].getHeader().getInfo() << std::endl;
+				#endif
 				VKILL.push_back(VOVL[i]);
+			}
+		}
 		VOVL.resize(ko);
 
 		for ( uint64_t i = 0; i < Vadd.size(); ++i )
 			VOVL.push_back(Vadd[i]);
 
-		std::sort(
-			VOVL.begin(),VOVL.end(),libmaus2::dazzler::align::OverlapFullComparator()
-		);
+		std::sort(VOVL.begin(),VOVL.end(),libmaus2::dazzler::align::OverlapFullComparator());
 
 		changed = (killset.size() != 0);
 	}
@@ -310,18 +341,27 @@ int lasdedup(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo cons
 	std::vector<uint64_t> RL;
 	DB.getAllReadLengths(RL);
 
+
+	std::vector<std::string> Vin;
 	for ( uint64_t i = 2; i < arg.size(); ++i )
 	{
 		std::string const infn = arg[i];
+		Vin.push_back(infn);
+	}
+	int64_t const tspace = libmaus2::dazzler::align::AlignmentFile::getTSpace(Vin);
+
+	libmaus2::dazzler::align::AlignmentWriter AW(outfn,tspace);
+
+	for ( uint64_t i = 0; i < Vin.size(); ++i )
+	{
+		std::string const infn = Vin[i];
 
 		std::cerr << "[V] sorting " << infn << "...";
 		libmaus2::dazzler::align::SortingOverlapOutputBuffer<libmaus2::dazzler::align::OverlapFullComparator>::sort(infn,tmpfilebase+".tmp");
 		std::cerr << "done." << std::endl;
 
-		int64_t const tspace = libmaus2::dazzler::align::AlignmentFile::getTSpace(infn);
 		libmaus2::dazzler::align::AlignmentFileRegion::unique_ptr_type Plas(libmaus2::dazzler::align::OverlapIndexer::openAlignmentFileWithoutIndex(infn));
 		libmaus2::dazzler::align::Overlap OVL;
-		libmaus2::dazzler::align::AlignmentWriter AW(libmaus2::util::OutputFileNameTools::clipOff(infn,".las")+"_dedup.las",tspace);
 		int64_t prevaread = std::numeric_limits<int64_t>::max();
 		int64_t prevbread = std::numeric_limits<int64_t>::max();
 		bool previnverse = false;
