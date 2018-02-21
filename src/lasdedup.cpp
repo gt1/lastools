@@ -279,7 +279,7 @@ void handle(
 	{
 		libmaus2::dazzler::align::OverlapInfo info = VKILL[i].getHeader().getInfo().swapped();
 
-		if ( VKILL[i].isInverse() )
+		if ( (info.aread & 1) != 0 )
 		{
 			uint64_t const alen = RL[info.aread >> 1];
 			uint64_t const blen = RL[info.bread >> 1];
