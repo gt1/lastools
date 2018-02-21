@@ -34,13 +34,14 @@ std::string getUsage(libmaus2::util::ArgParser const & arg)
 {
 	std::ostringstream ostr;
 
-	ostr << "usage: " << arg.progname << " [-M<memory> -t<numthreads> -T<tmpprefix> -f<mergefanin> -s<sortorder>] <out.las> <in.las> ..." << std::endl;
+	ostr << "usage: " << arg.progname << " [-M<memory> -l -t<numthreads> -T<tmpprefix> -f<mergefanin> -s<sortorder>] <out.las> <in.las> ..." << std::endl;
 	ostr << "\n";
 	ostr << "parameters:\n";
 	ostr << " -t : number of threads (defaults to number of cores on machine)\n";
 	ostr << " -T : prefix for temporary files (default: create files in current working directory)\n";
 	ostr << " -f : merge fan in (default: 64)\n";
 	ostr << " -s : sort order\n";
+	ostr << " -l : list mode (input contains list of file names instead of actual LAS files)\n";
 	ostr << " -M : memory block size\n";
 
 	return ostr.str();
@@ -87,11 +88,35 @@ int lassort2(libmaus2::util::ArgParser const & arg)
 	std::string const outlas = arg[0];
 	std::string const tmpbase = getTmpFileBase(arg);
 	uint64_t const blocksize = arg.uniqueArgPresent("M") ? arg.getUnsignedNumericArg<uint64_t>("M") : (1024ull * 1024ull * 1024ull);
+	bool const listmode = arg.uniqueArgPresent("l");
 	uint64_t const fanin = 16;
 
 	std::vector < std::string > Vin;
-	for ( uint64_t z = 1; z < arg.size(); ++z )
-		Vin.push_back(arg[z]);
+
+	if ( listmode )
+	{
+		for ( uint64_t z = 1; z < arg.size(); ++z )
+		{
+			libmaus2::aio::InputStreamInstance ISI(arg[z]);
+
+			while ( ISI )
+			{
+				std::string s;
+				ISI >> s;
+
+				if ( s.size() )
+					Vin.push_back(s);
+			}
+		}
+
+		for ( uint64_t i = 0; i < Vin.size(); ++i )
+			std::cerr << "[L]\t" << Vin[i] << std::endl;
+	}
+	else
+	{
+		for ( uint64_t z = 1; z < arg.size(); ++z )
+			Vin.push_back(arg[z]);
+	}
 
 	int64_t const tspace = Vin.size() ? libmaus2::dazzler::align::AlignmentFile::getTSpace(Vin) : libmaus2::dazzler::align::AlignmentFile::getMinimumNonSmallTspace();
 
