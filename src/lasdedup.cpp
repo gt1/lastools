@@ -308,17 +308,13 @@ void handle(
 
 	for ( uint64_t i = 0; i < VKILL.size(); ++i )
 	{
-		libmaus2::dazzler::align::OverlapInfo info = VKILL[i].getHeader().getInfo().swapped();
+		libmaus2::dazzler::align::OverlapInfo const finfo = VKILL[i].getHeader().getInfo();
+		libmaus2::dazzler::align::OverlapInfo const info = finfo.swappedStraight(RL.begin());
 
-		if ( (info.aread & 1) != 0 )
-		{
-			uint64_t const alen = RL[info.aread >> 1];
-			uint64_t const blen = RL[info.bread >> 1];
-			info = info.inverse(alen,blen);
-		}
-
+		assert ( (finfo.aread & 1) == 0 );
 		assert ( (info.aread & 1) == 0 );
 
+		finfo.serialise(symkill);
 		info.serialise(symkill);
 	}
 
