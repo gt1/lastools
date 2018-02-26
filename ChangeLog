@@ -1,3 +1,9 @@
+lastools (0.0.135-1) unstable; urgency=medium
+
+  * make symkill output symmetric in lasdedup
+
+ -- German Tischler <tischler@mpi-cbg.de>  Mon, 26 Feb 2018 09:33:11 +0100
+
 lastools (0.0.134-1) unstable; urgency=medium
 
   * handle exact copies in lasdedup before running fusion
