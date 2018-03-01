@@ -16,7 +16,8 @@ EXTRA_PROGRAMS =
 bin_PROGRAMS = lassort lasindex lastobam reformatfasta fasta2fastq lasroleswap bamtolas blasrtobam lascat lasmarkprimary call.damapper lasaligntotracepoints lasfilterquality \
 	laschainsort lasmerge lascomputetandem lasextracttandemrecompute tandemaligner lasdedup lassubsample lassuffixprefix cocommand lasreduce \
 	lasfilterlength paftolas commandpack commandstart commandfollowup commandprime SLURM.HPC.daligner commandderive laschecksymmetry extractreads viewmasks \
-	lassimplededup lascheck laschangetspace lasproject lasshow slurmworker slurmcontrol lasdeepcheck showcdl lassort2 lasprojectsorted lassubset lasbridge lasblocksplit @SLURMTEST@
+	lassimplededup lascheck laschangetspace lasproject lasshow slurmworker slurmcontrol lasdeepcheck showcdl lassort2 lasprojectsorted lassubset lasbridge lasblocksplit @SLURMTEST@ \
+	lasdedupexact
 dist_bin_SCRIPTS = swappedLasToBAM.sh
 
 lasindex_SOURCES = lasindex.cpp
@@ -258,3 +259,8 @@ lasblocksplit_SOURCES = lasblocksplit.cpp
 lasblocksplit_LDADD = ${LIBMAUS2LIBS}
 lasblocksplit_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
 lasblocksplit_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
+
+lasdedupexact_SOURCES = lasdedupexact.cpp
+lasdedupexact_LDADD = ${LIBMAUS2LIBS}
+lasdedupexact_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
+lasdedupexact_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
