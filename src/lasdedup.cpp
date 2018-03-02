@@ -26,6 +26,7 @@
 #include <libmaus2/dazzler/db/DatabaseFile.hpp>
 #include <libmaus2/sorting/SortingBufferedOutputFile.hpp>
 #include <libmaus2/dazzler/align/OverlapInfoIndexer.hpp>
+#include <libmaus2/lcs/NP.hpp>
 
 struct Intersection
 {
@@ -66,8 +67,10 @@ void handle(
 	std::vector < libmaus2::dazzler::align::Overlap > & VOVL,
 	libmaus2::autoarray::AutoArray<libmaus2::dazzler::align::TracePoint> & TPV,
 	int64_t const tspace,
+	libmaus2::dazzler::db::DatabaseFile const & DB,
 	std::vector<uint64_t> const & RL,
 	libmaus2::dazzler::align::AlignmentWriter & AW,
+	libmaus2::dazzler::align::AlignmentWriter & AWsym,
 	std::ostream & symkill
 )
 {
@@ -82,6 +85,7 @@ void handle(
 
 	std::sort(VOVL.begin(),VOVL.end(),libmaus2::dazzler::align::OverlapFullComparator());
 
+	// remove exact copies
 	if ( VOVL.size() )
 	{
 		uint64_t o = 1;
@@ -104,10 +108,11 @@ void handle(
 		VOVL.resize(o);
 	}
 
-
 	bool changed = true;
 
 	std::vector < libmaus2::dazzler::align::Overlap > VKILL;
+	std::vector < libmaus2::dazzler::align::Overlap > VNEW;
+	std::vector < libmaus2::dazzler::align::Overlap > VSYM;
 
 	while ( changed )
 	{
@@ -291,12 +296,120 @@ void handle(
 		VOVL.resize(ko);
 
 		for ( uint64_t i = 0; i < Vadd.size(); ++i )
+		{
 			VOVL.push_back(Vadd[i]);
+			VNEW.push_back(Vadd[i]);
+		}
 
 		std::sort(VOVL.begin(),VOVL.end(),libmaus2::dazzler::align::OverlapFullComparator());
 
 		changed = (killset.size() != 0);
 	}
+
+	// remove exact copies
+	if ( VOVL.size() )
+	{
+		uint64_t o = 1;
+		libmaus2::dazzler::align::OverlapFullComparator comp;
+
+		for ( uint64_t i = 1; i < VOVL.size(); ++i )
+			if ( comp(VOVL[i-1],VOVL[i]) )
+			{
+				VOVL[o++] = VOVL[i];
+			}
+			else
+			{
+				#if 0
+				std::cerr << "[V] removing exact copy" << std::endl;
+				std::cerr << VOVL[i-1].getHeader().getInfo() << std::endl;
+				std::cerr << VOVL[i-0].getHeader().getInfo() << std::endl;
+				#endif
+			}
+
+		VOVL.resize(o);
+	}
+
+	// remove exact copies
+	if ( VNEW.size() )
+	{
+		uint64_t o = 1;
+		libmaus2::dazzler::align::OverlapFullComparator comp;
+
+		for ( uint64_t i = 1; i < VNEW.size(); ++i )
+			if ( comp(VNEW[i-1],VNEW[i]) )
+			{
+				VNEW[o++] = VNEW[i];
+			}
+			else
+			{
+				#if 0
+				std::cerr << "[V] removing exact copy" << std::endl;
+				std::cerr << VNEW[i-1].getHeader().getInfo() << std::endl;
+				std::cerr << VNEW[i-0].getHeader().getInfo() << std::endl;
+				#endif
+			}
+
+		VNEW.resize(o);
+	}
+
+	std::sort(VNEW.begin(),VNEW.end(),libmaus2::dazzler::align::OverlapFullComparator());
+
+	{
+		uint64_t l0 = 0;
+		uint64_t l1 = 0;
+
+		while ( l0 < VNEW.size() && l1 < VOVL.size() )
+		{
+			libmaus2::dazzler::align::OverlapInfo const OInew = VNEW[l0].getHeader().getInfo();
+			libmaus2::dazzler::align::OverlapInfo const OIovl = VOVL[l1].getHeader().getInfo();
+
+			if ( OInew < OIovl )
+			{
+				++l0;
+			}
+			else if ( OIovl < OInew )
+			{
+				++l1;
+			}
+			else
+			{
+				assert ( OInew == OIovl );
+
+				uint64_t h0 = l0+1;
+				uint64_t h1 = l1+1;
+
+				while ( h0 < VNEW.size() && VNEW[h0].getHeader().getInfo() == OInew )
+					++h0;
+				while ( h1 < VOVL.size() && VOVL[h1].getHeader().getInfo() == OIovl )
+					++h1;
+
+				libmaus2::dazzler::align::Overlap const & OVL = VNEW[l0];
+
+				libmaus2::lcs::AlignmentTraceContainer ATC;
+				libmaus2::lcs::NP aligner;
+
+				std::basic_string<uint8_t> const ua = DB.getu(OVL.aread,false);
+				std::basic_string<uint8_t> const ub = DB.getu(OVL.bread,OVL.isInverse());
+
+				libmaus2::dazzler::align::Overlap const ROVL = OVL.getSwapped(
+					tspace,
+					ua.c_str(),
+					ua.size(),
+					ub.c_str(),
+					ub.size(),
+					ATC,
+					aligner
+				);
+
+				VSYM.push_back(ROVL);
+
+				l0 = h0;
+				l1 = h1;
+			}
+		}
+	}
+
+	std::sort(VSYM.begin(),VSYM.end());
 
 	#if 0
 	if ( VOVL.size() )
@@ -305,6 +418,8 @@ void handle(
 
 	for ( uint64_t i = 0; i < VOVL.size(); ++i )
 		AW.put(VOVL[i]);
+	for ( uint64_t i = 0; i < VSYM.size(); ++i )
+		AWsym.put(VOVL[i]);
 
 	for ( uint64_t i = 0; i < VKILL.size(); ++i )
 	{
@@ -337,7 +452,6 @@ int lasdedup(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo cons
 	std::vector<uint64_t> RL;
 	DB.getAllReadLengths(RL);
 
-
 	std::vector<std::string> Vin;
 	for ( uint64_t i = 2; i < arg.size(); ++i )
 	{
@@ -347,6 +461,7 @@ int lasdedup(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo cons
 	int64_t const tspace = libmaus2::dazzler::align::AlignmentFile::getTSpace(Vin);
 
 	libmaus2::dazzler::align::AlignmentWriter AW(outfn,tspace);
+	libmaus2::dazzler::align::AlignmentWriter AWsym(libmaus2::util::OutputFileNameTools::clipOff(outfn,".las") + ".sym.las",tspace);
 
 	for ( uint64_t i = 0; i < Vin.size(); ++i )
 	{
@@ -366,7 +481,7 @@ int lasdedup(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo cons
 		while ( Plas->getNextOverlap(OVL) )
 		{
 			if ( OVL.aread != prevaread || OVL.bread != prevbread || OVL.isInverse() != previnverse )
-				handle(VOVL,TPV,tspace,RL,AW,*Psymkill);
+				handle(VOVL,TPV,tspace,DB,RL,AW,AWsym,*Psymkill);
 
 			prevaread = OVL.aread;
 			prevbread = OVL.bread;
@@ -374,7 +489,7 @@ int lasdedup(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo cons
 			VOVL.push_back(OVL);
 		}
 
-		handle(VOVL,TPV,tspace,RL,AW,*Psymkill);
+		handle(VOVL,TPV,tspace,DB,RL,AW,AWsym,*Psymkill);
 	}
 
 	Psymkill->flush();
