@@ -1,3 +1,9 @@
+lastools (0.0.138-1) unstable; urgency=medium
+
+  * add verbose flag for lasdeepcheck
+
+ -- German Tischler <tischler@mpi-cbg.de>  Wed, 21 Mar 2018 18:21:10 +0100
+
 lastools (0.0.137-1) unstable; urgency=medium
 
   * add another layer of symmetry preservation in lasdedup
