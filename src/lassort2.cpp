@@ -35,15 +35,16 @@ std::string getUsage(libmaus2::util::ArgParser const & arg)
 {
 	std::ostringstream ostr;
 
-	ostr << "usage: " << arg.progname << " [-M<memory> -l -t<numthreads> -T<tmpprefix> -f<mergefanin> -s<sortorder>] <out.las> <in.las> ..." << std::endl;
+	ostr << "usage: " << arg.progname << " [-M<memory> -l -t<numthreads> -T<tmpprefix> -f<mergefanin> -s<sortorder> --index] <out.las> <in.las> ..." << std::endl;
 	ostr << "\n";
 	ostr << "parameters:\n";
-	ostr << " -t : number of threads (defaults to number of cores on machine)\n";
-	ostr << " -T : prefix for temporary files (default: create files in current working directory)\n";
-	ostr << " -f : merge fan in (default: 64)\n";
-	ostr << " -s : sort order\n";
-	ostr << " -l : list mode (input contains list of file names instead of actual LAS files)\n";
-	ostr << " -M : memory block size\n";
+	ostr << " -t      : number of threads (defaults to number of cores on machine)\n";
+	ostr << " -T      : prefix for temporary files (default: create files in current working directory)\n";
+	ostr << " -f      : merge fan in (default: 64)\n";
+	ostr << " -s      : sort order\n";
+	ostr << " -l      : list mode (input contains list of file names instead of actual LAS files)\n";
+	ostr << " -M      : memory block size\n";
+	ostr << " --index : construct index for output file\n";
 
 	return ostr.str();
 }
