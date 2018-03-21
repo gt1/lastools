@@ -41,6 +41,7 @@ int laschangetspace(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgIn
 	std::string const db1name = arg[1];
 
 	uint64_t const maxovl = arg.uniqueArgPresent("maxovl") ? arg.getUnsignedNumericArg<uint64_t>("maxovl") : 64*1024;
+	bool const verbose = arg.uniqueArgPresent("verbose");
 
 	uint64_t const numthreads = arg.uniqueArgPresent("t") ? arg.getUnsignedNumericArg<uint64_t>("t") : libmaus2::parallel::NumCpus::getNumLogicalProcessors();
 
@@ -110,8 +111,11 @@ int laschangetspace(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgIn
 	}
 
 	libmaus2::dazzler::align::Overlap OVL;
+	double volatile maxerr = 0;
 	for ( uint64_t i = 2; i < arg.size(); ++i )
 	{
+		std::cerr << "[V] processing " << arg[i] << std::endl;
+
 		libmaus2::dazzler::align::AlignmentFileRegion::unique_ptr_type PIN(libmaus2::dazzler::align::OverlapIndexer::openAlignmentFileWithoutIndex(arg[i]));
 		int64_t const intspace = libmaus2::dazzler::align::AlignmentFile::getTSpace(arg[i]);
 		int64_t const novl = libmaus2::dazzler::align::AlignmentFile::getNovl(arg[i]);
@@ -127,7 +131,7 @@ int laschangetspace(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgIn
 		{
 			o = 0;
 
-			std::cerr << "[V] loading alignments...";
+			// std::cerr << "[V] loading alignments...";
 			while ( o < maxovl && PIN->getNextOverlap(OVL) )
 			{
 				Vaid[o] = OVL.aread;
@@ -135,14 +139,14 @@ int laschangetspace(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgIn
 				VOVL[o] = OVL;
 				++o;
 			}
-			std::cerr << "got " << o << std::endl;
+			// std::cerr << "got " << o << std::endl;
 
 			std::sort(Vaid.begin(),Vaid.begin()+o);
 			uint64_t const numa = std::unique(Vaid.begin(),Vaid.begin()+o) - Vaid.begin();
 			std::sort(Vbid.begin(),Vbid.begin()+o);
 			uint64_t const numb = std::unique(Vbid.begin(),Vbid.begin()+o) - Vbid.begin();
 
-			std::cerr << "[V] numa=" << numa << " numb=" << numb << std::endl;
+			// std::cerr << "[V] numa=" << numa << " numb=" << numb << std::endl;
 
 			libmaus2::dazzler::db::DatabaseFile::ReadDataRange::unique_ptr_type adata(
 				DB0.decodeReadDataByArrayParallelDecode(Vaid.begin(),numa,numthreads,false /* rc */,0 /* term */));
@@ -151,7 +155,7 @@ int laschangetspace(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgIn
 			libmaus2::dazzler::db::DatabaseFile::ReadDataRange::unique_ptr_type bdata_reverse(
 				DB1.decodeReadDataByArrayParallelDecode(Vbid.begin(),numb,numthreads,true /* rc */,0 /* term */));
 
-			std::cerr << "[V] decoded read data" << std::endl;
+			// std::cerr << "[V] decoded read data" << std::endl;
 
 			int volatile gfailed = 0;
 			libmaus2::parallel::PosixSpinLock gfailedlock;
@@ -184,9 +188,36 @@ int laschangetspace(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgIn
 					:
 					bdata_forward->get(brank).first;
 
+				int64_t const l_a = adata->get(arank).second - adata->get(arank).first;
+				int64_t const l_b = bdata_forward->get(brank).second - bdata_forward->get(brank).first;
+				bool const contained_A = VOVL[j].path.abpos == 0 && VOVL[j].path.aepos == l_a;
+				bool const contained_B = VOVL[j].path.bbpos == 0 && VOVL[j].path.bepos == l_b;
+
 				try
 				{
 					VOVL[j].computeTrace(ua,ub,intspace,ATC,NP);
+
+					if ( verbose )
+					{
+						{
+							libmaus2::lcs::AlignmentStatistics const AS = ATC.getAlignmentStatistics();
+							double const lerr = AS.getErrorRate();
+
+							libmaus2::parallel::ScopePosixSpinLock slock(libmaus2::aio::StreamLock::cerrlock);
+							std::cerr << "[V] " << arg[i] << " " << AS;
+
+							if ( lerr >= 0.45 )
+								std::cerr << " HIGH";
+							if ( contained_A )
+								std::cerr << " C_A";
+							if ( contained_B )
+								std::cerr << " C_B";
+
+							std::cerr << std::endl;
+							if ( lerr > maxerr )
+								maxerr = lerr;
+						}
+					}
 				}
 				catch(std::exception const & ex)
 				{
@@ -209,11 +240,13 @@ int laschangetspace(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgIn
 
 			proc += o;
 
-			std::cerr << "[V] " << proc << " / " << novl << std::endl;
+			// std::cerr << "[V] " << proc << " / " << novl << std::endl;
 		} while ( o );
 	}
 
-	std::cerr << "[V] ok" << std::endl;
+	std::cout << "[V] ok" << std::endl;
+	if ( verbose )
+		std::cerr << "[V] maxerr=" << maxerr << std::endl;
 
 	return EXIT_SUCCESS;
 }
