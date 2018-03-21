@@ -1,3 +1,9 @@
+lastools (0.0.139-1) unstable; urgency=medium
+
+  * add index flag in lassort2
+
+ -- German Tischler <tischler@mpi-cbg.de>  Wed, 21 Mar 2018 21:32:50 +0100
+
 lastools (0.0.138-1) unstable; urgency=medium
 
   * add verbose flag for lasdeepcheck
