@@ -27,6 +27,7 @@
 #include <libmaus2/aio/InputOutputStream.hpp>
 #include <libmaus2/aio/InputOutputStreamFactoryContainer.hpp>
 #include <libmaus2/aio/OutputStreamFactoryContainer.hpp>
+#include <libmaus2/dazzler/align/OverlapIndexer.hpp>
 
 #include <config.h>
 
@@ -310,6 +311,9 @@ int lassort2(libmaus2::util::ArgParser const & arg)
 	}
 
 	libmaus2::aio::OutputStreamFactoryContainer::rename(tmpfn,outlas);
+	
+	if ( arg.uniqueArgPresent("index") )
+		libmaus2::dazzler::align::OverlapIndexer::constructIndex(outlas);
 
 	return EXIT_SUCCESS;
 }
