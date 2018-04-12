@@ -30,7 +30,32 @@ int lasblocksplit(libmaus2::util::ArgParser const & arg)
 {
 	std::string const outprefix = arg[0];
 	std::string const dbfn = arg[1];
-	std::string const infn = arg[2];
+	bool const ilist = arg.uniqueArgPresent("IL");
+
+	std::vector<std::string> Vinfn;
+
+	if ( ilist )
+	{
+		for ( uint64_t i = 2; i < arg.size(); ++i )
+		{
+			libmaus2::aio::InputStreamInstance ISI(arg[i]);
+			while ( ISI )
+			{
+				std::string line;
+				std::getline(ISI,line);
+				if ( line.size() )
+				{
+					Vinfn.push_back(line);
+				}
+			}
+		}
+	}
+	else
+	{
+		for ( uint64_t i = 2; i < arg.size(); ++i )
+			Vinfn.push_back(arg[i]);
+	}
+	bool const splitb = arg.uniqueArgPresent("b");
 
 	libmaus2::dazzler::db::DatabaseFile DB(dbfn);
 	if ( DB.cutoff < 0 )
@@ -44,13 +69,7 @@ int lasblocksplit(libmaus2::util::ArgParser const & arg)
 	for ( uint64_t i = 1; i <= DB.numblocks; ++i )
 		Vblock.push_back(DB.getTrimmedBlockInterval(i));
 
-	libmaus2::dazzler::align::SimpleOverlapParser SOP(
-		infn,1024*1024 /* buf size */,
-		libmaus2::dazzler::align::OverlapParser::overlapparser_do_split
-	);
-
-	int64_t const tspace = SOP.AF.tspace;
-
+	int64_t const tspace = libmaus2::dazzler::align::AlignmentFile::getTSpace(Vinfn);
 	int64_t prevaread = std::numeric_limits<int64_t>::min();
 	int64_t blockid = 0;
 	int64_t fblockid = std::numeric_limits<int64_t>::min();
@@ -58,68 +77,84 @@ int lasblocksplit(libmaus2::util::ArgParser const & arg)
 
 	libmaus2::aio::OutputStreamInstance::unique_ptr_type PAW;
 
-	while ( SOP.parseNextBlock() )
+	for ( uint64_t z = 0; z < Vinfn.size(); ++z )
 	{
-		libmaus2::dazzler::align::OverlapData & data = SOP.getData();
+		std::string const infn = Vinfn[z];
 
-		for ( uint64_t z = 0; z < data.size(); ++z )
+		libmaus2::dazzler::align::SimpleOverlapParser SOP(
+			infn,1024*1024 /* buf size */,
+			libmaus2::dazzler::align::OverlapParser::overlapparser_do_split
+		);
+
+		while ( SOP.parseNextBlock() )
 		{
-			std::pair<uint8_t const *, uint8_t const *> const P = data.getData(z);
-			int32_t const aread = libmaus2::dazzler::align::OverlapData::getARead(P.first);
+			libmaus2::dazzler::align::OverlapData & data = SOP.getData();
 
-			if ( aread < prevaread )
+			for ( uint64_t z = 0; z < data.size(); ++z )
 			{
-				libmaus2::exception::LibMausException lme;
-				lme.getStream() << "[E] input file is not sorted by a-read" << std::endl;
-				lme.finish();
-				throw lme;
-			}
+				std::pair<uint8_t const *, uint8_t const *> const P = data.getData(z);
+				int32_t const aread =
+					splitb ?
+						libmaus2::dazzler::align::OverlapData::getBRead(P.first)
+						:
+						libmaus2::dazzler::align::OverlapData::getARead(P.first)
+						;
 
-			while ( blockid < static_cast<int64_t>(Vblock.size()) && aread >= static_cast<int64_t>(Vblock[blockid].second) )
-				++blockid;
-
-			if ( blockid == static_cast<int64_t>(Vblock.size()) )
-			{
-				libmaus2::exception::LibMausException lme;
-				lme.getStream() << "[E] a-read" << aread << " is not in any database block" << std::endl;
-				lme.finish();
-				throw lme;
-			}
-
-			if ( blockid != fblockid )
-			{
-				if ( PAW )
+				if ( aread < prevaread )
 				{
-					PAW->seekp(0);
-
-					uint64_t offset = 0;
-					libmaus2::dazzler::db::OutputBase::putLittleEndianInteger8(*PAW,nal,offset);
-
-					nal = 0;
-					PAW.reset();
+					libmaus2::exception::LibMausException lme;
+					lme.getStream() << "[E] input file is not sorted by a-read" << std::endl;
+					lme.finish();
+					throw lme;
 				}
 
-				fblockid = blockid;
-				std::ostringstream fnostr;
-				fnostr << outprefix << "." << (fblockid+1) << ".las";
+				prevaread = aread;
 
-				libmaus2::aio::OutputStreamInstance::unique_ptr_type TAW(
-					new libmaus2::aio::OutputStreamInstance(fnostr.str())
+				while ( blockid < static_cast<int64_t>(Vblock.size()) && aread >= static_cast<int64_t>(Vblock[blockid].second) )
+					++blockid;
+
+				if ( blockid == static_cast<int64_t>(Vblock.size()) )
+				{
+					libmaus2::exception::LibMausException lme;
+					lme.getStream() << "[E] a-read" << aread << " is not in any database block" << std::endl;
+					lme.finish();
+					throw lme;
+				}
+
+				if ( blockid != fblockid )
+				{
+					if ( PAW )
+					{
+						PAW->seekp(0);
+
+						uint64_t offset = 0;
+						libmaus2::dazzler::db::OutputBase::putLittleEndianInteger8(*PAW,nal,offset);
+
+						nal = 0;
+						PAW.reset();
+					}
+
+					fblockid = blockid;
+					std::ostringstream fnostr;
+					fnostr << outprefix << "." << (fblockid+1) << ".las";
+
+					libmaus2::aio::OutputStreamInstance::unique_ptr_type TAW(
+						new libmaus2::aio::OutputStreamInstance(fnostr.str())
+					);
+					PAW = UNIQUE_PTR_MOVE(TAW);
+
+					libmaus2::dazzler::align::AlignmentFile::serialiseHeader(*PAW,0 /* novl */,tspace);
+				}
+
+				assert ( PAW );
+
+				PAW->write(
+					reinterpret_cast<char const *>(P.first),
+					P.second-P.first
 				);
-				PAW = UNIQUE_PTR_MOVE(TAW);
+				nal += 1;
 
-				libmaus2::dazzler::align::AlignmentFile::serialiseHeader(*PAW,0 /* novl */,tspace);
 			}
-
-			assert ( PAW );
-
-			PAW->write(
-				reinterpret_cast<char const *>(P.first),
-				P.second-P.first
-			);
-			nal += 1;
-
-			prevaread = aread;
 		}
 	}
 
