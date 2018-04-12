@@ -1,3 +1,10 @@
+lastools (0.0.140-1) unstable; urgency=medium
+
+  * add b flag in lasblocksplit
+  * refactor lassort2
+
+ -- German Tischler <tischler@mpi-cbg.de>  Thu, 12 Apr 2018 17:01:12 +0200
+
 lastools (0.0.139-1) unstable; urgency=medium
 
   * add index flag in lassort2
