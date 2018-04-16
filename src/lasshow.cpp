@@ -126,6 +126,7 @@ int lasshow(libmaus2::util::ArgParser const & arg)
 					<< bid
 					<< (OVL.isInverse()?'c':'n')
 					<< "[" << OVL.path.bbpos << "," << OVL.path.bepos << ")/" << b.size() << " " << OVL.path.diffs << " diffs " << OVL.getErrorSum() << " esum"
+					<< " e " << (static_cast<double>(OVL.getErrorSum()) / (OVL.path.aepos-OVL.path.abpos))
 					;
 
 				if ( OVL.isTrue() )
