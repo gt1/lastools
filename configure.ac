@@ -195,18 +195,6 @@ if test "${with_slurm}" != "no" ; then
 	LDFLAGS=${LDFLAGS_SAVE}
 fi
 
-AC_LANG_PUSH([C++])
-AC_CHECK_FUNC(epoll_create1,have_epoll_create1=yes,have_epoll_create1=no)
-AC_CHECK_FUNC(epoll_create,have_epoll_create=yes,have_epoll_create=no)
-AC_LANG_POP
-
-if test "${have_epoll_create1}" = "yes" ; then
-	AC_DEFINE([HAVE_EPOLL_CREATE1],[1],[Define if epoll_create1 exists])
-fi
-if test "${have_epoll_create}" = "yes" ; then
-	AC_DEFINE([HAVE_EPOLL_CREATE],[1],[Define if epoll_create exists])
-fi
-
 AC_MSG_NOTICE([Using flags ${CFLAGS} for C compiler ${CC}])
 AC_MSG_NOTICE([Using flags ${CXXFLAGS} for C++ compiler ${CXX}])
 

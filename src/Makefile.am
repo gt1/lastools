@@ -14,9 +14,9 @@ EXTRA_DIST = ${MANPAGES} derive.rc
 EXTRA_PROGRAMS =
 
 bin_PROGRAMS = lassort lasindex lastobam reformatfasta fasta2fastq lasroleswap bamtolas blasrtobam lascat lasmarkprimary call.damapper lasaligntotracepoints lasfilterquality \
-	laschainsort lasmerge lascomputetandem lasextracttandemrecompute tandemaligner lasdedup lassubsample lassuffixprefix cocommand lasreduce \
-	lasfilterlength paftolas commandpack commandstart commandfollowup commandprime SLURM.HPC.daligner commandderive laschecksymmetry extractreads viewmasks \
-	lassimplededup lascheck laschangetspace lasproject lasshow slurmworker slurmcontrol lasdeepcheck showcdl lassort2 lasprojectsorted lassubset lasbridge lasblocksplit @SLURMTEST@ \
+	laschainsort lasmerge lascomputetandem lasextracttandemrecompute tandemaligner lasdedup lassubsample lassuffixprefix lasreduce \
+	lasfilterlength paftolas  SLURM.HPC.daligner laschecksymmetry extractreads viewmasks \
+	lassimplededup lascheck laschangetspace lasproject lasshow lasdeepcheck lassort2 lasprojectsorted lassubset lasbridge lasblocksplit @SLURMTEST@ \
 	lasdedupexact
 dist_bin_SCRIPTS = swappedLasToBAM.sh
 
@@ -135,11 +135,6 @@ lassuffixprefix_LDADD = ${LIBMAUS2LIBS}
 lassuffixprefix_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
 lassuffixprefix_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
 
-cocommand_SOURCES = cocommand.cpp
-cocommand_LDADD = ${LIBMAUS2LIBS}
-cocommand_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
-cocommand_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
-
 lasreduce_SOURCES = lasreduce.cpp
 lasreduce_LDADD = ${LIBMAUS2LIBS}
 lasreduce_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
@@ -154,31 +149,6 @@ paftolas_SOURCES = paftolas.cpp
 paftolas_LDADD = ${LIBMAUS2LIBS}
 paftolas_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
 paftolas_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
-
-commandpack_SOURCES = commandpack.cpp
-commandpack_LDADD = ${LIBMAUS2LIBS}
-commandpack_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
-commandpack_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
-
-commandstart_SOURCES = commandstart.cpp
-commandstart_LDADD = ${LIBMAUS2LIBS}
-commandstart_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
-commandstart_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
-
-commandfollowup_SOURCES = commandfollowup.cpp
-commandfollowup_LDADD = ${LIBMAUS2LIBS}
-commandfollowup_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
-commandfollowup_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
-
-commandprime_SOURCES = commandprime.cpp
-commandprime_LDADD = ${LIBMAUS2LIBS}
-commandprime_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
-commandprime_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
-
-commandderive_SOURCES = commandderive.cpp
-commandderive_LDADD = ${LIBMAUS2LIBS}
-commandderive_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
-commandderive_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
 
 laschecksymmetry_SOURCES = laschecksymmetry.cpp
 laschecksymmetry_LDADD = ${LIBMAUS2LIBS}
@@ -224,21 +194,6 @@ lasdeepcheck_SOURCES = lasdeepcheck.cpp
 lasdeepcheck_LDADD = ${LIBMAUS2LIBS}
 lasdeepcheck_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
 lasdeepcheck_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
-
-slurmcontrol_SOURCES = slurmcontrol.cpp which.cpp runProgram.cpp
-slurmcontrol_LDADD = ${LIBMAUS2LIBS}
-slurmcontrol_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
-slurmcontrol_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
-
-slurmworker_SOURCES = slurmworker.cpp which.cpp runProgram.cpp
-slurmworker_LDADD = ${LIBMAUS2LIBS}
-slurmworker_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
-slurmworker_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
-
-showcdl_SOURCES = showcdl.cpp
-showcdl_LDADD = ${LIBMAUS2LIBS}
-showcdl_LDFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS} ${LIBMAUS2LDFLAGS} ${AM_LDFLAGS}
-showcdl_CPPFLAGS = ${AM_CPPFLAGS} ${LIBMAUS2CPPFLAGS}
 
 lassort2_SOURCES = lassort2.cpp
 lassort2_LDADD = ${LIBMAUS2LIBS}
