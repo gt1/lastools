@@ -1,3 +1,10 @@
+lastools (0.0.141-1) unstable; urgency=medium
+
+  * remove files moved to hpcsched
+  * print error rate on A read in lasshow
+
+ -- German Tischler <tischler@mpi-cbg.de>  Wed, 02 May 2018 12:56:32 +0200
+
 lastools (0.0.140-1) unstable; urgency=medium
 
   * add b flag in lasblocksplit
