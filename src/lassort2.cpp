@@ -117,6 +117,7 @@ int lassort2Template(libmaus2::util::ArgParser const & arg)
 		{
 			std::ostringstream ostr;
 			ostr << tmpbase << "_threadmerge_" << (tmpid++);
+			Vtmp[i] = ostr.str();
 		}
 		std::vector < std::string > Nin(parts);
 
