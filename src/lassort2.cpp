@@ -153,11 +153,13 @@ int lassort2Template(libmaus2::util::ArgParser const & arg)
 
 	bool const index = arg.uniqueArgPresent("index");
 
-	return libmaus2::dazzler::align::LasSort2<comparator_type>::lassort2(outlas, Vin, blocksize, fanin, tmpbase, index, &std::cerr);
+	int const r = libmaus2::dazzler::align::LasSort2<comparator_type>::lassort2(outlas, Vin, blocksize, fanin, tmpbase, index, &std::cerr);
 
 	if ( deletein )
 		for ( uint64_t i = 0; i < Vin.size(); ++i )
 			libmaus2::aio::FileRemoval::removeFile(Vin[i]);
+
+	return r;
 }
 
 int lassort2(libmaus2::util::ArgParser const & arg)
