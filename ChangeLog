@@ -1,3 +1,9 @@
+lastools (0.0.143-1) unstable; urgency=medium
+
+  * fix parallel merging in lassort2
+
+ -- German Tischler <tischler@mpi-cbg.de>  Thu, 03 May 2018 15:36:27 +0200
+
 lastools (0.0.142-1) unstable; urgency=medium
 
   * add parallel merging in lassort2
