@@ -74,6 +74,7 @@ int lassort2Template(libmaus2::util::ArgParser const & arg)
 	uint64_t const blocksize = arg.uniqueArgPresent("M") ? arg.getUnsignedNumericArg<uint64_t>("M") : (1024ull * 1024ull * 1024ull);
 	bool const listmode = arg.uniqueArgPresent("l");
 	uint64_t const fanin = 16;
+	uint64_t const numthreads = arg.uniqueArgPresent("t") ? arg.getUnsignedNumericArg<uint64_t>("t") : libmaus2::parallel::NumCpus::getNumLogicalProcessors();
 
 	std::vector < std::string > Vin;
 
@@ -102,9 +103,60 @@ int lassort2Template(libmaus2::util::ArgParser const & arg)
 			Vin.push_back(arg[z]);
 	}
 
+	uint64_t tmpid = 0;
+	bool deletein = false;
+	while ( (numthreads > 1) && (Vin.size() > fanin) )
+	{
+		uint64_t const tsplit = (Vin.size() + numthreads -1) / numthreads;
+		uint64_t const two = 2;
+		uint64_t const split = std::max(two,tsplit);
+		uint64_t const parts = (Vin.size() + split - 1)/split;
+
+		std::vector < std::string > Vtmp(parts);
+		for ( uint64_t i = 0; i < parts; ++i )
+		{
+			std::ostringstream ostr;
+			ostr << tmpbase << "_threadmerge_" << (tmpid++);
+		}
+		std::vector < std::string > Nin(parts);
+
+		#if defined(_OPENMP)
+		#pragma omp parallel for schedule(dynamic,1) num_threads(numthreads)
+		#endif
+		for ( uint64_t i = 0; i < parts; ++i )
+		{
+			uint64_t const low = i * split;
+			uint64_t const high = std::min(low+split,static_cast<uint64_t>(Vin.size()));
+			std::string const outfn = Vtmp[i] + "_out";
+			Nin[i] = outfn;
+
+			std::ostringstream ostr;
+			libmaus2::dazzler::align::LasSort2<comparator_type>::lassort2(
+				outfn,
+				std::vector<std::string>(
+					Vin.begin()+low,
+					Vin.begin()+high
+				), blocksize, fanin, Vtmp[i], false, &ostr);
+
+			libmaus2::parallel::ScopePosixSpinLock slock(libmaus2::aio::StreamLock::cerrlock);
+			std::cerr << ostr.str();
+		}
+
+		if ( deletein )
+			for ( uint64_t i = 0; i < Vin.size(); ++i )
+				libmaus2::aio::FileRemoval::removeFile(Vin[i]);
+
+		deletein = true;
+		Vin = Nin;
+	}
+
 	bool const index = arg.uniqueArgPresent("index");
 
 	return libmaus2::dazzler::align::LasSort2<comparator_type>::lassort2(outlas, Vin, blocksize, fanin, tmpbase, index, &std::cerr);
+
+	if ( deletein )
+		for ( uint64_t i = 0; i < Vin.size(); ++i )
+			libmaus2::aio::FileRemoval::removeFile(Vin[i]);
 }
 
 int lassort2(libmaus2::util::ArgParser const & arg)
