@@ -56,6 +56,7 @@ int lascheck(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo cons
 
 	libmaus2::dazzler::align::Overlap OVL;
 	libmaus2::dazzler::align::Overlap OVLprev;
+	bool gok = true;
 	for ( uint64_t i = 2; i < arg.size(); ++i )
 	{
 		libmaus2::dazzler::align::AlignmentFileRegion::unique_ptr_type PIN(libmaus2::dazzler::align::OverlapIndexer::openAlignmentFileWithoutIndex(arg[i]));
@@ -93,9 +94,11 @@ int lascheck(libmaus2::util::ArgParser const & arg, libmaus2::util::ArgInfo cons
 		}
 
 		std::cout << arg[i] << " " << (ok?"ok":"broken") << " sortorder " << (sortok?"ok":"unsorted") << std::endl;
+
+		gok = gok && ok;
 	}
 
-	return EXIT_SUCCESS;
+	return gok ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
 /**
