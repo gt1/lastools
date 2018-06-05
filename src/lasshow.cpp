@@ -133,6 +133,10 @@ int lasshow(libmaus2::util::ArgParser const & arg)
 				{
 					std::cout << " " << "true";
 				}
+				if ( OVL.isHaploFlag() )
+				{
+					std::cout << " " << "haplo";
+				}
 
 				if ( showalignment )
 				{
